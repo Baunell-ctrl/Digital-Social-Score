@@ -1,0 +1,6 @@
+spacy>=3.7
+pandas>=2.0
+pytest>=8.0
+
+# Modèle NER anglais (installé séparément) :
+#   python -m spacy download en_core_web_sm
