@@ -91,6 +91,36 @@ Le nettoyage fait 4 choses, dans cet ordre :
 
 Mêmes lignes, mêmes identifiants, mêmes étiquettes qu'avant. Les étiquettes d'anonymisation perdent leurs crochets (`[PERSON]` devient `person`) : accepté, c'est simple et sans effet sur l'entraînement.
 
+### 2. Modèle statistique : LSTM
+
+| Jeu   | Commentaires | Rôle                                        |
+| ----- | ------------ | -------------------------------------------- |
+| Train | 23 364       | apprentissage                                |
+| Dev   | 2 596        | choix du meilleur epoch                      |
+| Test  | 1 308        | évaluation finale, jamais vu par le modèle |
+
+### LSTM
+
+Script : `python -m src.models.lstm_binary`. Résultats détaillés : `reports/results_lstm.json`.
+
+**Jeu de données.** 32 450 commentaires Wikipédia nettoyés (25 960 en train + 6 490 en val), avec 6 colonnes de toxicité. Règle du OU : un commentaire est **toxique (1) si au moins une des 6 colonnes vaut 1**, sinon non toxique (0). On obtient 50 % de toxiques et 50 % de non toxiques, donc un jeu équilibré.
+
+Le test garde uniquement les commentaires de `val_dataset.csv` absents du train : 5 182 commentaires étaient déjà présents dans le train (même identifiant ou même texte) et auraient faussé le score.
+
+**Résultats sur le test.**
+
+| Précision | Rappel | F1    | Temps d'inférence     |
+| ---------- | ------ | ----- | ---------------------- |
+| 0,894      | 0,911  | 0,902 | 0,4 ms par commentaire |
+
+**Interprétation.**
+
+- **Précision 0,89** : quand le modèle dit « toxique », il a raison 9 fois sur 10 (69 faux positifs sur 1 308).
+- **Rappel 0,91** : il retrouve 91 % des commentaires réellement toxiques (57 oubliés).
+- **Équilibré** : précision et rappel sont proches, le modèle ne favorise pas une classe. Le jeu est équilibré et la règle du OU regroupe tous les types de toxicité.
+- **Rapide** : 0,4 ms par commentaire, il peut analyser des milliers de textes par seconde.
+- **Limites** : il ne comprend pas le contexte (ironie, citation d'une insulte) et ne connaît que les mots vus à l'entraînement.
+
 ## Lancer le projet
 
 ```bash
@@ -101,5 +131,6 @@ pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 python -m src.anonymization.build_datasets
 python -m src.preprocessing.build_clean_datasets
+python -m src.models.lstm_binary
 python -m pytest tests
 ```
