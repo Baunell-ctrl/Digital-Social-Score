@@ -1,0 +1,23 @@
+{'epoch': 1, 'loss': 0.4539, 'dev_macro_auc': 0.8973}
+{'epoch': 2, 'loss': 0.3352, 'dev_macro_auc': 0.9262}
+{'epoch': 3, 'loss': 0.2834, 'dev_macro_auc': 0.9344}
+{'epoch': 4, 'loss': 0.2501, 'dev_macro_auc': 0.94}
+{'epoch': 5, 'loss': 0.2208, 'dev_macro_auc': 0.9402}
+{'epoch': 6, 'loss': 0.201, 'dev_macro_auc': 0.9433}
+{'epoch': 7, 'loss': 0.182, 'dev_macro_auc': 0.9423}
+{'epoch': 8, 'loss': 0.1641, 'dev_macro_auc': 0.9434}
+-> reports\models\lstm_metrics.json
+{
+  "toxic": {
+    "precision": 0.9241,
+    "recall": 0.9146,
+    "f1": 0.9193,
+    "roc_auc": 0.9774
+  },
+  "macro": {
+    "precision": 0.7267,
+    "recall": 0.8751,
+    "f1": 0.7895,
+    "roc_auc": 0.9788
+  }
+}
