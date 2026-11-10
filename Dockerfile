@@ -13,7 +13,7 @@ COPY src/__init__.py src/__init__.py
 COPY src/api src/api
 COPY src/anonymization src/anonymization
 COPY src/preprocessing src/preprocessing
-COPY models/lstm.pt models/lstm_vocab.json models/
+COPY artifacts/lstm.pt artifacts/vocab.json artifacts/config.json artifacts/
 
 # Utilisateur non root
 RUN useradd --create-home app && chown -R app /app

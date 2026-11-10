@@ -9,7 +9,6 @@ venv/
 # Poids des modèles entraînés (trop lourds pour git)
 /models/
 
-# Déploiement et Docker (non versionnés)
+# Fichiers de déploiement locaux (non versionnés).
+# Le Dockerfile reste versionné : Cloud Run le lit après un git clone.
 deploy/
-Dockerfile*
-.dockerignore

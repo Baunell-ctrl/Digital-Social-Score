@@ -1,0 +1,10 @@
+{
+  "model": "lstm_binary",
+  "label_rule": "OR of 6 Jigsaw columns",
+  "vocab_size": 30000,
+  "max_len": 128,
+  "embedding_dim": 128,
+  "hidden_dim": 128,
+  "threshold": 0.5,
+  "max_vocab": 30000
+}

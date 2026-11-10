@@ -13,6 +13,7 @@ Sécurité / RGPD :
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -22,17 +23,19 @@ import time
 from contextlib import asynccontextmanager
 from typing import Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi import Depends, FastAPI, Header, HTTPException, Response, Security
 from fastapi.security import APIKeyHeader
-from prometheus_client import Histogram
+from prometheus_client import CONTENT_TYPE_LATEST, Histogram, generate_latest
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, Field
 
 from .predictor import LayaPredictor, ToxicityPredictor
 
-THRESHOLD = 0.5
+THRESHOLD = 0.5  # même seuil qu'à l'entraînement (artifacts/config.json)
 API_KEY = os.environ.get("API_KEY", "")
-LOG_SALT = os.environ.get("LOG_SALT", "dss")
+# Clé secrète du HMAC des logs. Sans LOG_SALT, une clé aléatoire est tirée au démarrage :
+# les identifiants ne sont alors comparables qu'au sein d'une même instance.
+LOG_SALT = os.environ.get("LOG_SALT") or secrets.token_hex(32)
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("dss")
@@ -51,9 +54,18 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Digital Social Score", version="1.0.0", lifespan=lifespan)
-Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+Instrumentator().instrument(app)
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics(x_api_key: str | None = Header(None), authorization: str | None = Header(None)) -> Response:
+    """Métriques Prometheus, protégées par la clé API (``X-API-Key`` ou ``Authorization: Bearer``)."""
+    key = x_api_key or (authorization or "").removeprefix("Bearer ").strip()
+    if not key or not secrets.compare_digest(key, API_KEY):
+        raise HTTPException(status_code=401, detail="Clé API invalide ou absente")
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 def check_api_key(key: str | None = Security(api_key_header)) -> str:
@@ -79,13 +91,13 @@ def get_laya() -> LayaPredictor:
 class ScoreRequest(BaseModel):
     text: str = Field(min_length=1, max_length=5000, examples=["Thank you for your help, have a nice day"])
     model: Literal["lstm", "laya"] = Field(
-        default="lstm", description="lstm (rapide, 6 types de toxicité) ou laya (une probabilité « toxique »)")
+        default="lstm", description="lstm (déployé, rapide) ou laya (local uniquement, plus lent)")
 
 
 class ScoreResponse(BaseModel):
     score: float = Field(description="Toxicité de 0 (respectueux) à 100 (très toxique)")
-    toxic: bool
-    labels: dict[str, float] = Field(description="Probabilité (0-100) de chaque type de toxicité")
+    toxic: bool = Field(description="true si le score dépasse le seuil (50)")
+    model: str
     latency_ms: float
 
 
@@ -98,19 +110,19 @@ def health() -> dict:
 def score(req: ScoreRequest, _: str = Depends(check_api_key)) -> ScoreResponse:
     predictor = get_laya() if req.model == "laya" else state["predictor"]
     t0 = time.perf_counter()
-    probs = predictor.predict(req.text)
+    proba = predictor.predict(req.text)
     latency = (time.perf_counter() - t0) * 1000
-    value = round(probs["toxic"] * 100, 1)
+    value = round(proba * 100, 1)
     SCORE_HIST.observe(value)
 
-    # Log pseudonyme : hash salé du texte, jamais le texte lui-même.
-    text_id = hashlib.sha256((LOG_SALT + req.text).encode()).hexdigest()[:16]
-    log.info(json.dumps({"event": "score", "model": req.model, "text_id": text_id, "len": len(req.text),
+    # Log pseudonyme : HMAC-SHA256 du texte avec une clé secrète, jamais le texte ni sa longueur.
+    text_id = hmac.new(LOG_SALT.encode(), req.text.encode(), hashlib.sha256).hexdigest()[:16]
+    log.info(json.dumps({"event": "score", "model": req.model, "text_id": text_id,
                          "score": value, "latency_ms": round(latency, 2)}))
 
     return ScoreResponse(
         score=value,
-        toxic=probs["toxic"] >= THRESHOLD,
-        labels={k: round(v * 100, 1) for k, v in probs.items()},
+        toxic=proba >= THRESHOLD,
+        model=req.model,
         latency_ms=round(latency, 2),
     )

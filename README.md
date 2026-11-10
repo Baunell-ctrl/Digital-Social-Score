@@ -115,6 +115,18 @@ Les trois modèles utilisent le même jeu de données, la même règle du OU et 
 
 Script : `python -m src.models.lstm_binary`. Résultats détaillés : `reports/results_lstm.json`.
 
+**Architecture.** Embedding (128) → BiLSTM (2 × 128) → max-pooling sur les mots (sans le remplissage) → **1 seule sortie** sigmoïde : la probabilité que le commentaire soit inapproprié (règle du OU). 128 mots maximum par commentaire, vocabulaire de 30 000 mots, seuil de décision 0,5.
+
+**Fichiers produits** (dossier `artifacts/`, utilisé par l'API) :
+
+| Fichier       | Contenu                                                              |
+| ------------- | -------------------------------------------------------------------- |
+| `lstm.pt`     | les poids du modèle (16 Mo)                                          |
+| `vocab.json`  | le vocabulaire `{mot: numéro}` (0 = remplissage, 1 = mot inconnu)   |
+| `config.json` | les tailles du modèle, la longueur maximale et le seuil             |
+
+Les trois fichiers vont ensemble : des poids chargés avec un autre vocabulaire donneraient des scores faux sans aucune erreur.
+
 **Jeu de données.** 32 450 commentaires Wikipédia nettoyés (25 960 en train + 6 490 en val), avec 6 colonnes de toxicité. Règle du OU : un commentaire est **toxique (1) si au moins une des 6 colonnes vaut 1**, sinon non toxique (0). On obtient 50 % de toxiques et 50 % de non toxiques, donc un jeu équilibré.
 
 Le test garde uniquement les commentaires de `val_dataset.csv` absents du train : 5 182 commentaires étaient déjà présents dans le train (même identifiant ou même texte) et auraient faussé le score.
@@ -197,7 +209,7 @@ BERT a la meilleure précision (0,941 contre 0,894) et le meilleur F1. Nous choi
 - **Précision satisfaisante** : 0,89, soit 9 commentaires jugés inappropriés sur 10 qui le sont vraiment, avec un rappel de 0,91. L'écart avec BERT est d'environ 5 points.
 - **Léger, donc peu coûteux** : 16 Mo de poids contre 268 Mo (BERT) et 840 Mo (LAYA). Il tourne sur un simple CPU, sans GPU. Sur GCP, l'image est petite, le service demande peu de mémoire et chaque requête consomme très peu de temps de calcul : la facture est plus basse qu'avec BERT ou LAYA.
 
-L'API utilise donc le LSTM par défaut (LAYA reste disponible en option). Si la qualité de détection comptait plus que le coût, BERT serait le meilleur choix.
+L'API utilise donc le LSTM par défaut (LAYA reste disponible en option, en local uniquement). Si la qualité de détection comptait plus que le coût, BERT serait le meilleur choix.
 
 ## Étape 3 : API et déploiement
 
@@ -205,13 +217,13 @@ Code : `src/api/main.py` (routes) et `src/api/predictor.py` (chargement du modè
 
 ### 1. Fonctionnement
 
-À chaque requête, le texte suit le même chemin que les données d'entraînement : **anonymisation** (regex + spaCy), puis **nettoyage**, puis **LSTM**. Le modèle chargé par l'API a 6 sorties, une par type de toxicité. Le score principal correspond à la probabilité `toxic`, multipliée par 100.
+À chaque requête, le texte suit le même chemin que les données d'entraînement : **anonymisation** (regex + spaCy), puis **nettoyage**, puis **LSTM**. Le modèle chargé par l'API est le LSTM à un seul label (dossier `artifacts/`) : le score est sa probabilité « toxique », multipliée par 100. `toxic` vaut `true` si le score dépasse 50.
 
 | Route          | Rôle                                         | Clé API |
 | -------------- | -------------------------------------------- | ------- |
-| `POST /score`  | texte → score de 0 à 100 et détail par type  | oui     |
+| `POST /score`  | texte → score de 0 à 100 et décision toxique / non toxique | oui |
 | `GET /health`  | état du service                              | non     |
-| `GET /metrics` | métriques Prometheus (requêtes, latence, scores) | non |
+| `GET /metrics` | métriques Prometheus (requêtes, latence, scores) | oui (`X-API-Key` ou `Authorization: Bearer`) |
 | `GET /docs`    | documentation interactive (Swagger)          | non     |
 
 Exemple :
@@ -223,14 +235,12 @@ curl -X POST http://localhost:8000/score \
 ```
 
 ```json
-{"score": 9.3, "toxic": false,
- "labels": {"toxic": 9.3, "severe_toxic": 1.5, "obscene": 9.8, "threat": 15.6, "insult": 28.9, "identity_hate": 11.5},
- "latency_ms": 12.85}
+{"score": 2.0, "toxic": false, "model": "lstm", "latency_ms": 12.58}
 ```
 
-**Limite connue.** Le LSTM réagit aux mots plutôt qu'au sens. Les phrases qui commencent par « you are » sont jugées toxiques même quand elles sont gentilles : « You are great » obtient 85,9 et « You are a wonderful person » 95,3. Dans les données d'entraînement, cette tournure précède très souvent une insulte. De plus, le mot `person` y sert d'étiquette d'anonymisation et apparaît dans beaucoup de commentaires toxiques. BERT, qui tient compte du contexte, devrait moins se tromper sur ces cas.
+**Limite connue.** Le LSTM réagit aux mots plutôt qu'au sens. Les phrases qui commencent par « you are » sont jugées toxiques même quand elles sont gentilles : « You are great » obtient 63,0 et « You are a wonderful person » 98,7. Dans les données d'entraînement, cette tournure précède très souvent une insulte. De plus, le mot `person` y sert d'étiquette d'anonymisation et apparaît dans beaucoup de commentaires toxiques. BERT, qui tient compte du contexte, devrait moins se tromper sur ces cas.
 
-**Tester LAYA.** Le champ `model` de `/score` permet de choisir le modèle : `"lstm"` (par défaut) ou `"laya"`. LAYA est chargé à sa première utilisation (quelques secondes) et nécessite le dossier `models/laya_binary/`. Il renvoie une seule probabilité, `toxic`. Il corrige l'erreur du LSTM : « You are a wonderful person » obtient 2,6 avec LAYA contre 95,3 avec le LSTM. Il est en revanche plus lent (environ 40 ms par requête sur GPU). L'image Docker ne contient pas LAYA : l'API y répond 503 si on le demande.
+**Tester LAYA.** Le champ `model` de `/score` permet de choisir le modèle : `"lstm"` (par défaut) ou `"laya"`. LAYA est chargé à sa première utilisation (quelques secondes) et nécessite le dossier `models/laya_binary/`. Il renvoie une seule probabilité, `toxic`. Il corrige l'erreur du LSTM : « You are a wonderful person » obtient 2,6 avec LAYA contre 98,7 avec le LSTM. Il est en revanche plus lent (environ 40 ms par requête sur GPU). L'image Docker ne contient pas LAYA : l'API y répond 503 si on le demande.
 
 ```bash
 curl -X POST http://localhost:8000/score \
@@ -242,23 +252,98 @@ curl -X POST http://localhost:8000/score \
 
 - **Clé API obligatoire** dans l'en-tête `X-API-Key`, comparée en temps constant pour éviter les attaques par mesure du temps de réponse. Sans clé valide, l'API répond 401.
 - **Validation des entrées** : texte de 1 à 5 000 caractères, sinon l'API répond 422.
-- **Aucun texte stocké ni journalisé** : les logs ne contiennent qu'un hash salé du texte (pseudonyme), sa longueur, le score et la latence.
+- **Aucun texte stocké ni journalisé** : les logs ne contiennent qu'un identifiant pseudonyme du texte (HMAC-SHA256 avec une clé secrète), le modèle utilisé, le score et la latence. Ni le texte ni sa longueur ne sont écrits.
+- **Métriques protégées** : `/metrics` demande aussi la clé API, pour ne pas exposer l'activité du service.
 - **Anonymisation avant le modèle** : les données personnelles sont retirées du texte avant même d'arriver au modèle.
 - **HTTPS** fourni par la plateforme cloud.
 - **Conteneur non root** : l'image Docker tourne avec un utilisateur sans privilèges.
 
 ### 3. Docker et cloud
 
-Le `Dockerfile` construit une image légère : Python 3.12 slim, PyTorch version CPU, et seulement le code de l'API avec les poids du LSTM. Les fichiers `.dockerignore` et `.gcloudignore` excluent les données, les rapports et les autres modèles (LAYA, BERT).
+Le `Dockerfile` construit une image légère : Python 3.12 slim, PyTorch version CPU, et seulement le code de l'API avec les 3 fichiers du LSTM (`artifacts/`). Les fichiers `.dockerignore` et `.gcloudignore` excluent les données, les rapports et le dossier `models/` (LAYA, anciens modèles).
 
 Variables d'environnement :
 
 | Variable     | Rôle                                                    | Défaut |
 | ------------ | ------------------------------------------------------- | ------ |
 | `API_KEY`    | clé attendue dans `X-API-Key` (**obligatoire**)        | aucun  |
-| `LOG_SALT`   | sel du hash écrit dans les logs                         | `dss`  |
+| `LOG_SALT`   | clé secrète du HMAC écrit dans les logs                 | aléatoire à chaque démarrage |
 | `USE_NER`    | `1` = anonymisation spaCy active, `0` = regex seules    | `1`    |
+| `ARTIFACTS_DIR` | dossier des fichiers du LSTM                          | `artifacts/` |
 | `PORT`       | port d'écoute du conteneur                              | `8080` |
+
+### 4. Déploiement sur Google Cloud Run
+
+Tout se fait depuis le navigateur, avec **Cloud Shell** (le terminal intégré à la console Google Cloud, où `gcloud`, `git` et Docker sont déjà installés). La région choisie est `europe-west9` (Paris) : les données restent en France, ce qui est conforme au RGPD.
+
+**1. Préparer le projet.** Sur [console.cloud.google.com](https://console.cloud.google.com), créer un projet, noter son ID et activer la facturation. Ouvrir Cloud Shell avec l'icône `>_` en haut à droite.
+
+**2. Récupérer le code.** Le dépôt contient le code, le `Dockerfile` et les 3 fichiers du modèle (`artifacts/`, 16,5 Mo).
+
+```bash
+git clone https://github.com/Baunell-ctrl/Digital-Social-Score.git
+cd Digital-Social-Score
+ls artifacts    # lstm.pt, vocab.json, config.json
+```
+
+**3. (Mise à jour du modèle uniquement.)** Pour déployer un nouveau modèle, remplacer les 3 fichiers de `artifacts/` en local, les pousser sur GitHub, puis faire `git pull` dans Cloud Shell et relancer l'étape 7.
+
+**4. Configurer le projet.**
+
+```bash
+PROJECT=<ID_DU_PROJET>
+REGION=europe-west9
+gcloud config set project $PROJECT
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com
+```
+
+**5. Créer les secrets.** La clé API et la clé des logs sont stockées dans Secret Manager, jamais dans le code ni dans des variables visibles.
+
+```bash
+API_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+echo "Clé API : $API_KEY"     # à conserver
+printf "%s" "$API_KEY" | gcloud secrets create dss-api-key --data-file=-
+python3 -c "import secrets; print(secrets.token_hex(32), end='')" | gcloud secrets create dss-log-salt --data-file=-
+```
+
+**6. Donner les droits au compte de service** (principe du moindre privilège : seulement ce qui est nécessaire).
+
+```bash
+NUM=$(gcloud projects describe $PROJECT --format="value(projectNumber)")
+for ROLE in roles/secretmanager.secretAccessor roles/artifactregistry.writer roles/storage.objectViewer roles/logging.logWriter; do
+  gcloud projects add-iam-policy-binding $PROJECT     --member="serviceAccount:$NUM-compute@developer.gserviceaccount.com" --role=$ROLE --condition=None -q > /dev/null
+done
+```
+
+**7. Construire et déployer.** `--source .` construit l'image avec Cloud Build à partir du `Dockerfile`, la stocke dans Artifact Registry, puis la déploie (5 à 10 minutes). Répondre `Y` si gcloud propose de créer un dépôt.
+
+```bash
+gcloud run deploy dss-api --source . --region $REGION   --memory 2Gi --cpu 1 --min-instances 0 --max-instances 10 --cpu-boost   --set-secrets "API_KEY=dss-api-key:latest,LOG_SALT=dss-log-salt:latest"   --allow-unauthenticated
+```
+
+| Option                     | Pourquoi                                                                  |
+| -------------------------- | ------------------------------------------------------------------------- |
+| `--memory 2Gi --cpu 1`     | PyTorch + spaCy + LSTM tiennent dans 2 Go                                |
+| `--min-instances 0`        | aucun coût sans trafic (première requête plus lente après une pause)     |
+| `--max-instances 10`       | montée en charge automatique, avec un plafond pour maîtriser le coût     |
+| `--cpu-boost`              | plus de CPU pendant le démarrage, pour charger le modèle plus vite       |
+| `--set-secrets`            | injecte les secrets de Secret Manager au démarrage                        |
+| `--allow-unauthenticated`  | l'URL est publique ; c'est la clé API, vérifiée par l'API, qui protège `/score` et `/metrics` |
+
+**8. Tester.**
+
+```bash
+URL=$(gcloud run services describe dss-api --region $REGION --format="value(status.url)")
+curl $URL/health
+curl -X POST $URL/score -H "X-API-Key: $API_KEY" -H "Content-Type: application/json"   -d '{"text": "You are a stupid idiot"}'
+curl -X POST $URL/score -H "Content-Type: application/json" -d '{"text": "hello"}'   # sans clé : 401
+```
+
+La documentation interactive est disponible sur `$URL/docs` (bouton **Authorize** pour saisir la clé).
+
+**9. Supervision.** Dans la console : **Cloud Run → dss-api → Journaux** (logs JSON pseudonymes) et **Métriques** (requêtes, latence, erreurs, nombre d'instances).
+
+**10. Mise à jour et arrêt.** Après une modification du code ou du modèle : `git pull` puis relancer l'étape 7. À la fin du projet : `gcloud run services delete dss-api --region $REGION`.
 
 ## Lancer le projet
 
@@ -276,7 +361,7 @@ python -m src.models.laya_binary --train-rows 10000
 python -m pytest tests
 ```
 
-API en local (nécessite `models/lstm.pt` et `models/lstm_vocab.json`) :
+API en local (nécessite `artifacts/lstm.pt`, `artifacts/vocab.json` et `artifacts/config.json`) :
 
 ```bash
 pip install -r requirements-api.txt
@@ -291,10 +376,4 @@ docker build -t digital-social-score .
 docker run -p 8080:8080 -e API_KEY=test digital-social-score
 ```
 
-Déploiement sur Google Cloud Run (l'image est construite par Cloud Build) :
-
-```bash
-gcloud builds submit --tag <REGION>-docker.pkg.dev/<PROJET>/<DEPOT>/digital-social-score
-gcloud run deploy digital-social-score --image <REGION>-docker.pkg.dev/<PROJET>/<DEPOT>/digital-social-score \
-  --region <REGION> --memory 2Gi --set-env-vars API_KEY=<CLE_SECRETE>
-```
+Déploiement sur Google Cloud Run : voir l'étape 3, partie 4.
