@@ -1,0 +1,74 @@
+# API Digital Social Score sur GKE.
+# IMAGE est remplacé au déploiement (voir README, étape 3 partie 5) :
+#   sed "s|IMAGE|$IMAGE|" k8s/deployment.yaml | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dss-api
+  labels:
+    app: dss-api
+spec:
+  replicas: 2                      # 2 pods minimum : le service survit à la perte d'un pod
+  selector:
+    matchLabels:
+      app: dss-api
+  strategy:
+    type: RollingUpdate            # mise à jour sans coupure : un nouveau pod prêt avant d'arrêter l'ancien
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: dss-api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000            # utilisateur "app" créé dans le Dockerfile
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: IMAGE
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dss-secrets
+                  key: API_KEY
+            - name: LOG_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: dss-secrets
+                  key: LOG_SALT
+          resources:
+            requests:              # ce que le pod réserve (et ce qui est facturé en Autopilot)
+              cpu: "500m"
+              memory: "1536Mi"
+            limits:
+              memory: "2Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          startupProbe:            # laisse le temps de charger spaCy et le LSTM
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 24   # jusqu'à 2 minutes
+          readinessProbe:          # le pod ne reçoit du trafic que s'il répond
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 10
+          livenessProbe:           # redémarre le pod s'il ne répond plus
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 20
+            failureThreshold: 3

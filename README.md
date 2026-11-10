@@ -345,6 +345,132 @@ La documentation interactive est disponible sur `$URL/docs` (bouton **Authorize*
 
 **10. Mise à jour et arrêt.** Après une modification du code ou du modèle : `git pull` puis relancer l'étape 7. À la fin du projet : `gcloud run services delete dss-api --region $REGION`.
 
+### 5. Alternative : image dans Artifact Registry et déploiement sur GKE
+
+Cloud Run (partie 4) est la solution la plus simple. Le cours présente aussi **Kubernetes** (GKE), qui donne plus de contrôle : nombre de pods, sondes de santé, autoscaling, mises à jour progressives. Cette partie décrit ce second déploiement. Tout se fait dans **Cloud Shell**, depuis le dossier du dépôt (`cd ~/Digital-Social-Score && git pull`).
+
+Les fichiers Kubernetes sont dans `k8s/` :
+
+| Fichier                | Rôle                                                                                      |
+| ---------------------- | ----------------------------------------------------------------------------------------- |
+| `k8s/deployment.yaml`  | 2 pods de l'API, ressources CPU/mémoire, sondes `/health`, secrets, conteneur non root   |
+| `k8s/service.yaml`     | load balancer avec une IP publique, qui répartit les requêtes entre les pods             |
+| `k8s/hpa.yaml`         | autoscaling : de 2 à 10 pods selon l'usage CPU (seuil 70 %)                              |
+
+**1. Variables et services.**
+
+```bash
+PROJECT=<ID_DU_PROJET>
+REGION=europe-west9
+TAG=v1
+IMAGE=$REGION-docker.pkg.dev/$PROJECT/dss/api:$TAG
+gcloud config set project $PROJECT
+gcloud services enable artifactregistry.googleapis.com cloudbuild.googleapis.com container.googleapis.com
+```
+
+**2. Créer le dépôt Artifact Registry** (une seule fois). C'est le registre privé qui stocke les images Docker versionnées.
+
+```bash
+gcloud artifacts repositories create dss --repository-format=docker --location=$REGION \
+  --description="Images de l'API Digital Social Score"
+```
+
+**3. Construire et pousser l'image.** Cloud Build lit le `Dockerfile`, construit l'image et la pousse dans le dépôt (5 à 10 minutes).
+
+```bash
+gcloud builds submit --tag $IMAGE .
+gcloud artifacts docker images list $REGION-docker.pkg.dev/$PROJECT/dss   # l'image doit apparaître
+```
+
+Variante avec Docker (sur un poste où Docker tourne) :
+
+```bash
+gcloud auth configure-docker $REGION-docker.pkg.dev
+docker build -t $IMAGE .
+docker push $IMAGE
+```
+
+**4. Créer le cluster GKE.** Le mode **Autopilot** laisse Google gérer les machines : on ne paie que les ressources demandées par les pods. La création prend 5 à 10 minutes.
+
+```bash
+gcloud container clusters create-auto dss-cluster --region $REGION
+gcloud container clusters get-credentials dss-cluster --region $REGION   # configure kubectl
+kubectl get nodes
+```
+
+Le cluster doit pouvoir lire les images du dépôt :
+
+```bash
+NUM=$(gcloud projects describe $PROJECT --format="value(projectNumber)")
+gcloud artifacts repositories add-iam-policy-binding dss --location=$REGION \
+  --member="serviceAccount:$NUM-compute@developer.gserviceaccount.com" --role=roles/artifactregistry.reader
+```
+
+**5. Créer le secret Kubernetes.** On reprend les valeurs déjà stockées dans Secret Manager (partie 4, étape 5), sans les écrire dans un fichier.
+
+```bash
+kubectl create secret generic dss-secrets \
+  --from-literal=API_KEY="$(gcloud secrets versions access latest --secret=dss-api-key)" \
+  --from-literal=LOG_SALT="$(gcloud secrets versions access latest --secret=dss-log-salt)"
+```
+
+**6. Déployer.**
+
+```bash
+sed "s|IMAGE|$IMAGE|" k8s/deployment.yaml | kubectl apply -f -
+kubectl apply -f k8s/service.yaml -f k8s/hpa.yaml
+kubectl rollout status deployment/dss-api          # attend que les 2 pods soient prêts
+kubectl get pods,svc,hpa
+```
+
+**7. Tester.** L'IP publique apparaît dans `EXTERNAL-IP` du service (1 à 2 minutes après sa création).
+
+```bash
+IP=$(kubectl get svc dss-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+API_KEY=$(gcloud secrets versions access latest --secret=dss-api-key)
+curl http://$IP/health
+curl -X POST http://$IP/score -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{"text": "You are a stupid idiot"}'
+```
+
+⚠️ **Le service est en HTTP, pas en HTTPS** : la clé API circule en clair. Pour un vrai service, il faut un nom de domaine, un **Ingress** GKE et un certificat géré par Google (`ManagedCertificate`). Cloud Run (partie 4) fournit le HTTPS sans configuration : c'est pour cela qu'il reste le déploiement principal du projet.
+
+**8. Mettre à jour sans coupure.** Construire une nouvelle image avec un nouveau tag, puis remplacer l'image du déploiement. Kubernetes démarre un nouveau pod, attend qu'il soit prêt, puis arrête l'ancien (*rolling update*).
+
+```bash
+TAG=v2; IMAGE=$REGION-docker.pkg.dev/$PROJECT/dss/api:$TAG
+gcloud builds submit --tag $IMAGE .
+kubectl set image deployment/dss-api api=$IMAGE
+kubectl rollout status deployment/dss-api
+kubectl rollout undo deployment/dss-api            # retour à la version précédente si besoin
+```
+
+**9. Supervision et tests de panne** (étapes 5 et 6 du TP).
+
+```bash
+kubectl logs -l app=dss-api --tail=50              # logs pseudonymes des pods
+kubectl top pods                                   # CPU et mémoire par pod
+kubectl get hpa dss-api --watch                    # nombre de pods pendant un test de charge
+kubectl delete pod -l app=dss-api --wait=false     # simule une panne : Kubernetes recrée les pods
+```
+
+Les logs et métriques sont aussi visibles dans la console : **Kubernetes Engine → Charges de travail → dss-api**.
+
+**10. Supprimer** (le cluster est facturé tant qu'il existe).
+
+```bash
+kubectl delete -f k8s/hpa.yaml -f k8s/service.yaml -f k8s/deployment.yaml
+gcloud container clusters delete dss-cluster --region $REGION
+```
+
+| Critère                | Cloud Run (partie 4)              | GKE Autopilot (partie 5)                         |
+| ---------------------- | --------------------------------- | ------------------------------------------------ |
+| Mise en place          | une commande                      | dépôt, cluster, secret, 3 fichiers YAML          |
+| HTTPS                  | inclus                            | à configurer (domaine + Ingress + certificat)    |
+| Coût sans trafic       | 0 (`min-instances 0`)             | 2 pods toujours actifs + frais du cluster        |
+| Contrôle               | limité                            | complet : sondes, nombre de pods, mises à jour  |
+| Autoscaling            | automatique (0 à 10 instances)    | HPA sur le CPU (2 à 10 pods)                     |
+
 ## Lancer le projet
 
 ```bash
