@@ -1,0 +1,16 @@
+# Expose l'API à l'extérieur du cluster avec un load balancer Google (IP publique).
+# Port 80 public -> port 8080 des pods. Le trafic est réparti entre tous les pods prêts.
+apiVersion: v1
+kind: Service
+metadata:
+  name: dss-api
+  labels:
+    app: dss-api
+spec:
+  type: LoadBalancer
+  selector:
+    app: dss-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
