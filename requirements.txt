@@ -1,6 +1,14 @@
 spacy>=3.7
 pandas>=2.0
 pytest>=8.0
+scikit-learn>=1.4
+
+# Étape 2 : entraînement des modèles (LSTM, BERT, LAYA)
+# PyTorch s'installe à part, avec CUDA 12.8 (obligatoire pour les GPU RTX 50xx) :
+#   pip install torch --index-url https://download.pytorch.org/whl/cu128
+transformers>=4.45
+accelerate>=1.0
+laya
 
 # Modèle NER anglais (installé séparément) :
 #   python -m spacy download en_core_web_sm

@@ -13,7 +13,7 @@
       "USERNAME": 33
     },
     "total_detections": 31808,
-    "seconds": 55.4
+    "seconds": 56.6
   },
   "val": {
     "comments": 6490,
@@ -29,6 +29,6 @@
       "USERNAME": 14
     },
     "total_detections": 8170,
-    "seconds": 16.0
+    "seconds": 15.5
   }
 }
