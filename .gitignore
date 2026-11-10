@@ -7,4 +7,4 @@ venv/
 .env
 
 # Poids des modèles entraînés (trop lourds pour git)
-models/
+/models/
