@@ -296,6 +296,7 @@ Variables d'environnement de l'API :
 | `ARTIFACTS_DIR` | dossier des fichiers du LSTM                          | `artifacts/` |
 | `API_KEYS`   | plusieurs clients : `nom:clé,nom:clé` (voir étape 4)    | aucun  |
 | `RATE_LIMIT_PER_MINUTE` | requêtes par client et par minute, sur chaque pod (`0` = sans limite) | `600` |
+| `TRUSTED_PROXY_HOPS` | entrées ajoutées à `X-Forwarded-For` par les proxys de confiance (2 derrière l'Ingress GKE) ; les entrées écrites par le client sont ignorées | `0` |
 | `PORT`       | port d'écoute du conteneur                              | `8080` |
 
 ### 4. Déployer le modèle dans le Cloud : GKE
@@ -588,7 +589,7 @@ L'API renvoie aussi l'en-tête `Strict-Transport-Security`, qui demande au navig
 | --------------------------- | ------------------------------------------------------------------------ | ------------------------ |
 | Texte                       | de 1 à 5 000 caractères                                                  | 422                      |
 | Champ `model`               | `lstm` ou `laya` uniquement                                              | 422                      |
-| Taille de la requête        | 32 Ko maximum, refusée **avant** d'être lue                              | 413                      |
+| Taille de la requête        | 32 Ko maximum, comptés sur les octets réellement reçus (même sans `Content-Length`) | 413           |
 | Nombre de requêtes          | 600 par minute et par client, sur chaque pod (`RATE_LIMIT_PER_MINUTE`)   | 429 + `Retry-After`      |
 | En-têtes HTTP               | `nosniff`, `X-Frame-Options: DENY`, `no-referrer`, `Cache-Control: no-store`, HSTS | –              |
 | Pods                        | utilisateur non root, pas d'élévation de privilèges, aucune capacité Linux, pas de jeton d'accès à l'API Kubernetes | – |
@@ -613,6 +614,7 @@ L'API écrit une ligne JSON par événement, collectée par Cloud Logging. Aucun
 {"event": "rate_limited", "client": "mobile"}
 ```
 
+- `ip_id` vient de l'IP ajoutée par le load balancer Google (`TRUSTED_PROXY_HOPS=2`), pas de ce que le client écrit dans `X-Forwarded-For` : un attaquant ne peut pas falsifier le journal d'audit.
 - `text_id` et `ip_id` sont des **HMAC-SHA256** calculés avec la clé secrète `LOG_SALT`. Ils permettent de repérer un même texte ou une même source répétés (attaque, spam), mais on ne peut pas retrouver le texte ou l'IP sans la clé. C'est une **pseudonymisation** au sens du RGPD.
 - `auth_failed` et `rate_limited` forment le **journal d'audit** : ils servent à détecter une attaque (étape 6 du TP).
 - Changer `LOG_SALT` rend les anciens identifiants impossibles à relier aux nouveaux.

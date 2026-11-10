@@ -36,6 +36,8 @@ spec:
           env:
             - name: PORT
               value: "8080"
+            - name: TRUSTED_PROXY_HOPS     # IP du client = avant-dernière entrée de X-Forwarded-For (Ingress GKE)
+              value: "2"
             # API_KEY (une clé) et/ou API_KEYS ("nom:clé,nom:clé", une clé par client).
             # Les deux sont facultatives ici, mais l'API refuse de démarrer sans aucune clé.
             - name: API_KEY

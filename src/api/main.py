@@ -43,6 +43,10 @@ API_KEYS = os.environ.get("API_KEYS", "")
 # Requêtes autorisées par client et par minute, sur chaque instance (0 = pas de limite).
 RATE_LIMIT_PER_MINUTE = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "600"))
 MAX_BODY_BYTES = 32_768
+# Nombre d'entrées ajoutées à la fin de X-Forwarded-For par les proxys de confiance, IP du client comprise.
+# GKE Ingress : 2 (le load balancer Google ajoute "<IP du client>, <IP du load balancer>").
+# En local, sans proxy : 0 (on prend l'IP de la connexion).
+TRUSTED_PROXY_HOPS = int(os.environ.get("TRUSTED_PROXY_HOPS", "0"))
 # Clé secrète du HMAC des logs. Sans LOG_SALT, une clé aléatoire est tirée au démarrage :
 # les identifiants ne sont alors comparables qu'au sein d'une même instance.
 LOG_SALT = os.environ.get("LOG_SALT") or secrets.token_hex(32)
@@ -98,19 +102,69 @@ SECURITY_HEADERS = {
 
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
-    """Refuse les corps trop gros (413) avant de les lire, puis ajoute les en-têtes de sécurité."""
-    length = request.headers.get("content-length")
-    if length and length.isdigit() and int(length) > MAX_BODY_BYTES:
-        response = JSONResponse({"detail": "Requête trop volumineuse"}, status_code=413)
-    else:
-        response = await call_next(request)
+    """Ajoute les en-têtes de sécurité à toutes les réponses."""
+    response = await call_next(request)
     response.headers.update(SECURITY_HEADERS)
     return response
 
 
+class BodySizeLimitMiddleware:
+    """Limite la taille du corps à MAX_BODY_BYTES (413).
+
+    L'en-tête Content-Length ne suffit pas : un client peut l'omettre (envoi « chunked ») ou mentir.
+    Le corps est donc lu ici, morceau par morceau, en comptant les octets réellement reçus : au-delà
+    de la limite, on répond 413 sans lire la suite. Sinon, le corps (32 Ko au plus) est transmis à l'API.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        too_large = JSONResponse({"detail": "Requête trop volumineuse"}, status_code=413,
+                                 headers=SECURITY_HEADERS)
+        length = dict(scope["headers"]).get(b"content-length", b"")
+        if length.isdigit() and int(length) > MAX_BODY_BYTES:
+            return await too_large(scope, receive, send)
+
+        body, more = b"", True
+        while more:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return
+            body += message.get("body", b"")
+            more = message.get("more_body", False)
+            if len(body) > MAX_BODY_BYTES:
+                return await too_large(scope, receive, send)
+
+        replayed = False
+
+        async def replay():
+            nonlocal replayed
+            if not replayed:
+                replayed = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            return await receive()
+
+        await self.app(scope, replay, send)
+
+
+app.add_middleware(BodySizeLimitMiddleware)
+
+
 def client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for", "")
-    return forwarded.split(",")[0].strip() or (request.client.host if request.client else "inconnue")
+    """IP du client, sans faire confiance à ce que le client écrit lui-même dans X-Forwarded-For.
+
+    Les proxys de confiance AJOUTENT leurs entrées à la fin de l'en-tête. La vraie IP du client est
+    donc la N-ième en partant de la fin (N = TRUSTED_PROXY_HOPS, 2 derrière l'Ingress GKE).
+    Les entrées avant elle peuvent être inventées par le client et sont ignorées.
+    """
+    peer = request.client.host if request.client else "inconnue"
+    if TRUSTED_PROXY_HOPS <= 0:
+        return peer
+    parts = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+    return parts[-TRUSTED_PROXY_HOPS] if len(parts) >= TRUSTED_PROXY_HOPS else peer
 
 
 def authenticate(key: str | None, request: Request) -> str:

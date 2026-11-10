@@ -101,3 +101,30 @@ def test_audit_log_has_no_secret(client, caplog):
     assert "wrong-secret-key" not in logs           # la clé testée n'est jamais écrite
     assert "my secret sentence" not in logs         # le texte n'est jamais écrit
     assert '"client": "default"' in logs
+
+
+def test_body_too_large_without_content_length(client):
+    """Envoi « chunked » sans Content-Length : la limite porte sur les octets réellement reçus."""
+    def chunks():
+        for _ in range(10):
+            yield b"x" * 8_192
+    r = client.post("/score", content=chunks(),
+                    headers={"X-API-Key": "test-key", "Content-Type": "application/json"})
+    assert "content-length" not in {k.lower() for k in r.request.headers}
+    assert r.status_code == 413
+
+
+def test_client_ip_ignores_spoofed_forwarded_for(monkeypatch):
+    from starlette.requests import Request
+
+    def req(xff):
+        return Request({"type": "http", "client": ("10.0.0.9", 1234),
+                        "headers": [(b"x-forwarded-for", xff.encode())]})
+
+    # derrière l'Ingress GKE : "<ce que le client a écrit>, <IP réelle>, <IP du load balancer>"
+    monkeypatch.setattr(main, "TRUSTED_PROXY_HOPS", 2)
+    assert main.client_ip(req("6.6.6.6, 203.0.113.7, 34.1.2.3")) == "203.0.113.7"
+    assert main.client_ip(req("203.0.113.7, 34.1.2.3")) == "203.0.113.7"
+    # sans proxy de confiance, l'en-tête est ignoré
+    monkeypatch.setattr(main, "TRUSTED_PROXY_HOPS", 0)
+    assert main.client_ip(req("6.6.6.6")) == "10.0.0.9"
