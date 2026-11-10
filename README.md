@@ -268,8 +268,10 @@ curl -X POST http://localhost:8000/score \
 - **Métriques protégées** : `/metrics` demande aussi la clé API, pour ne pas exposer l'activité du service.
 - **Anonymisation avant le modèle** : les données personnelles sont retirées du texte avant même d'arriver au modèle.
 - **Secrets hors du code** : la clé API et la clé des logs sont stockées dans Secret Manager, puis dans un secret Kubernetes.
-- **HTTPS** : non activé dans notre déploiement GKE, qui est en HTTP (voir la partie 4, étape 10).
+- **HTTPS uniquement** : sur GKE, le seul accès public est un Ingress en HTTPS (TLS 1.2 minimum, aucun port 80).
 - **Conteneur non root** : l'image Docker et les pods tournent avec un utilisateur sans privilèges.
+
+Le détail des mesures de sécurité et de conformité est dans l'**étape 4**.
 
 ### 3. Exporter le modèle
 
@@ -282,7 +284,7 @@ curl -X POST http://localhost:8000/score \
 2. Le `Dockerfile` construit une **image Docker** légère : Python 3.12 slim, PyTorch version CPU, le code de l'API et ces 3 fichiers (`artifacts/`). Les fichiers `.dockerignore` et `.gcloudignore` excluent les données, les rapports et le dossier `models/` (LAYA, anciens modèles).
 3. L'image est stockée dans **Artifact Registry**, le registre privé de Google Cloud (partie 4, étapes 5 et 6), puis lancée dans des pods sur GKE.
 
-**Mettre à jour le modèle.** Remplacer les 3 fichiers de `artifacts/` en local, les pousser sur GitHub, faire `git pull` dans Cloud Shell, puis suivre l'étape 11 de la partie 4.
+**Mettre à jour le modèle.** Remplacer les 3 fichiers de `artifacts/` en local, les pousser sur GitHub, faire `git pull` dans Cloud Shell, puis suivre l'étape 13 de la partie 4.
 
 Variables d'environnement de l'API :
 
@@ -292,6 +294,8 @@ Variables d'environnement de l'API :
 | `LOG_SALT`   | clé secrète du HMAC écrit dans les logs                 | aléatoire à chaque démarrage |
 | `USE_NER`    | `1` = anonymisation spaCy active, `0` = regex seules    | `1`    |
 | `ARTIFACTS_DIR` | dossier des fichiers du LSTM                          | `artifacts/` |
+| `API_KEYS`   | plusieurs clients : `nom:clé,nom:clé` (voir étape 4)    | aucun  |
+| `RATE_LIMIT_PER_MINUTE` | requêtes par client et par minute, sur chaque pod (`0` = sans limite) | `600` |
 | `PORT`       | port d'écoute du conteneur                              | `8080` |
 
 ### 4. Déployer le modèle dans le Cloud : GKE
@@ -300,11 +304,19 @@ Le modèle est déployé sur **Kubernetes** (GKE, mode **Autopilot**), qui donne
 
 Les fichiers Kubernetes sont dans `k8s/` :
 
-| Fichier                | Rôle                                                                                      |
-| ---------------------- | ----------------------------------------------------------------------------------------- |
-| `k8s/deployment.yaml`  | 2 pods de l'API, ressources CPU/mémoire, sondes `/health`, secrets, conteneur non root   |
-| `k8s/service.yaml`     | load balancer avec une IP publique, qui répartit les requêtes entre les pods             |
-| `k8s/hpa.yaml`         | autoscaling : de 2 à 10 pods selon l'usage CPU (seuil 70 %)                              |
+```
+Client ──HTTPS (TLS 1.2+, IP fixe)──▶ Load balancer Google (Ingress)
+       ──réseau privé Google──▶ Service interne (ClusterIP) ──▶ pods dss-api :8080
+```
+
+| Fichier                   | Rôle                                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------- |
+| `k8s/deployment.yaml`     | 2 pods de l'API, ressources CPU/mémoire, sondes `/health`, secrets, conteneur non root   |
+| `k8s/service.yaml`        | service **interne** au cluster (pas d'IP publique), qui répartit les requêtes entre les pods |
+| `k8s/ingress.yaml`        | **seul point d'entrée public** : load balancer HTTPS, IP fixe, aucun accès HTTP          |
+| `k8s/frontendconfig.yaml` | politique TLS du load balancer : TLS 1.2 minimum                                         |
+| `k8s/backendconfig.yaml`  | health check du load balancer sur `/health`, logs du load balancer                       |
+| `k8s/hpa.yaml`            | autoscaling : de 2 à 10 pods selon l'usage CPU (seuil 70 %)                              |
 
 **1. Préparer le projet.** Sur [console.cloud.google.com](https://console.cloud.google.com), créer un projet, noter son ID et activer la facturation. Ouvrir Cloud Shell avec l'icône `>_` en haut à droite.
 
@@ -324,7 +336,8 @@ REGION=europe-west9
 TAG=v1
 IMAGE=$REGION-docker.pkg.dev/$PROJECT/dss/api:$TAG
 gcloud config set project $PROJECT
-gcloud services enable artifactregistry.googleapis.com cloudbuild.googleapis.com container.googleapis.com secretmanager.googleapis.com
+gcloud services enable artifactregistry.googleapis.com cloudbuild.googleapis.com container.googleapis.com \
+  secretmanager.googleapis.com compute.googleapis.com cloudkms.googleapis.com
 ```
 
 **4. Créer les secrets.** La clé API et la clé des logs sont stockées dans Secret Manager, jamais dans le code. Donner aussi au compte de service de Cloud Build les droits nécessaires pour construire et pousser l'image (principe du moindre privilège).
@@ -378,7 +391,26 @@ gcloud artifacts repositories add-iam-policy-binding dss --location=$REGION \
   --member="serviceAccount:$NUM-compute@developer.gserviceaccount.com" --role=roles/artifactregistry.reader
 ```
 
-**8. Créer le secret Kubernetes.** On reprend les valeurs stockées dans Secret Manager (étape 4), sans les écrire dans un fichier.
+**8. Chiffrer les Secrets du cluster avec une clé Cloud KMS.** Par défaut, Google chiffre les données du cluster avec ses propres clés. Ici, les Secrets Kubernetes (clé API, clé des logs, clé privée TLS) sont **en plus** chiffrés avec une clé qui appartient au projet (*application-layer secrets encryption*) : on contrôle qui peut l'utiliser, on peut la désactiver, et chaque usage est tracé dans les logs d'audit. La clé change automatiquement tous les 90 jours.
+
+```bash
+gcloud kms keyrings create dss-keyring --location $REGION
+gcloud kms keys create dss-secrets-key --keyring dss-keyring --location $REGION --purpose encryption \
+  --rotation-period 90d --next-rotation-time $(date -u -d "+90 days" +%Y-%m-%dT%H:%M:%SZ)
+
+# seul le service GKE du projet peut chiffrer / déchiffrer avec cette clé
+gcloud kms keys add-iam-policy-binding dss-secrets-key --keyring dss-keyring --location $REGION \
+  --member="serviceAccount:service-$NUM@container-engine-robot.iam.gserviceaccount.com" \
+  --role=roles/cloudkms.cryptoKeyEncrypterDecrypter
+
+gcloud container clusters update dss-cluster --region $REGION \
+  --database-encryption-key projects/$PROJECT/locations/$REGION/keyRings/dss-keyring/cryptoKeys/dss-secrets-key
+gcloud container clusters describe dss-cluster --region $REGION --format="value(databaseEncryption)"   # state=ENCRYPTED
+```
+
+La clé doit être dans la même région que le cluster. La mise à jour du cluster prend plusieurs minutes.
+
+**9. Créer le secret Kubernetes.** On reprend les valeurs stockées dans Secret Manager (étape 4), sans les écrire dans un fichier.
 
 ```bash
 kubectl create secret generic dss-secrets \
@@ -386,31 +418,57 @@ kubectl create secret generic dss-secrets \
   --from-literal=LOG_SALT="$(gcloud secrets versions access latest --secret=dss-log-salt)"
 ```
 
-**9. Déployer.**
+**10. Préparer le HTTPS : IP fixe, politique TLS et certificat.** Le projet n'a pas de nom de domaine : on utilise un **certificat auto-signé** valable pour l'IP fixe. Le trafic est chiffré exactement comme avec un certificat public ; la différence est que le navigateur ne le connaît pas et affiche un avertissement (voir étape 4, partie 8).
+
+```bash
+gcloud compute addresses create dss-ip --global
+IP=$(gcloud compute addresses describe dss-ip --global --format="value(address)")
+gcloud compute ssl-policies create dss-tls12 --profile MODERN --min-tls-version 1.2
+
+openssl req -x509 -newkey rsa:2048 -nodes -days 365 -keyout tls.key -out tls.crt \
+  -subj "/CN=dss-api" -addext "subjectAltName=IP:$IP"
+kubectl create secret tls dss-tls --cert=tls.crt --key=tls.key
+rm tls.key        # la clé privée ne reste que dans le Secret, chiffré par KMS
+```
+
+`tls.crt` (le certificat public) est gardé : les clients l'utilisent pour vérifier qu'ils parlent bien au serveur. Les fichiers `*.key` et `tls.crt` sont dans le `.gitignore`.
+
+**11. Déployer.**
 
 ```bash
 sed "s|IMAGE|$IMAGE|" k8s/deployment.yaml | kubectl apply -f -
-kubectl apply -f k8s/service.yaml -f k8s/hpa.yaml
+kubectl apply -f k8s/backendconfig.yaml -f k8s/frontendconfig.yaml -f k8s/service.yaml \
+  -f k8s/ingress.yaml -f k8s/hpa.yaml
 kubectl rollout status deployment/dss-api          # attend que les 2 pods soient prêts
-kubectl get pods,svc,hpa
+kubectl get ingress dss-api --watch                # 5 à 10 minutes : l'adresse doit être $IP
+kubectl describe ingress dss-api | grep -A2 backends   # prêt quand les backends sont HEALTHY
 ```
 
-**10. Tester.** L'IP publique apparaît dans `EXTERNAL-IP` du service (1 à 2 minutes après sa création).
+**Cluster déjà déployé en HTTP ?** L'ancien Service était de type `LoadBalancer`, avec une IP publique en HTTP. Faire les étapes 8 et 10, puis :
 
 ```bash
-IP=$(kubectl get svc dss-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-API_KEY=$(gcloud secrets versions access latest --secret=dss-api-key)
-curl http://$IP/health
-curl -X POST http://$IP/score -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
-  -d '{"text": "You are a stupid idiot"}'
-curl -X POST http://$IP/score -H "Content-Type: application/json" -d '{"text": "hello"}'   # sans clé : 401
+kubectl delete svc dss-api                          # supprime l'ancienne IP publique HTTP
+kubectl get secrets -o json | kubectl replace -f -  # rechiffre les Secrets existants avec la clé KMS
 ```
 
-La documentation interactive est disponible sur `http://$IP/docs` (bouton **Authorize** pour saisir la clé).
+et appliquer les fichiers de l'étape 11. Pendant la création du load balancer (5 à 10 minutes), l'API n'est pas joignable depuis l'extérieur.
 
-⚠️ **Le service est en HTTP, pas en HTTPS** : la clé API circule en clair. Pour un vrai service, il faut un nom de domaine, un **Ingress** GKE et un certificat géré par Google (`ManagedCertificate`).
+**12. Tester.** `--cacert tls.crt` demande à `curl` de vérifier le certificat du serveur (plutôt que `-k`, qui désactive toute vérification).
 
-**11. Mettre à jour sans coupure.** Construire une nouvelle image avec un nouveau tag, puis remplacer l'image du déploiement. Kubernetes démarre un nouveau pod, attend qu'il soit prêt, puis arrête l'ancien (*rolling update*).
+```bash
+API_KEY=$(gcloud secrets versions access latest --secret=dss-api-key)
+curl --cacert tls.crt https://$IP/health
+curl --cacert tls.crt -X POST https://$IP/score -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{"text": "You are a stupid idiot"}'
+curl --cacert tls.crt -X POST https://$IP/score -H "Content-Type: application/json" -d '{"text": "hello"}'   # sans clé : 401
+curl -v --cacert tls.crt https://$IP/health 2>&1 | grep -E "SSL connection|subject|issuer"   # détails TLS
+curl -m 5 http://$IP/health                                   # doit échouer : aucun accès HTTP
+openssl s_client -connect $IP:443 -tls1_1 </dev/null           # doit échouer : TLS 1.1 refusé
+```
+
+La documentation interactive est disponible sur `https://$IP/docs` (bouton **Authorize** pour saisir la clé). Le navigateur affiche un avertissement (« connexion non privée ») : c'est attendu avec un certificat auto-signé, la connexion reste chiffrée.
+
+**13. Mettre à jour sans coupure.** Construire une nouvelle image avec un nouveau tag, puis remplacer l'image du déploiement. Kubernetes démarre un nouveau pod, attend qu'il soit prêt, puis arrête l'ancien (*rolling update*).
 
 ```bash
 TAG=v2; IMAGE=$REGION-docker.pkg.dev/$PROJECT/dss/api:$TAG
@@ -420,7 +478,7 @@ kubectl rollout status deployment/dss-api
 kubectl rollout undo deployment/dss-api            # retour à la version précédente si besoin
 ```
 
-**12. Supervision et tests de panne** (étapes 5 et 6 du TP).
+**14. Supervision et tests de panne** (étapes 5 et 6 du TP).
 
 ```bash
 kubectl logs -l app=dss-api --tail=50              # logs pseudonymes des pods
@@ -431,16 +489,22 @@ kubectl delete pod -l app=dss-api --wait=false     # simule une panne : Kubernet
 
 Les logs et métriques sont aussi visibles dans la console : **Kubernetes Engine → Charges de travail → dss-api**.
 
-**13. Supprimer** (le cluster est facturé tant qu'il existe).
+**15. Supprimer** (le cluster, l'IP fixe et le load balancer sont facturés tant qu'ils existent).
 
 ```bash
-kubectl delete -f k8s/hpa.yaml -f k8s/service.yaml -f k8s/deployment.yaml
+kubectl delete -f k8s/ingress.yaml -f k8s/hpa.yaml -f k8s/service.yaml -f k8s/deployment.yaml \
+  -f k8s/frontendconfig.yaml -f k8s/backendconfig.yaml
 gcloud container clusters delete dss-cluster --region $REGION
+gcloud compute addresses delete dss-ip --global
+gcloud compute ssl-policies delete dss-tls12
+# une clé KMS ne peut pas être supprimée d'un coup : on détruit ses versions (effectif après 30 jours)
+gcloud kms keys versions list --key dss-secrets-key --keyring dss-keyring --location $REGION
+gcloud kms keys versions destroy 1 --key dss-secrets-key --keyring dss-keyring --location $REGION
 ```
 
 ### 5. Résultats des tests sur le cloud (GKE)
 
-Tests faits depuis Cloud Shell avec `curl`, sur l'API déployée dans le cluster GKE (2 pods, modèle LSTM).
+Tests faits depuis Cloud Shell avec `curl`, sur l'API déployée dans le cluster GKE (2 pods, modèle LSTM), avant le passage en HTTPS : les requêtes de la capture sont donc en `http://`.
 
 ![Requêtes de test sur l'API déployée dans GKE](reports/images/gke_tests_requetes.png)
 
@@ -469,6 +533,191 @@ Tests faits depuis Cloud Shell avec `curl`, sur l'API déployée dans le cluster
 - **10 sur 10** : les 5 textes toxiques dépassent 90 et les 5 textes non toxiques restent sous 17. Le harcèlement sexuel (« Send me something a little more revealing »), qui ne contient aucune insulte, est aussi détecté (91,3).
 - **Latence** : de 19 à 27 ms par requête côté API, anonymisation spaCy comprise, sur CPU.
 - **Limite observée** : sur des phrases courtes testées à part, le LSTM se trompe encore. « I am happy to be alive » obtient **76,9** (faux positif) : le modèle réagit aux mots isolés (« alive » apparaît souvent dans des menaces) et pas au sens de la phrase. C'est la limite déjà décrite plus haut (« Limite connue »).
+
+## Étape 4 : sécurisation et conformité RGPD
+
+Code : `src/api/main.py` et `k8s/`. Tests automatiques : `tests/test_api.py` (11 tests, dont 5 dédiés à la sécurité).
+
+| Exigence du TP              | Mise en œuvre                                                                             |
+| --------------------------- | ----------------------------------------------------------------------------------------- |
+| Authentification            | clé API par client, stockée dans Secret Manager puis dans un Secret Kubernetes            |
+| Chiffrement                 | HTTPS uniquement (TLS 1.2+) via l'Ingress GKE ; Secrets chiffrés par une clé Cloud KMS    |
+| Validation des entrées      | taille du texte, taille de la requête, valeurs autorisées                                 |
+| Logs pseudonymes            | HMAC-SHA256 du texte et de l'IP, jamais le texte, la clé ou l'IP en clair                 |
+| IAM                         | chaque identité n'a que les rôles nécessaires ; les pods n'ont aucun droit Google Cloud   |
+| Registre RGPD               | registre du traitement « scoring via l'API » (partie 6)                                   |
+
+### 1. Authentification : une clé API par client
+
+Chaque requête vers `/score` et `/metrics` doit porter une clé dans l'en-tête `X-API-Key` (ou `Authorization: Bearer` pour Prometheus). Sans clé valide, l'API répond **401**.
+
+- **Comparaison en temps constant** (`secrets.compare_digest`) : le temps de réponse ne révèle pas combien de caractères de la clé sont justes.
+- **Une clé par client** : la variable `API_KEYS` accepte plusieurs clés nommées, par exemple `moderation:<clé1>,mobile:<clé2>`. Le nom du client (jamais la clé) apparaît dans les logs, et on peut **révoquer un client** en retirant sa clé sans couper les autres. `API_KEY` (une seule clé, client `default`) reste accepté.
+- **Clés fortes** : générées avec `secrets.token_urlsafe(32)` (256 bits d'aléa). L'API écrit un avertissement au démarrage si une clé fait moins de 16 caractères.
+- **Stockage** : la source de vérité est **Secret Manager** ; les pods lisent les clés dans le Secret Kubernetes `dss-secrets`, chiffré par KMS (partie 2). Les clés n'apparaissent ni dans le code, ni dans Git, ni dans les fichiers `k8s/`.
+
+**Pourquoi une clé API plutôt qu'un JWT ?** L'API est appelée par des applications (outil de modération, back-end d'un réseau social), pas par des personnes qui se connectent. Une clé API suffit pour ce cas « machine à machine » et ne demande pas de serveur d'identité. Un JWT (OAuth2) deviendrait utile s'il fallait des comptes utilisateurs, des droits différents selon les rôles ou des jetons à durée de vie courte.
+
+**Plusieurs clients et changement de clé sans coupure.** On ajoute `API_KEYS` dans le Secret Kubernetes, puis on redémarre les pods un par un :
+
+```bash
+# 1. pendant la transition, l'ancienne et la nouvelle clé fonctionnent
+kubectl create secret generic dss-secrets --dry-run=client -o yaml \
+  --from-literal=API_KEYS="moderation:$ANCIENNE_CLE,moderation-v2:$NOUVELLE_CLE" \
+  --from-literal=LOG_SALT="$(gcloud secrets versions access latest --secret=dss-log-salt)" | kubectl apply -f -
+kubectl rollout restart deployment/dss-api
+# 2. les clients passent à la nouvelle clé
+# 3. on retire l'ancienne clé de API_KEYS et on redémarre de nouveau
+```
+
+### 2. Chiffrement
+
+| Où                          | Comment                                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------ |
+| En transit (client → API)   | **HTTPS uniquement** via l'Ingress GKE : aucun port 80, **TLS 1.2 minimum** (politique `dss-tls12`, profil MODERN), certificat auto-signé pour l'IP fixe |
+| En transit (dans Google)    | le load balancer joint les pods par le réseau privé de Google ; le Service des pods est interne (`ClusterIP`, pas d'IP publique) |
+| Au repos : Secrets          | Secrets Kubernetes (clé API, clé des logs, clé privée TLS) chiffrés avec la clé Cloud KMS `dss-secrets-key` du projet, qui change tous les 90 jours |
+| Au repos : le reste         | images Docker, Secret Manager et logs chiffrés par défaut par Google Cloud (AES-256)            |
+| Données des utilisateurs    | **aucune donnée stockée** : le texte reste en mémoire le temps de la requête (quelques ms)      |
+
+L'API renvoie aussi l'en-tête `Strict-Transport-Security`, qui demande au navigateur de n'utiliser que HTTPS.
+
+### 3. Protection de l'API
+
+| Protection                  | Règle                                                                    | Réponse si non respectée |
+| --------------------------- | ------------------------------------------------------------------------ | ------------------------ |
+| Texte                       | de 1 à 5 000 caractères                                                  | 422                      |
+| Champ `model`               | `lstm` ou `laya` uniquement                                              | 422                      |
+| Taille de la requête        | 32 Ko maximum, refusée **avant** d'être lue                              | 413                      |
+| Nombre de requêtes          | 600 par minute et par client, sur chaque pod (`RATE_LIMIT_PER_MINUTE`)   | 429 + `Retry-After`      |
+| En-têtes HTTP               | `nosniff`, `X-Frame-Options: DENY`, `no-referrer`, `Cache-Control: no-store`, HSTS | –              |
+| Pods                        | utilisateur non root, pas d'élévation de privilèges, aucune capacité Linux, pas de jeton d'accès à l'API Kubernetes | – |
+
+**Pourquoi limiter le nombre de requêtes ?** Le cours cite le **vol de modèle** (*model stealing*) : un attaquant envoie des milliers de textes et utilise les scores pour entraîner une copie du modèle. La limite par client rend cette attaque beaucoup plus lente et la rend visible dans les logs (`rate_limited`). Elle protège aussi contre l'épuisement des ressources.
+
+Pendant les **tests de charge** (étape 5), une seule clé envoie beaucoup de requêtes : il faut lever la limite pour mesurer la capacité réelle du service, puis la remettre :
+
+```bash
+kubectl set env deployment/dss-api RATE_LIMIT_PER_MINUTE=0
+# ... test de charge ...
+kubectl set env deployment/dss-api RATE_LIMIT_PER_MINUTE=600
+```
+
+### 4. Logs pseudonymes et journal d'audit
+
+L'API écrit une ligne JSON par événement, collectée par Cloud Logging. Aucun log de l'API ne contient le texte, la clé API ou l'adresse IP en clair.
+
+```json
+{"event": "score", "client": "default", "model": "lstm", "text_id": "3f9a1c0b7e2d4a65", "score": 100.0, "latency_ms": 24.6}
+{"event": "auth_failed", "path": "/score", "reason": "invalide", "ip_id": "8c41e0d2a9b3f710"}
+{"event": "rate_limited", "client": "mobile"}
+```
+
+- `text_id` et `ip_id` sont des **HMAC-SHA256** calculés avec la clé secrète `LOG_SALT`. Ils permettent de repérer un même texte ou une même source répétés (attaque, spam), mais on ne peut pas retrouver le texte ou l'IP sans la clé. C'est une **pseudonymisation** au sens du RGPD.
+- `auth_failed` et `rate_limited` forment le **journal d'audit** : ils servent à détecter une attaque (étape 6 du TP).
+- Changer `LOG_SALT` rend les anciens identifiants impossibles à relier aux nouveaux.
+
+```bash
+kubectl logs -l app=dss-api --tail=100 | grep auth_failed
+gcloud logging read 'jsonPayload.event="auth_failed"' --limit 5 --format=json
+```
+
+**Logs du load balancer.** En plus des logs de l'API, le load balancer de l'Ingress enregistre chaque requête HTTP **avec l'adresse IP du client** (`k8s/backendconfig.yaml`, section `logging`). Ce sont des données personnelles, gardées 30 jours et déclarées dans le registre (partie 6). Ils servent à enquêter sur une attaque. Pour aller plus loin dans la minimisation, mettre `logging.enable: false` dans `k8s/backendconfig.yaml` : les métriques de Cloud Monitoring (requêtes, latence, erreurs) restent disponibles.
+
+Durée de conservation des logs, fixée explicitement à 30 jours :
+
+```bash
+gcloud logging buckets update _Default --location=global --retention-days=30
+```
+
+### 5. IAM : moindre privilège
+
+| Identité                                   | Rôles                                                          | Pourquoi                                      |
+| ------------------------------------------ | -------------------------------------------------------------- | --------------------------------------------- |
+| Pods de l'API                              | **aucun** rôle Google Cloud, pas de jeton Kubernetes           | ils lisent leurs secrets dans les variables d'environnement ; rien d'autre |
+| Nœuds GKE (`<NUM>-compute@…`)              | lecture d'Artifact Registry, écriture de logs                  | télécharger l'image, envoyer les logs         |
+| Cloud Build (`<NUM>-compute@…`)            | écriture dans Artifact Registry, lecture du stockage, logs     | construire et pousser l'image (étape 4 de la partie 4) |
+| Agent de service GKE (`service-<NUM>@container-engine-robot…`) | chiffrer / déchiffrer avec **la seule** clé `dss-secrets-key` | chiffrement des Secrets (étape 8)   |
+| Membres de l'équipe (conseillé)            | `roles/container.developer`, `roles/logging.viewer`            | déployer et lire les logs                     |
+| Responsable du projet                      | `roles/owner`                                                  | projet, facturation, IAM                      |
+| Clients de l'API                           | aucun rôle Google Cloud                                        | ils n'ont qu'une clé API                      |
+
+**Amélioration conseillée.** Le compte de service Compute Engine par défaut, utilisé par les nœuds et par Cloud Build, a souvent le rôle `Éditeur` sur tout le projet. Pour un nouveau cluster, on peut lui donner un compte dédié qui n'a que les rôles du tableau :
+
+```bash
+gcloud iam service-accounts create dss-nodes --display-name="Noeuds GKE Digital Social Score"
+SA=dss-nodes@$PROJECT.iam.gserviceaccount.com
+for ROLE in roles/artifactregistry.reader roles/logging.logWriter roles/monitoring.metricWriter roles/monitoring.viewer; do
+  gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA" --role=$ROLE --condition=None
+done
+gcloud container clusters create-auto dss-cluster --region $REGION --service-account=$SA
+```
+
+### 6. Registre RGPD du traitement « scoring de toxicité »
+
+Ce registre complète celui de l'étape 1 (préparation du jeu de données). Modèle inspiré de celui de la CNIL.
+
+| Rubrique                         | Contenu |
+| -------------------------------- | ------- |
+| **Traitement**                   | Calcul d'un score de toxicité (0 à 100) pour des textes envoyés à l'API Digital Social Score |
+| **Responsable / rôles**          | Équipe projet Digital Social Score (TP). Pour un client qui modère sa plateforme avec l'API, ce client est responsable du traitement et l'équipe est **sous-traitante** ; Google Cloud est sous-traitant ultérieur (hébergement) |
+| **Finalité**                     | Aider à la modération des contenus en ligne : repérer les messages injurieux, haineux ou harcelants. Le score est une **aide à la décision** : il ne doit pas entraîner seul une sanction contre une personne |
+| **Base légale**                  | Intérêt légitime (lutte contre le cyberharcèlement et les contenus haineux) |
+| **Personnes concernées**         | Auteurs des textes analysés et personnes citées dans ces textes |
+| **Données traitées**             | Texte envoyé (peut contenir des noms, des opinions ou d'autres données personnelles). Données techniques : adresse IP (logs du load balancer) |
+| **Données sensibles**            | Un texte peut révéler une origine, une religion, une orientation sexuelle. Elles ne sont ni extraites ni stockées : le texte n'est utilisé que pour calculer le score |
+| **Minimisation**                 | Anonymisation du texte (regex + spaCy) avant le modèle ; texte jamais stocké ni journalisé ; logs de l'API limités au nom du client, à des identifiants HMAC, au score et à la latence |
+| **Durée de conservation**        | Texte : durée de la requête (quelques millisecondes, en mémoire). Logs : 30 jours. Secrets : jusqu'à leur rotation |
+| **Destinataires**                | Équipe projet (accès aux logs par IAM). Le client reçoit uniquement le score de son texte |
+| **Transferts hors UE**           | Aucun transfert organisé : cluster, clé KMS et secrets en région `europe-west9` (Paris). Google Cloud reste une société américaine, couverte par ses clauses contractuelles (DPA) |
+| **Mesures de sécurité**          | HTTPS uniquement (TLS 1.2+), clé API par client, Secrets chiffrés par Cloud KMS, IAM au moindre privilège, limitation des requêtes, validation des entrées, pods non root, journal d'audit pseudonymisé |
+| **Droits des personnes**         | Accès, effacement, opposition : aucun texte n'étant conservé, il n'y a rien à communiquer ni à effacer. Les identifiants HMAC ne permettent pas de retrouver un texte |
+| **Analyse d'impact (AIPD)**      | À évaluer avant une mise en production : l'évaluation automatisée de contenus fait partie des critères de la CNIL. Ici, le score porte sur un texte et non sur une personne, et ne déclenche aucune décision automatique |
+| **Limites connues**              | Le modèle peut se tromper (faux positifs, voir étape 3) ; l'anonymisation peut laisser passer des noms rares |
+
+### 7. Grille de tests de sécurité
+
+Les tests « auto » sont dans `tests/test_api.py` (`python -m pytest tests/test_api.py`). Les tests « cloud » se font avec `curl` sur le cluster GKE, depuis le dossier où se trouve `tls.crt`.
+
+| Test                                   | Commande / méthode                                              | Attendu | Auto | Cloud |
+| -------------------------------------- | --------------------------------------------------------------- | ------- | ---- | ----- |
+| Sans clé API                           | requête sans `X-API-Key`                                        | 401     | ✅   | ✅ (en HTTP, avant l'Ingress) |
+| Mauvaise clé                           | en-tête `X-API-Key: mauvaise-cle`                               | 401     | ✅   | à compléter |
+| `/metrics` sans clé                    | `curl https://$IP/metrics`                                      | 401     | ✅   | à compléter |
+| Texte vide                             | `-d '{"text":""}'`                                              | 422     | ✅   | à compléter |
+| Texte de plus de 5 000 caractères      | texte généré                                                     | 422     | ✅   | à compléter |
+| Modèle inconnu                         | `-d '{"text":"hello","model":"gpt"}'`                           | 422     | ✅   | à compléter |
+| Requête de plus de 32 Ko               | corps de 40 Ko                                                  | 413     | ✅   | à compléter |
+| Trop de requêtes                       | plus de `RATE_LIMIT_PER_MINUTE` requêtes en une minute          | 429     | ✅   | à compléter |
+| En-têtes de sécurité                   | `curl -I https://$IP/health`                                    | présents | ✅  | à compléter |
+| Pas de texte ni de clé dans les logs   | lecture des logs après un appel                                 | absents | ✅   | à compléter |
+| HTTPS avec certificat vérifié          | `curl --cacert tls.crt https://$IP/health`                      | 200     | –    | à compléter |
+| HTTP refusé                            | `curl -m 5 http://$IP/health`                                   | échec   | –    | à compléter |
+| TLS 1.1 refusé                         | `openssl s_client -connect $IP:443 -tls1_1`                     | échec   | –    | à compléter |
+| Secrets chiffrés par KMS               | `gcloud container clusters describe ... --format="value(databaseEncryption)"` | `ENCRYPTED` | – | à compléter |
+
+Commandes pour remplir la colonne « Cloud » (afficher seulement le code HTTP) :
+
+```bash
+httpcode() { curl -s -o /dev/null -w "%{http_code}\n" --cacert tls.crt "$@"; }
+URL=https://$IP
+httpcode -X POST $URL/score -H "Content-Type: application/json" -d '{"text":"hello"}'                                  # 401
+httpcode -X POST $URL/score -H "X-API-Key: mauvaise-cle" -H "Content-Type: application/json" -d '{"text":"hello"}'     # 401
+httpcode $URL/metrics                                                                                                  # 401
+httpcode -X POST $URL/score -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" -d '{"text":""}'               # 422
+httpcode -X POST $URL/score -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" -d '{"text":"hello","model":"gpt"}'  # 422
+python3 -c "print('{\"text\":\"' + 'a'*40000 + '\"}')" > big.json
+httpcode -X POST $URL/score -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" --data-binary @big.json      # 413
+curl -sI --cacert tls.crt $URL/health | grep -iE "x-content-type|x-frame|strict-transport|cache-control"
+gcloud logging read 'jsonPayload.event="auth_failed"' --limit 5 --format=json                                      # journal d'audit
+```
+
+### 8. Limites et améliorations
+
+- **Certificat auto-signé** : le chiffrement est le même qu'avec un certificat public, mais aucune autorité ne garantit le certificat. Le navigateur affiche un avertissement et chaque client doit recevoir `tls.crt` pour vérifier le serveur. En production : un nom de domaine et un certificat géré par Google (`ManagedCertificate`), renouvelé automatiquement. Le certificat auto-signé expire après 1 an et doit être régénéré.
+- **Limite de requêtes par pod** : le compteur est en mémoire. Avec 10 pods, un client peut faire jusqu'à 10 × 600 requêtes par minute. Pour une limite globale : **Cloud Armor** (WAF), branché sur l'Ingress par le `BackendConfig` (`securityPolicy`), qui ajoute aussi le filtrage d'IP et la protection contre le déni de service.
+- **Clés API sans expiration** : une rotation régulière (partie 1) est nécessaire. Pour des jetons à durée de vie courte, passer à OAuth2 / JWT.
+- **Attaques adverses** : un texte volontairement déformé (« id1ot », espaces entre les lettres) peut tromper le LSTM. Ce point sera traité avec les attaques sur l'IA (cours n°6).
 
 ## Lancer le projet
 

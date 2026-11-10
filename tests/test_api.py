@@ -58,3 +58,46 @@ def test_response_format(client):
     r = client.post("/score", json={"text": "you are an idiot"}, headers={"X-API-Key": "test-key"}).json()
     assert set(r) == {"score", "toxic", "model", "latency_ms"}
     assert r["model"] == "lstm"
+
+
+# --------------------------------------------------------------------------- #
+# Étape 4 : sécurité
+# --------------------------------------------------------------------------- #
+
+
+def test_security_headers(client):
+    r = client.get("/health")
+    assert r.headers["X-Content-Type-Options"] == "nosniff"
+    assert r.headers["X-Frame-Options"] == "DENY"
+    assert r.headers["Cache-Control"] == "no-store"
+
+
+def test_body_too_large_rejected(client):
+    r = client.post("/score", content=b"x" * 40_000,
+                    headers={"X-API-Key": "test-key", "Content-Type": "application/json"})
+    assert r.status_code == 413
+
+
+def test_rate_limit(client, monkeypatch):
+    monkeypatch.setattr(main, "RATE_LIMIT_PER_MINUTE", 3)
+    main._hits.clear()
+    h = {"X-API-Key": "test-key"}
+    codes = [client.post("/score", json={"text": "hello"}, headers=h).status_code for _ in range(4)]
+    assert codes == [200, 200, 200, 429]
+    main._hits.clear()
+
+
+def test_parse_keys_multiple_clients():
+    keys = main.parse_keys("", "moderation:aaaa,mobile:bbbb,cccc")
+    assert keys == {"aaaa": "moderation", "bbbb": "mobile", "cccc": "client-3"}
+
+
+def test_audit_log_has_no_secret(client, caplog):
+    with caplog.at_level("INFO", logger="dss"):
+        client.post("/score", json={"text": "hello"}, headers={"X-API-Key": "wrong-secret-key"})
+        client.post("/score", json={"text": "my secret sentence"}, headers={"X-API-Key": "test-key"})
+    logs = caplog.text
+    assert '"event": "auth_failed"' in logs
+    assert "wrong-secret-key" not in logs           # la clé testée n'est jamais écrite
+    assert "my secret sentence" not in logs         # le texte n'est jamais écrit
+    assert '"client": "default"' in logs

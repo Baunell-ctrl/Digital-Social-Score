@@ -1,13 +1,18 @@
-# Expose l'API à l'extérieur du cluster avec un load balancer Google (IP publique).
-# Port 80 public -> port 8080 des pods. Le trafic est réparti entre tous les pods prêts.
+# Service interne au cluster (ClusterIP) : il n'a PAS d'adresse publique.
+# Le seul accès depuis Internet passe par l'Ingress HTTPS (k8s/ingress.yaml).
+# - neg : le load balancer Google envoie le trafic directement aux pods (container-native)
+# - backend-config : health check du load balancer sur /health (k8s/backendconfig.yaml)
 apiVersion: v1
 kind: Service
 metadata:
   name: dss-api
   labels:
     app: dss-api
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "dss-api"}'
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: dss-api
   ports:
