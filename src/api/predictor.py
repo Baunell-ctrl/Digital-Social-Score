@@ -1,8 +1,15 @@
-"""Chargement du BiLSTM et prédiction pour l'API.
+"""Chargement du BiLSTM binaire et prédiction pour l'API.
 
 Même pipeline qu'à l'entraînement : anonymisation (regex + spaCy) -> nettoyage -> BiLSTM.
-Architecture identique à ``src/models/train_lstm.py`` (branche training-6-labels) :
-embedding 128 -> BiLSTM 2 x 128 -> max-pooling -> 6 sorties sigmoïdes.
+
+Le modèle est entraîné sur **un seul label** : 1 (toxique) si au moins une des 6 colonnes
+Jigsaw (toxic, severe_toxic, obscene, threat, insult, identity_hate) vaut 1, sinon 0.
+Architecture : embedding 128 -> BiLSTM 2 x 128 -> max-pooling (sans le remplissage) -> 1 sortie sigmoïde.
+
+Fichiers lus dans ``ARTIFACTS_DIR`` (``artifacts/`` par défaut) :
+- ``lstm.pt``     : les poids (state_dict) ;
+- ``vocab.json``  : le vocabulaire {mot: numéro} (0 = remplissage, 1 = mot inconnu) ;
+- ``config.json`` : tailles du modèle, longueur maximale et seuil de décision.
 """
 
 from __future__ import annotations
@@ -18,33 +25,33 @@ from src.anonymization.anonymizer import anonymize_text, detect, load_nlp
 from src.preprocessing.cleaner import clean_text
 
 ROOT = Path(__file__).resolve().parents[2]
-MODELS_DIR = Path(os.environ.get("MODELS_DIR", ROOT / "models"))
+ARTIFACTS_DIR = Path(os.environ.get("ARTIFACTS_DIR", ROOT / "artifacts"))
+MODELS_DIR = Path(os.environ.get("MODELS_DIR", ROOT / "models"))  # LAYA (local uniquement)
 
-LABELS = ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
-MAX_LEN = 200
 PAD, UNK = 0, 1
 
 
 class BiLSTM(nn.Module):
-    def __init__(self, vocab_size: int, emb: int = 128, hidden: int = 128, n_out: int = len(LABELS)):
+    def __init__(self, vocab_size: int, emb: int = 128, hidden: int = 128):
         super().__init__()
         self.emb = nn.Embedding(vocab_size, emb, padding_idx=PAD)
         self.lstm = nn.LSTM(emb, hidden, batch_first=True, bidirectional=True)
-        self.drop = nn.Dropout(0.3)
-        self.out = nn.Linear(2 * hidden, n_out)
+        self.fc = nn.Linear(2 * hidden, 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        h, _ = self.lstm(self.emb(x))
+        h, _ = self.lstm(self.emb(x))                     # (batch, len, 2*hidden)
         h = h.masked_fill((x == PAD).unsqueeze(-1), -1e4)  # ignore le remplissage
-        return self.out(self.drop(h.max(dim=1).values))
+        return self.fc(h.max(dim=1).values).squeeze(-1)   # logit (batch,)
 
 
 class ToxicityPredictor:
-    def __init__(self, models_dir: Path = MODELS_DIR, use_ner: bool = True):
-        itos = json.loads((models_dir / "lstm_vocab.json").read_text(encoding="utf-8"))
-        self.stoi = {w: i for i, w in enumerate(itos)}
-        self.model = BiLSTM(len(itos))
-        state = torch.load(models_dir / "lstm.pt", map_location="cpu", weights_only=True)
+    def __init__(self, artifacts_dir: Path = ARTIFACTS_DIR, use_ner: bool = True):
+        cfg = json.loads((artifacts_dir / "config.json").read_text(encoding="utf-8"))
+        self.stoi: dict[str, int] = json.loads((artifacts_dir / "vocab.json").read_text(encoding="utf-8"))
+        self.max_len = cfg["max_len"]
+        self.threshold = cfg.get("threshold", 0.5)
+        self.model = BiLSTM(len(self.stoi), cfg["embedding_dim"], cfg["hidden_dim"])
+        state = torch.load(artifacts_dir / "lstm.pt", map_location="cpu", weights_only=True)
         self.model.load_state_dict(state)
         self.model.eval()
         torch.set_num_threads(max(1, os.cpu_count() or 1))
@@ -56,14 +63,13 @@ class ToxicityPredictor:
         return clean_text(anonymize_text(text, detect(text, doc)))
 
     def encode(self, text: str) -> torch.Tensor:
-        ids = [self.stoi.get(w, UNK) for w in text.split()[:MAX_LEN]] or [UNK]
+        ids = [self.stoi.get(w, UNK) for w in text.split()[: self.max_len]] or [UNK]
         return torch.tensor([ids], dtype=torch.long)
 
     @torch.no_grad()
-    def predict(self, text: str) -> dict[str, float]:
-        """Probabilité (0-1) de chacune des 6 étiquettes."""
-        probs = torch.sigmoid(self.model(self.encode(self.preprocess(text))))[0]
-        return {label: float(p) for label, p in zip(LABELS, probs)}
+    def predict(self, text: str) -> float:
+        """Probabilité (0-1) que le texte soit toxique."""
+        return float(torch.sigmoid(self.model(self.encode(self.preprocess(text))))[0])
 
 
 class LayaPredictor:
@@ -84,6 +90,7 @@ class LayaPredictor:
         self.preprocess = preprocess
         self.questions, self.qid, self.max_len = QUESTIONS, QUESTION_ID, MAX_LEN
 
-    def predict(self, text: str) -> dict[str, float]:
+    def predict(self, text: str) -> float:
+        """Probabilité (0-1) que le texte soit toxique."""
         out = self.agent.predict_batch([{"post": self.preprocess(text)}], self.questions, max_len=self.max_len)
-        return {"toxic": float(out[0]["answers"][self.qid]["noul"])}
+        return float(out[0]["answers"][self.qid]["noul"])

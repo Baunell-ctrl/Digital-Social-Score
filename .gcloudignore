@@ -7,7 +7,4 @@ data/
 docs/
 reports/
 **/__pycache__/
-models/laya/
-models/laya_binary/
-models/laya_binary_data/
-models/laya_data/
+models/
