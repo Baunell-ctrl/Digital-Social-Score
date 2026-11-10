@@ -1,34 +1,34 @@
 {
   "train": {
     "comments": 25960,
-    "comments_with_personal_data": 11004,
-    "share_with_personal_data": 0.4239,
+    "comments_with_personal_data": 11118,
+    "share_with_personal_data": 0.4283,
     "detections_by_label": {
       "EMAIL": 64,
       "IP": 1873,
-      "LOCATION": 8794,
-      "PERSON": 19712,
+      "LOCATION": 8698,
+      "PERSON": 19636,
       "PHONE": 353,
       "URL": 1151,
       "USERNAME": 33
     },
-    "total_detections": 31980,
-    "seconds": 42.8
+    "total_detections": 31808,
+    "seconds": 55.4
   },
   "val": {
     "comments": 6490,
-    "comments_with_personal_data": 2784,
-    "share_with_personal_data": 0.429,
+    "comments_with_personal_data": 2804,
+    "share_with_personal_data": 0.432,
     "detections_by_label": {
       "EMAIL": 15,
       "IP": 425,
-      "LOCATION": 2385,
-      "PERSON": 4993,
+      "LOCATION": 2361,
+      "PERSON": 5027,
       "PHONE": 101,
       "URL": 227,
       "USERNAME": 14
     },
-    "total_detections": 8160,
-    "seconds": 10.1
+    "total_detections": 8170,
+    "seconds": 16.0
   }
 }
