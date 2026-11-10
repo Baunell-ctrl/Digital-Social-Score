@@ -1,5 +1,5 @@
 # API Digital Social Score sur GKE.
-# IMAGE est remplacé au déploiement (voir README, étape 3 partie 5) :
+# IMAGE est remplacé au déploiement (voir README, étape 3 partie 4) :
 #   sed "s|IMAGE|$IMAGE|" k8s/deployment.yaml | kubectl apply -f -
 apiVersion: apps/v1
 kind: Deployment
