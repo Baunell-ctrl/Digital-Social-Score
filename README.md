@@ -215,9 +215,21 @@ L'API utilise donc le LSTM par défaut (LAYA reste disponible en option, en loca
 
 Code : `src/api/main.py` (routes) et `src/api/predictor.py` (chargement du modèle). Tests : `tests/test_api.py`.
 
-### 1. Fonctionnement
+Cette étape répond aux deux exercices du TP : **créer une API** qui reçoit un texte et renvoie un score (parties 1 et 2), puis **exporter le modèle et le déployer dans le Cloud** (parties 3 et 4). Le déploiement se fait sur **GKE** (Google Kubernetes Engine).
 
-À chaque requête, le texte suit le même chemin que les données d'entraînement : **anonymisation** (regex + spaCy), puis **nettoyage**, puis **LSTM**. Le modèle chargé par l'API est le LSTM à un seul label (dossier `artifacts/`) : le score est sa probabilité « toxique », multipliée par 100. `toxic` vaut `true` si le score dépasse 50.
+### 1. Créer une API recevant un texte et renvoyant un score
+
+**Processus.**
+
+1. L'API est écrite avec **FastAPI** (`src/api/main.py`) et expose la route `POST /score`.
+2. Le client envoie un texte en JSON (`{"text": "..."}`, de 1 à 5 000 caractères), avec sa clé API dans l'en-tête `X-API-Key`.
+3. L'API vérifie la clé et la taille du texte. Sinon elle répond 401 ou 422.
+4. Le texte suit le même chemin que les données d'entraînement : **anonymisation** (regex + spaCy), puis **nettoyage**, puis **LSTM**. Le modèle (`src/api/predictor.py`) est chargé une seule fois, au démarrage.
+5. Le LSTM renvoie la probabilité que le texte soit toxique. L'API la multiplie par 100 : c'est le **score**, de 0 (respectueux) à 100 (très toxique).
+6. L'API répond avec le score et la décision `toxic` (`true` si le score atteint 50).
+7. Dans les logs, seul un identifiant pseudonyme du texte est écrit, jamais le texte.
+
+Le modèle chargé est le LSTM à un seul label (dossier `artifacts/`).
 
 | Route          | Rôle                                         | Clé API |
 | -------------- | -------------------------------------------- | ------- |
@@ -255,14 +267,24 @@ curl -X POST http://localhost:8000/score \
 - **Aucun texte stocké ni journalisé** : les logs ne contiennent qu'un identifiant pseudonyme du texte (HMAC-SHA256 avec une clé secrète), le modèle utilisé, le score et la latence. Ni le texte ni sa longueur ne sont écrits.
 - **Métriques protégées** : `/metrics` demande aussi la clé API, pour ne pas exposer l'activité du service.
 - **Anonymisation avant le modèle** : les données personnelles sont retirées du texte avant même d'arriver au modèle.
-- **HTTPS** fourni par la plateforme cloud.
-- **Conteneur non root** : l'image Docker tourne avec un utilisateur sans privilèges.
+- **Secrets hors du code** : la clé API et la clé des logs sont stockées dans Secret Manager, puis dans un secret Kubernetes.
+- **HTTPS** : non activé dans notre déploiement GKE, qui est en HTTP (voir la partie 4, étape 10).
+- **Conteneur non root** : l'image Docker et les pods tournent avec un utilisateur sans privilèges.
 
-### 3. Docker et cloud
+### 3. Exporter le modèle
 
-Le `Dockerfile` construit une image légère : Python 3.12 slim, PyTorch version CPU, et seulement le code de l'API avec les 3 fichiers du LSTM (`artifacts/`). Les fichiers `.dockerignore` et `.gcloudignore` excluent les données, les rapports et le dossier `models/` (LAYA, anciens modèles).
+**Processus.**
 
-Variables d'environnement :
+1. Après l'entraînement, le LSTM est exporté en **3 fichiers**, dans le dossier `artifacts/` (16,5 Mo au total) :
+   - `lstm.pt` : les poids du modèle ;
+   - `vocab.json` : le vocabulaire de 30 000 mots, indispensable (sans lui, les scores sont faux) ;
+   - `config.json` : tailles du réseau, 128 mots maximum par texte, seuil de décision 0,5.
+2. Le `Dockerfile` construit une **image Docker** légère : Python 3.12 slim, PyTorch version CPU, le code de l'API et ces 3 fichiers (`artifacts/`). Les fichiers `.dockerignore` et `.gcloudignore` excluent les données, les rapports et le dossier `models/` (LAYA, anciens modèles).
+3. L'image est stockée dans **Artifact Registry**, le registre privé de Google Cloud (partie 4, étapes 5 et 6), puis lancée dans des pods sur GKE.
+
+**Mettre à jour le modèle.** Remplacer les 3 fichiers de `artifacts/` en local, les pousser sur GitHub, faire `git pull` dans Cloud Shell, puis suivre l'étape 11 de la partie 4.
+
+Variables d'environnement de l'API :
 
 | Variable     | Rôle                                                    | Défaut |
 | ------------ | ------------------------------------------------------- | ------ |
@@ -272,82 +294,9 @@ Variables d'environnement :
 | `ARTIFACTS_DIR` | dossier des fichiers du LSTM                          | `artifacts/` |
 | `PORT`       | port d'écoute du conteneur                              | `8080` |
 
-### 4. Déploiement sur Google Cloud Run
+### 4. Déployer le modèle dans le Cloud : GKE
 
-Tout se fait depuis le navigateur, avec **Cloud Shell** (le terminal intégré à la console Google Cloud, où `gcloud`, `git` et Docker sont déjà installés). La région choisie est `europe-west9` (Paris) : les données restent en France, ce qui est conforme au RGPD.
-
-**1. Préparer le projet.** Sur [console.cloud.google.com](https://console.cloud.google.com), créer un projet, noter son ID et activer la facturation. Ouvrir Cloud Shell avec l'icône `>_` en haut à droite.
-
-**2. Récupérer le code.** Le dépôt contient le code, le `Dockerfile` et les 3 fichiers du modèle (`artifacts/`, 16,5 Mo).
-
-```bash
-git clone https://github.com/Baunell-ctrl/Digital-Social-Score.git
-cd Digital-Social-Score
-ls artifacts    # lstm.pt, vocab.json, config.json
-```
-
-**3. (Mise à jour du modèle uniquement.)** Pour déployer un nouveau modèle, remplacer les 3 fichiers de `artifacts/` en local, les pousser sur GitHub, puis faire `git pull` dans Cloud Shell et relancer l'étape 7.
-
-**4. Configurer le projet.**
-
-```bash
-PROJECT=<ID_DU_PROJET>
-REGION=europe-west9
-gcloud config set project $PROJECT
-gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com
-```
-
-**5. Créer les secrets.** La clé API et la clé des logs sont stockées dans Secret Manager, jamais dans le code ni dans des variables visibles.
-
-```bash
-API_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
-echo "Clé API : $API_KEY"     # à conserver
-printf "%s" "$API_KEY" | gcloud secrets create dss-api-key --data-file=-
-python3 -c "import secrets; print(secrets.token_hex(32), end='')" | gcloud secrets create dss-log-salt --data-file=-
-```
-
-**6. Donner les droits au compte de service** (principe du moindre privilège : seulement ce qui est nécessaire).
-
-```bash
-NUM=$(gcloud projects describe $PROJECT --format="value(projectNumber)")
-for ROLE in roles/secretmanager.secretAccessor roles/artifactregistry.writer roles/storage.objectViewer roles/logging.logWriter; do
-  gcloud projects add-iam-policy-binding $PROJECT     --member="serviceAccount:$NUM-compute@developer.gserviceaccount.com" --role=$ROLE --condition=None -q > /dev/null
-done
-```
-
-**7. Construire et déployer.** `--source .` construit l'image avec Cloud Build à partir du `Dockerfile`, la stocke dans Artifact Registry, puis la déploie (5 à 10 minutes). Répondre `Y` si gcloud propose de créer un dépôt.
-
-```bash
-gcloud run deploy dss-api --source . --region $REGION   --memory 2Gi --cpu 1 --min-instances 0 --max-instances 10 --cpu-boost   --set-secrets "API_KEY=dss-api-key:latest,LOG_SALT=dss-log-salt:latest"   --allow-unauthenticated
-```
-
-| Option                     | Pourquoi                                                                  |
-| -------------------------- | ------------------------------------------------------------------------- |
-| `--memory 2Gi --cpu 1`     | PyTorch + spaCy + LSTM tiennent dans 2 Go                                |
-| `--min-instances 0`        | aucun coût sans trafic (première requête plus lente après une pause)     |
-| `--max-instances 10`       | montée en charge automatique, avec un plafond pour maîtriser le coût     |
-| `--cpu-boost`              | plus de CPU pendant le démarrage, pour charger le modèle plus vite       |
-| `--set-secrets`            | injecte les secrets de Secret Manager au démarrage                        |
-| `--allow-unauthenticated`  | l'URL est publique ; c'est la clé API, vérifiée par l'API, qui protège `/score` et `/metrics` |
-
-**8. Tester.**
-
-```bash
-URL=$(gcloud run services describe dss-api --region $REGION --format="value(status.url)")
-curl $URL/health
-curl -X POST $URL/score -H "X-API-Key: $API_KEY" -H "Content-Type: application/json"   -d '{"text": "You are a stupid idiot"}'
-curl -X POST $URL/score -H "Content-Type: application/json" -d '{"text": "hello"}'   # sans clé : 401
-```
-
-La documentation interactive est disponible sur `$URL/docs` (bouton **Authorize** pour saisir la clé).
-
-**9. Supervision.** Dans la console : **Cloud Run → dss-api → Journaux** (logs JSON pseudonymes) et **Métriques** (requêtes, latence, erreurs, nombre d'instances).
-
-**10. Mise à jour et arrêt.** Après une modification du code ou du modèle : `git pull` puis relancer l'étape 7. À la fin du projet : `gcloud run services delete dss-api --region $REGION`.
-
-### 5. Alternative : image dans Artifact Registry et déploiement sur GKE
-
-Cloud Run (partie 4) est la solution la plus simple. Le cours présente aussi **Kubernetes** (GKE), qui donne plus de contrôle : nombre de pods, sondes de santé, autoscaling, mises à jour progressives. Cette partie décrit ce second déploiement. Tout se fait dans **Cloud Shell**, depuis le dossier du dépôt (`cd ~/Digital-Social-Score && git pull`).
+Le modèle est déployé sur **Kubernetes** (GKE, mode **Autopilot**), qui donne du contrôle sur le nombre de pods, les sondes de santé, l'autoscaling et les mises à jour progressives. Tout se fait dans **Cloud Shell**, le terminal intégré à la console Google Cloud, où `gcloud`, `kubectl`, `git` et Docker sont déjà installés. La région choisie est `europe-west9` (Paris) : les données restent en France, ce qui est conforme au RGPD.
 
 Les fichiers Kubernetes sont dans `k8s/` :
 
@@ -357,7 +306,17 @@ Les fichiers Kubernetes sont dans `k8s/` :
 | `k8s/service.yaml`     | load balancer avec une IP publique, qui répartit les requêtes entre les pods             |
 | `k8s/hpa.yaml`         | autoscaling : de 2 à 10 pods selon l'usage CPU (seuil 70 %)                              |
 
-**1. Variables et services.**
+**1. Préparer le projet.** Sur [console.cloud.google.com](https://console.cloud.google.com), créer un projet, noter son ID et activer la facturation. Ouvrir Cloud Shell avec l'icône `>_` en haut à droite.
+
+**2. Récupérer le code.** Le dépôt contient le code, le `Dockerfile`, les fichiers `k8s/` et les 3 fichiers du modèle (`artifacts/`).
+
+```bash
+git clone https://github.com/Baunell-ctrl/Digital-Social-Score.git
+cd Digital-Social-Score
+ls artifacts    # lstm.pt, vocab.json, config.json
+```
+
+**3. Variables et services.**
 
 ```bash
 PROJECT=<ID_DU_PROJET>
@@ -365,17 +324,31 @@ REGION=europe-west9
 TAG=v1
 IMAGE=$REGION-docker.pkg.dev/$PROJECT/dss/api:$TAG
 gcloud config set project $PROJECT
-gcloud services enable artifactregistry.googleapis.com cloudbuild.googleapis.com container.googleapis.com
+gcloud services enable artifactregistry.googleapis.com cloudbuild.googleapis.com container.googleapis.com secretmanager.googleapis.com
 ```
 
-**2. Créer le dépôt Artifact Registry** (une seule fois). C'est le registre privé qui stocke les images Docker versionnées.
+**4. Créer les secrets.** La clé API et la clé des logs sont stockées dans Secret Manager, jamais dans le code. Donner aussi au compte de service de Cloud Build les droits nécessaires pour construire et pousser l'image (principe du moindre privilège).
+
+```bash
+API_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+echo "Clé API : $API_KEY"     # à conserver
+printf "%s" "$API_KEY" | gcloud secrets create dss-api-key --data-file=-
+python3 -c "import secrets; print(secrets.token_hex(32), end='')" | gcloud secrets create dss-log-salt --data-file=-
+
+NUM=$(gcloud projects describe $PROJECT --format="value(projectNumber)")
+for ROLE in roles/artifactregistry.writer roles/storage.objectViewer roles/logging.logWriter; do
+  gcloud projects add-iam-policy-binding $PROJECT     --member="serviceAccount:$NUM-compute@developer.gserviceaccount.com" --role=$ROLE --condition=None -q > /dev/null
+done
+```
+
+**5. Créer le dépôt Artifact Registry** (une seule fois). C'est le registre privé qui stocke les images Docker versionnées.
 
 ```bash
 gcloud artifacts repositories create dss --repository-format=docker --location=$REGION \
   --description="Images de l'API Digital Social Score"
 ```
 
-**3. Construire et pousser l'image.** Cloud Build lit le `Dockerfile`, construit l'image et la pousse dans le dépôt (5 à 10 minutes).
+**6. Construire et pousser l'image.** Cloud Build lit le `Dockerfile`, construit l'image et la pousse dans le dépôt (5 à 10 minutes).
 
 ```bash
 gcloud builds submit --tag $IMAGE .
@@ -390,7 +363,7 @@ docker build -t $IMAGE .
 docker push $IMAGE
 ```
 
-**4. Créer le cluster GKE.** Le mode **Autopilot** laisse Google gérer les machines : on ne paie que les ressources demandées par les pods. La création prend 5 à 10 minutes.
+**7. Créer le cluster GKE.** Le mode **Autopilot** laisse Google gérer les machines : on ne paie que les ressources demandées par les pods. La création prend 5 à 10 minutes.
 
 ```bash
 gcloud container clusters create-auto dss-cluster --region $REGION
@@ -401,12 +374,11 @@ kubectl get nodes
 Le cluster doit pouvoir lire les images du dépôt :
 
 ```bash
-NUM=$(gcloud projects describe $PROJECT --format="value(projectNumber)")
 gcloud artifacts repositories add-iam-policy-binding dss --location=$REGION \
   --member="serviceAccount:$NUM-compute@developer.gserviceaccount.com" --role=roles/artifactregistry.reader
 ```
 
-**5. Créer le secret Kubernetes.** On reprend les valeurs déjà stockées dans Secret Manager (partie 4, étape 5), sans les écrire dans un fichier.
+**8. Créer le secret Kubernetes.** On reprend les valeurs stockées dans Secret Manager (étape 4), sans les écrire dans un fichier.
 
 ```bash
 kubectl create secret generic dss-secrets \
@@ -414,7 +386,7 @@ kubectl create secret generic dss-secrets \
   --from-literal=LOG_SALT="$(gcloud secrets versions access latest --secret=dss-log-salt)"
 ```
 
-**6. Déployer.**
+**9. Déployer.**
 
 ```bash
 sed "s|IMAGE|$IMAGE|" k8s/deployment.yaml | kubectl apply -f -
@@ -423,7 +395,7 @@ kubectl rollout status deployment/dss-api          # attend que les 2 pods soien
 kubectl get pods,svc,hpa
 ```
 
-**7. Tester.** L'IP publique apparaît dans `EXTERNAL-IP` du service (1 à 2 minutes après sa création).
+**10. Tester.** L'IP publique apparaît dans `EXTERNAL-IP` du service (1 à 2 minutes après sa création).
 
 ```bash
 IP=$(kubectl get svc dss-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
@@ -431,11 +403,14 @@ API_KEY=$(gcloud secrets versions access latest --secret=dss-api-key)
 curl http://$IP/health
 curl -X POST http://$IP/score -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
   -d '{"text": "You are a stupid idiot"}'
+curl -X POST http://$IP/score -H "Content-Type: application/json" -d '{"text": "hello"}'   # sans clé : 401
 ```
 
-⚠️ **Le service est en HTTP, pas en HTTPS** : la clé API circule en clair. Pour un vrai service, il faut un nom de domaine, un **Ingress** GKE et un certificat géré par Google (`ManagedCertificate`). Cloud Run (partie 4) fournit le HTTPS sans configuration : c'est pour cela qu'il reste le déploiement principal du projet.
+La documentation interactive est disponible sur `http://$IP/docs` (bouton **Authorize** pour saisir la clé).
 
-**8. Mettre à jour sans coupure.** Construire une nouvelle image avec un nouveau tag, puis remplacer l'image du déploiement. Kubernetes démarre un nouveau pod, attend qu'il soit prêt, puis arrête l'ancien (*rolling update*).
+⚠️ **Le service est en HTTP, pas en HTTPS** : la clé API circule en clair. Pour un vrai service, il faut un nom de domaine, un **Ingress** GKE et un certificat géré par Google (`ManagedCertificate`).
+
+**11. Mettre à jour sans coupure.** Construire une nouvelle image avec un nouveau tag, puis remplacer l'image du déploiement. Kubernetes démarre un nouveau pod, attend qu'il soit prêt, puis arrête l'ancien (*rolling update*).
 
 ```bash
 TAG=v2; IMAGE=$REGION-docker.pkg.dev/$PROJECT/dss/api:$TAG
@@ -445,7 +420,7 @@ kubectl rollout status deployment/dss-api
 kubectl rollout undo deployment/dss-api            # retour à la version précédente si besoin
 ```
 
-**9. Supervision et tests de panne** (étapes 5 et 6 du TP).
+**12. Supervision et tests de panne** (étapes 5 et 6 du TP).
 
 ```bash
 kubectl logs -l app=dss-api --tail=50              # logs pseudonymes des pods
@@ -456,22 +431,14 @@ kubectl delete pod -l app=dss-api --wait=false     # simule une panne : Kubernet
 
 Les logs et métriques sont aussi visibles dans la console : **Kubernetes Engine → Charges de travail → dss-api**.
 
-**10. Supprimer** (le cluster est facturé tant qu'il existe).
+**13. Supprimer** (le cluster est facturé tant qu'il existe).
 
 ```bash
 kubectl delete -f k8s/hpa.yaml -f k8s/service.yaml -f k8s/deployment.yaml
 gcloud container clusters delete dss-cluster --region $REGION
 ```
 
-| Critère                | Cloud Run (partie 4)              | GKE Autopilot (partie 5)                         |
-| ---------------------- | --------------------------------- | ------------------------------------------------ |
-| Mise en place          | une commande                      | dépôt, cluster, secret, 3 fichiers YAML          |
-| HTTPS                  | inclus                            | à configurer (domaine + Ingress + certificat)    |
-| Coût sans trafic       | 0 (`min-instances 0`)             | 2 pods toujours actifs + frais du cluster        |
-| Contrôle               | limité                            | complet : sondes, nombre de pods, mises à jour  |
-| Autoscaling            | automatique (0 à 10 instances)    | HPA sur le CPU (2 à 10 pods)                     |
-
-### 6. Résultats des tests sur le cloud (GKE)
+### 5. Résultats des tests sur le cloud (GKE)
 
 Tests faits depuis Cloud Shell avec `curl`, sur l'API déployée dans le cluster GKE (2 pods, modèle LSTM).
 
@@ -534,4 +501,4 @@ docker build -t digital-social-score .
 docker run -p 8080:8080 -e API_KEY=test digital-social-score
 ```
 
-Déploiement sur Google Cloud Run : voir l'étape 3, partie 4.
+Déploiement sur GKE : voir l'étape 3, partie 4.
