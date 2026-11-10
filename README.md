@@ -97,6 +97,12 @@ Mêmes lignes, mêmes identifiants, mêmes étiquettes qu'avant. Les étiquettes
 
 ### 2. Modèles : LSTM, BERT, LAYA
 
+**Notre choix pour l'entraînement : une seule étiquette.** Le jeu d'origine décrit chaque commentaire avec 6 colonnes (`toxic`, `severe_toxic`, `obscene`, `threat`, `insult`, `identity_hate`). Nous les regroupons en **une seule colonne**, avec la règle du OU : le commentaire est **inapproprié (1) si au moins une des 6 colonnes vaut 1**, sinon il est acceptable (0).
+
+- **Pourquoi** : l'objectif est de savoir globalement si un contenu est inapproprié ou non, pas de dire de quel type d'insulte il s'agit. Une seule question donne un modèle plus simple et un seul score facile à lire.
+- **Pourquoi pas la seule colonne `toxic`** : un commentaire peut être obscène ou insultant sans être marqué `toxic`. Avec la règle du OU, il est bien détecté (50,0 % de commentaires inappropriés contre 47,1 % avec `toxic` seul).
+- **Ce qu'on perd** : le détail du type de toxicité (menace, haine…).
+
 Les trois modèles utilisent le même jeu de données, la même règle du OU et le même découpage, donc leurs scores sont comparables.
 
 | Jeu   | Commentaires | Rôle                                        |
@@ -183,30 +189,15 @@ Résultats sur le même test (1 308 commentaires jamais vus à l'entraînement).
 
 Les temps d'inférence ont été mesurés sur GPU, par lots.
 
-**Test sur des phrases piégeuses** (score de 0 à 100, avec l'API) :
+**Conclusion : nous retenons le LSTM.**
 
-| Phrase                                     | LSTM     | LAYA    |
-| ------------------------------------------ | -------- | ------- |
-| « Thank you for your help, have a nice day » | 9,3    | 2,5     |
-| « You are a wonderful person »             | **95,3** ❌ | **2,6** ✅ |
-| « You are great »                          | 85,9 ❌  | –       |
-| « you are a stupid fucking idiot »         | 100      | 99,2    |
+BERT a la meilleure précision (0,941 contre 0,894) et le meilleur F1. Nous choisissons pourtant le LSTM, pour trois raisons :
 
-**Bilan.**
+- **Temps de réponse très bon** : 0,4 ms par commentaire, contre 6,5 ms pour BERT et 10,3 ms pour LAYA.
+- **Précision satisfaisante** : 0,89, soit 9 commentaires jugés inappropriés sur 10 qui le sont vraiment, avec un rappel de 0,91. L'écart avec BERT est d'environ 5 points.
+- **Léger, donc peu coûteux** : 16 Mo de poids contre 268 Mo (BERT) et 840 Mo (LAYA). Il tourne sur un simple CPU, sans GPU. Sur GCP, l'image est petite, le service demande peu de mémoire et chaque requête consomme très peu de temps de calcul : la facture est plus basse qu'avec BERT ou LAYA.
 
-- **BERT** a les meilleurs chiffres partout : meilleur F1, deux fois moins de faux positifs que le LSTM. Il comprend le contexte de la phrase. C'est le meilleur compromis qualité / coût parmi les modèles « lourds ».
-- **LAYA** a des métriques proches du LSTM, mais il comprend mieux le sens : il ne tombe pas dans le piège « you are ». Ses probabilités sont les mieux calibrées (ECE 0,023) : un score de 90 veut vraiment dire « toxique 9 fois sur 10 ». C'est aussi le plus lent et le plus lourd. Ses chiffres sont sous-estimés, car il a été entraîné sur 10 000 lignes avec l'encodeur gelé.
-- **LSTM** est imbattable en vitesse et en légèreté et tourne sur un simple CPU. Mais il juge sur les mots, pas sur le sens : il produit des faux positifs gênants sur des phrases gentilles.
-
-**Quel modèle choisir ?**
-
-| Besoin                                              | Modèle conseillé |
-| --------------------------------------------------- | ---------------- |
-| Petit budget cloud, CPU seul, gros volume de textes | **LSTM**         |
-| Meilleure qualité de détection                      | **BERT**         |
-| Un score de toxicité fiable, interprétable comme une probabilité | **LAYA** |
-
-**Choix actuel pour l'API : le LSTM par défaut**, avec LAYA disponible via `"model": "laya"`. Le LSTM tourne sur un simple CPU, ce qui rend l'hébergement cloud peu coûteux, et l'image Docker reste légère. Pour un vrai service, il vaudrait mieux passer à **BERT** : 6,5 ms par commentaire reste rapide, et comme il tient compte du contexte, il devrait éviter les erreurs du LSTM. Ses poids ne sont pas disponibles sur ce poste : il n'a donc pas pu être testé sur ces phrases.
+L'API utilise donc le LSTM par défaut (LAYA reste disponible en option). Si la qualité de détection comptait plus que le coût, BERT serait le meilleur choix.
 
 ## Étape 3 : API et déploiement
 

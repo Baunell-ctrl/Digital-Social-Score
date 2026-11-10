@@ -8,3 +8,8 @@ venv/
 
 # Poids des modèles entraînés (trop lourds pour git)
 /models/
+
+# Déploiement et Docker (non versionnés)
+deploy/
+Dockerfile*
+.dockerignore
