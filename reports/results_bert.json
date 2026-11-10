@@ -1,0 +1,58 @@
+{
+  "model": "distilbert-base-uncased",
+  "label_rule": "OR of 6 columns",
+  "seed": 42,
+  "dev": {
+    "precision": 0.944620253164557,
+    "recall": 0.9191685912240185,
+    "f1": 0.9317206398751463,
+    "roc_auc": 0.9813645868389361,
+    "confusion": {
+      "tn": 1227,
+      "fp": 70,
+      "fn": 105,
+      "tp": 1194
+    }
+  },
+  "test_clean": {
+    "precision": 0.9408,
+    "recall": 0.91875,
+    "f1": 0.9296442687747035,
+    "roc_auc": 0.982747005988024,
+    "confusion": {
+      "tn": 631,
+      "fp": 37,
+      "fn": 52,
+      "tp": 588
+    }
+  },
+  "test_full": {
+    "precision": 0.9572243346007605,
+    "recall": 0.9399502177971375,
+    "f1": 0.94850863422292,
+    "roc_auc": 0.9882884176599174,
+    "confusion": {
+      "tn": 3141,
+      "fp": 135,
+      "fn": 193,
+      "tp": 3021
+    }
+  },
+  "inference_ms_per_comment": 6.518,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.2570335513476376,
+      "dev_f1": 0.9317206398751463,
+      "dev_auc": 0.9813645868389361,
+      "elapsed_s": 662
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.1737625756711519,
+      "dev_f1": 0.9288389513108615,
+      "dev_auc": 0.9817382210264346,
+      "elapsed_s": 1385
+    }
+  ]
+}

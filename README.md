@@ -121,6 +121,27 @@ Le test garde uniquement les commentaires de `val_dataset.csv` absents du train 
 - **Rapide** : 0,4 ms par commentaire, il peut analyser des milliers de textes par seconde.
 - **Limites** : il ne comprend pas le contexte (ironie, citation d'une insulte) et ne connaît que les mots vus à l'entraînement.
 
+### BERT
+
+Script : `python -m src.models.bert_binary`. Résultats détaillés : `reports/results_bert.json`.
+
+**Modèle.** DistilBERT (`distilbert-base-uncased`), une version allégée de BERT (66 millions de paramètres, environ 2 fois plus rapide). Même jeu de données, même règle du OU et même découpage (train, dev, test) que le LSTM, donc les scores sont comparables. Réglages : lots de 8, 96 mots maximum par commentaire, 2 epochs ; le meilleur epoch (le 1er) est choisi sur le dev.
+
+**Résultats sur le test.**
+
+| Précision | Rappel | F1    | Temps d'inférence      |
+| --------- | ------ | ----- | ---------------------- |
+| 0,941     | 0,919  | 0,930 | 6,5 ms par commentaire |
+
+**Interprétation.**
+
+- **Précision 0,94** : quand le modèle dit « toxique », il a raison 19 fois sur 20 (37 faux positifs sur 1 308).
+- **Rappel 0,92** : il retrouve 92 % des commentaires réellement toxiques (52 oubliés).
+- **Fiable** : le F1 du dev (0,932) et celui du test (0,930) sont presque identiques, le modèle ne sur-apprend pas.
+- **Meilleur que le LSTM** : +2,8 points de F1 (0,930 contre 0,902), surtout grâce à la précision (0,941 contre 0,894), car il comprend mieux le contexte des phrases.
+- **Plus lent** : 6,5 ms par commentaire, soit environ 16 fois plus que le LSTM (0,4 ms), mais cela reste plus de 150 commentaires par seconde.
+- **Limites** : il est plus lourd à entraîner et à déployer que le LSTM (268 Mo de poids contre 16 Mo, environ 23 minutes d'entraînement pour 2 epochs) et rate encore environ 8 % des commentaires toxiques.
+
 ## Lancer le projet
 
 ```bash
@@ -132,5 +153,6 @@ python -m spacy download en_core_web_sm
 python -m src.anonymization.build_datasets
 python -m src.preprocessing.build_clean_datasets
 python -m src.models.lstm_binary
+python -m src.models.bert_binary
 python -m pytest tests
 ```
