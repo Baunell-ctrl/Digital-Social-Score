@@ -1,0 +1,11 @@
+.git
+.venv
+venv
+data
+docs
+reports
+tests
+**/__pycache__
+models/*
+!models/lstm.pt
+!models/lstm_vocab.json

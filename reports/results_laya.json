@@ -1,0 +1,35 @@
+{
+  "model": "convaiinnovations/laya (RLCD, encodeur gelé)",
+  "label_rule": "OR of 6 columns",
+  "seed": 42,
+  "train_rows": 10000,
+  "epochs": 1,
+  "max_len": 128,
+  "device": "NVIDIA GeForce RTX 5050 Laptop GPU",
+  "train_seconds": 321,
+  "dev": {
+    "precision": 0.9175019275250579,
+    "recall": 0.9160892994611239,
+    "f1": 0.9167950693374423,
+    "roc_auc": 0.9749543418429335,
+    "confusion": {
+      "tn": 1190,
+      "fp": 107,
+      "fn": 109,
+      "tp": 1190
+    }
+  },
+  "test_clean": {
+    "precision": 0.9076682316118936,
+    "recall": 0.90625,
+    "f1": 0.9069585613760751,
+    "roc_auc": 0.9730585703592814,
+    "confusion": {
+      "tn": 609,
+      "fp": 59,
+      "fn": 60,
+      "tp": 580
+    }
+  },
+  "inference_ms_per_comment": 10.324
+}

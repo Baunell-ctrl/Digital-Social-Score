@@ -1,0 +1,5 @@
+# Dépendances de l'API (image Docker). PyTorch CPU est installé à part dans le Dockerfile.
+fastapi>=0.115
+uvicorn[standard]>=0.30
+spacy>=3.7
+prometheus-fastapi-instrumentator>=7.0
