@@ -1,0 +1,20 @@
+# Réglages du load balancer côté pods : health check sur /health.
+# Un pod qui ne répond pas est retiré du load balancer.
+# logging : le load balancer journalise chaque requête AVEC l'IP du client (donnée personnelle,
+# gardée 30 jours, déclarée dans le registre RGPD). Mettre enable: false pour ne plus les garder.
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: dss-api
+spec:
+  healthCheck:
+    type: HTTP
+    requestPath: /health
+    port: 8080
+    checkIntervalSec: 10
+    timeoutSec: 5
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+  logging:
+    enable: true
+    sampleRate: 1.0

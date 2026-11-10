@@ -18,3 +18,7 @@ deploy/
 
 # Jeux de données externes téléchargés pour les tests (non versionnés)
 data/external/
+
+# Certificats et clés TLS (la clé privée ne doit jamais être versionnée)
+*.key
+tls.crt

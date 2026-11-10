@@ -22,6 +22,7 @@ spec:
       labels:
         app: dss-api
     spec:
+      automountServiceAccountToken: false   # l'API n'a pas besoin d'accéder à l'API Kubernetes
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000            # utilisateur "app" créé dans le Dockerfile
@@ -35,11 +36,20 @@ spec:
           env:
             - name: PORT
               value: "8080"
+            # API_KEY (une clé) et/ou API_KEYS ("nom:clé,nom:clé", une clé par client).
+            # Les deux sont facultatives ici, mais l'API refuse de démarrer sans aucune clé.
             - name: API_KEY
               valueFrom:
                 secretKeyRef:
                   name: dss-secrets
                   key: API_KEY
+                  optional: true
+            - name: API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: dss-secrets
+                  key: API_KEYS
+                  optional: true
             - name: LOG_SALT
               valueFrom:
                 secretKeyRef:

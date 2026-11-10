@@ -1,0 +1,9 @@
+# Réglages du load balancer côté clients : politique TLS "dss-tls12"
+# (TLS 1.2 minimum, suites de chiffrement modernes). Elle est créée avec :
+#   gcloud compute ssl-policies create dss-tls12 --profile MODERN --min-tls-version 1.2
+apiVersion: networking.gke.io/v1beta1
+kind: FrontendConfig
+metadata:
+  name: dss-api
+spec:
+  sslPolicy: dss-tls12
