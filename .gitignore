@@ -10,5 +10,11 @@ venv/
 /models/
 
 # Fichiers de déploiement locaux (non versionnés).
-# Le Dockerfile reste versionné : Cloud Run le lit après un git clone.
+# Le Dockerfile reste versionné : Cloud Build le lit pour construire l'image (déploiement GKE).
 deploy/
+
+# Fichiers macOS
+.DS_Store
+
+# Jeux de données externes téléchargés pour les tests (non versionnés)
+data/external/
