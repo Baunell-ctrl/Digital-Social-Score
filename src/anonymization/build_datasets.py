@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from .anonymizer import count_labels, load_nlp, process_texts
+from anonymizer import count_labels, load_nlp, process_texts
 
 ROOT = Path(__file__).resolve().parents[2]
 SPLITS = ("train", "val")
