@@ -471,6 +471,38 @@ gcloud container clusters delete dss-cluster --region $REGION
 | Contrôle               | limité                            | complet : sondes, nombre de pods, mises à jour  |
 | Autoscaling            | automatique (0 à 10 instances)    | HPA sur le CPU (2 à 10 pods)                     |
 
+### 6. Résultats des tests sur le cloud (GKE)
+
+Tests faits depuis Cloud Shell avec `curl`, sur l'API déployée dans le cluster GKE (2 pods, modèle LSTM).
+
+![Requêtes de test sur l'API déployée dans GKE](reports/images/gke_tests_requetes.png)
+
+**Commentaires toxiques** (tous détectés) :
+
+| Texte (début)                                                         | Score | Toxique |
+| --------------------------------------------------------------------- | ----- | ------- |
+| « Honestly you are the dumbest person I have ever had the misfortune… » | 100,0 | oui     |
+| « I swear if I ever see you at that bar again I am going to beat… »   | 100,0 | oui     |
+| « Look at this clown thinking his opinion matters… »                  | 100,0 | oui     |
+| « Nice profile picture, sweetheart. Send me something a little more revealing… » | 91,3 | oui |
+| « You are a complete waste of oxygen… »                               | 99,6  | oui     |
+
+**Commentaires non toxiques** (tous acceptés) : 5 messages polis ou neutres (remerciement, désaccord argumenté, avis sur une mise à jour…), avec des scores de **0,3 · 0,7 · 11,9 · 16,9 · 0,2**.
+
+**Tests de sécurité** :
+
+| Requête                         | Réponse attendue | Réponse obtenue                          |
+| ------------------------------- | ---------------- | ---------------------------------------- |
+| sans en-tête `X-API-Key`        | 401              | 401 `Clé API invalide ou absente`        |
+| avec une mauvaise clé           | 401              | à compléter                              |
+| texte vide                      | 422              | à compléter                              |
+
+**Analyse.**
+
+- **10 sur 10** : les 5 textes toxiques dépassent 90 et les 5 textes non toxiques restent sous 17. Le harcèlement sexuel (« Send me something a little more revealing »), qui ne contient aucune insulte, est aussi détecté (91,3).
+- **Latence** : de 19 à 27 ms par requête côté API, anonymisation spaCy comprise, sur CPU.
+- **Limite observée** : sur des phrases courtes testées à part, le LSTM se trompe encore. « I am happy to be alive » obtient **76,9** (faux positif) : le modèle réagit aux mots isolés (« alive » apparaît souvent dans des menaces) et pas au sens de la phrase. C'est la limite déjà décrite plus haut (« Limite connue »).
+
 ## Lancer le projet
 
 ```bash
