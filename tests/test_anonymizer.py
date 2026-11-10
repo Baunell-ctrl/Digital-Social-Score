@@ -7,12 +7,7 @@ from src.anonymization.anonymizer import (
     detect,
     find_regex_spans,
     load_nlp,
-    make_pseudonym,
-    pseudonymize_text,
 )
-
-KEY = b"cle-de-test"
-
 
 @pytest.fixture(scope="module")
 def nlp():
@@ -48,22 +43,6 @@ def test_ner_person_and_location(nlp):
 def test_norp_is_kept(nlp):
     # Les nationalités/religions ne sont pas remplacées (signal utile à la toxicité).
     assert "French" in anon("The French are here.", nlp)
-
-
-def test_pseudonym_is_stable_and_case_insensitive():
-    a = make_pseudonym("PERSON", "Barack Obama", KEY)
-    assert a == make_pseudonym("PERSON", "  barack   OBAMA ", KEY)
-    assert a != make_pseudonym("PERSON", "Barack Obama", b"autre-cle")
-    assert a != make_pseudonym("LOCATION", "Barack Obama", KEY)
-
-
-def test_pseudonymize_fills_mapping_and_hides_value():
-    text = "mail bob@example.com"
-    mapping = {}
-    out = pseudonymize_text(text, find_regex_spans(text), KEY, mapping)
-    assert "bob@example.com" not in out
-    pseudo = out.split()[-1]
-    assert mapping[pseudo] == ("EMAIL", "bob@example.com")
 
 
 def test_text_without_personal_data_is_unchanged(nlp):

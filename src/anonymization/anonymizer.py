@@ -1,15 +1,8 @@
 """Détection et remplacement des données personnelles dans des textes.
 
-Deux stratégies sont proposées, qui correspondent aux deux notions du RGPD :
-
-* ``anonymize``     -> remplace chaque donnée personnelle par une étiquette générique
-                       (``[PERSON]``, ``[EMAIL]``...). Irréversible : on ne peut pas
-                       retrouver la personne.
-* ``pseudonymize``  -> remplace chaque donnée personnelle par un identifiant stable
-                       (``PERSON_3fa9c1d2``) calculé avec un HMAC-SHA256 et une clé secrète.
-                       La même valeur donne toujours le même pseudonyme, ce qui conserve
-                       la cohérence du texte. Seul le détenteur de la clé (et de la table
-                       de correspondance, stockée à part) peut ré-identifier.
+Chaque donnée personnelle est remplacée par une étiquette générique
+(``[PERSON]``, ``[EMAIL]``...). L'opération est irréversible : on ne peut pas
+retrouver la personne.
 
 La détection combine :
 
@@ -25,8 +18,6 @@ détruirait le signal utile à la détection de toxicité (propos racistes, hain
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -150,16 +141,6 @@ def detect(text: str, doc=None) -> list[Span]:
 # --------------------------------------------------------------------------- #
 
 
-def _normalize(value: str) -> str:
-    return " ".join(value.lower().split())
-
-
-def make_pseudonym(label: str, value: str, key: bytes, length: int = 8) -> str:
-    """Pseudonyme stable ``LABEL_<hmac>`` : même valeur + même clé => même pseudonyme."""
-    digest = hmac.new(key, f"{label}:{_normalize(value)}".encode("utf-8"), hashlib.sha256)
-    return f"{label}_{digest.hexdigest()[:length]}"
-
-
 def _apply(text: str, spans: list[Span], replacer: Callable[[Span], str]) -> str:
     out: list[str] = []
     cursor = 0
@@ -174,28 +155,6 @@ def _apply(text: str, spans: list[Span], replacer: Callable[[Span], str]) -> str
 def anonymize_text(text: str, spans: list[Span]) -> str:
     """Version anonymisée : ``[PERSON]``, ``[EMAIL]``... (irréversible)."""
     return _apply(text, spans, lambda s: f"[{s.label}]")
-
-
-def pseudonymize_text(
-    text: str,
-    spans: list[Span],
-    key: bytes,
-    mapping: dict[str, tuple[str, str]] | None = None,
-) -> str:
-    """Version pseudonymisée : ``PERSON_3fa9c1d2``.
-
-    Si ``mapping`` est fourni, on y consigne ``pseudonyme -> (label, valeur originale)``.
-    Cette table ré-identifie les personnes : elle doit être stockée séparément
-    et protégée (jamais committée).
-    """
-
-    def replacer(span: Span) -> str:
-        pseudo = make_pseudonym(span.label, span.text, key)
-        if mapping is not None:
-            mapping.setdefault(pseudo, (span.label, span.text))
-        return pseudo
-
-    return _apply(text, spans, replacer)
 
 
 # --------------------------------------------------------------------------- #
@@ -215,21 +174,15 @@ def load_nlp(model: str = SPACY_MODEL):
 def process_texts(
     texts: list[str],
     nlp,
-    key: bytes,
-    mapping: dict[str, tuple[str, str]] | None = None,
     batch_size: int = 256,
     n_process: int = 1,
-) -> Iterator[tuple[str, str, list[Span]]]:
-    """Pour chaque texte, renvoie ``(version_anonymisée, version_pseudonymisée, spans)``."""
+) -> Iterator[tuple[str, list[Span]]]:
+    """Pour chaque texte, renvoie ``(version_anonymisée, spans)``."""
     cleaned = [t if isinstance(t, str) else "" for t in texts]
     docs = nlp.pipe(cleaned, batch_size=batch_size, n_process=n_process)
     for text, doc in zip(cleaned, docs):
         spans = detect(text, doc)
-        yield (
-            anonymize_text(text, spans),
-            pseudonymize_text(text, spans, key, mapping),
-            spans,
-        )
+        yield anonymize_text(text, spans), spans
 
 
 def count_labels(all_spans: Iterable[list[Span]]) -> Counter:
