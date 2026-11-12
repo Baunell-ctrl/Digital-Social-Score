@@ -1,0 +1,23 @@
+# Regle d'alerte Cloud Monitoring, condition en PromQL sur les metriques collectees par GMP.
+# Creee par monitoring/setup_gke.sh (gcloud monitoring policies create --policy-from-file).
+displayName: "DSS - Essais de cles API (brute force)"
+combiner: OR
+severity: CRITICAL
+documentation:
+  mimeType: text/markdown
+  content: |
+    Plus de 20 requetes par minute avec une cle API absente ou invalide : essai de cles probable.
+
+    A faire : gcloud logging read 'jsonPayload.event="auth_failed"' --freshness=15m ; regrouper par ip_id pour trouver la source.
+conditions:
+  - displayName: "DSS - Essais de cles API (brute force)"
+    conditionPrometheusQueryLanguage:
+      duration: 1m
+      evaluationInterval: 60s
+      labels:
+        severity: critical
+      query: |
+        sum(rate(dss_auth_failures_total{job="dss-api"}[5m])) * 60 > 20
+alertStrategy:
+  autoClose: 1800s
+notificationChannels: []    # rempli par setup_gke.sh (canal email)

@@ -1,0 +1,2 @@
+Method,Name,Error,Occurrences,First Seen,Last Seen
+POST,POST /score,CatchResponseError('HTTP 429'),5566,2026-11-12T10:58:44Z,2026-11-12T10:59:41Z
