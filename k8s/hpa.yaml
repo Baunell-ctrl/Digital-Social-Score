@@ -1,4 +1,8 @@
-# Autoscaling horizontal : ajoute des pods quand le CPU moyen dépasse 70 %, de 2 à 10 pods.
+# Autoscaling horizontal, réglé d'après les mesures de l'étape 5 :
+# - minReplicas 3 (au lieu de 2) : de la marge au repos, et la perte d'un pod laisse encore 2 pods ;
+# - seuil CPU 50 % (au lieu de 70 %) : le HPA demande des pods plus tôt, ce qui laisse le temps
+#   aux nouveaux pods (et parfois aux nouveaux nœuds Autopilot) de démarrer avant la saturation ;
+# - maxReplicas 15 (au lieu de 10) : le plafond mesuré (environ 20 req/s par pod) passe de ~195 à ~290 req/s.
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -8,12 +12,12 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: dss-api
-  minReplicas: 2
-  maxReplicas: 10
+  minReplicas: 3
+  maxReplicas: 15
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 70
+          averageUtilization: 50
