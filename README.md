@@ -31,7 +31,7 @@ Lire un secret (toujours préciser le projet, sinon gcloud cherche dans le proje
                                                                  │ "/"                   │ "/grafana"
                                                                  ▼                       ▼
                                                    pods dss-api (API + page)      pod Grafana
-                                                   2 à 10, autoscaling (HPA)      (connexion obligatoire)
+                                                   3 à 15, autoscaling (HPA)      (connexion obligatoire)
                                                     │ logs JSON    ▲ /metrics          │ PromQL
                                                     ▼              │ (clé "prometheus") ▼
                                               Cloud Logging   collecteurs Prometheus ──▶ Cloud Monitoring ──▶ alertes par email
@@ -1114,7 +1114,7 @@ Le même `ip_id` sur des centaines de lignes `auth_failed` signe un brute force 
 
 ### 9. Améliorations de résilience tirées de l'étape 5
 
-Les tests de charge de l'étape 5 ont montré quatre faiblesses de réglage. Les modifications ci-dessous sont **prêtes dans les manifestes** du dépôt ; elles ne sont pas encore appliquées au cluster ni re-mesurées.
+Les tests de charge de l'étape 5 ont montré quatre faiblesses de réglage. Les modifications ci-dessous sont **appliquées au cluster** depuis le 12/11/2026 (image `v6`). Elles n'ont pas encore été re-mesurées par un nouveau test de charge.
 
 | Constat de l'étape 5 | Modification | Fichier | Effet attendu |
 | -------------------- | ------------ | ------- | ------------- |
@@ -1122,10 +1122,10 @@ Les tests de charge de l'étape 5 ont montré quatre faiblesses de réglage. Les
 | Peu de marge au repos, et 1 pod perdu = 1 seul restant | `minReplicas` **2 → 3** | `k8s/hpa.yaml` | 2 pods restent prêts après une panne ; un pod de plus payé en permanence |
 | Plafond à environ 195 req/s avec 10 pods | `maxReplicas` **10 → 15** | `k8s/hpa.yaml` | environ 290 req/s (20 par pod), à confirmer par un nouveau stress test |
 | Pods saturés redémarrés par la sonde de vie (15 erreurs 502) | sonde de vie : délai **1 s → 5 s**, **5 échecs** au lieu de 3 | `k8s/deployment.yaml` | un pod occupé n'est plus pris pour un pod bloqué |
-| Les 2 pods sur le même nœud | répartition sur les zones a, b et c (`topologySpreadConstraints`) | `k8s/deployment.yaml` | la panne d'une machine ou d'une zone ne coupe plus tout le service |
+| Les 2 pods sur le même nœud | répartition sur les zones a, b et c (`topologySpreadConstraints`, souple) | `k8s/deployment.yaml` | la panne d'une machine ou d'une zone ne coupe plus tout le service. Constaté après application : 3 pods sur **2 zones** (a et b), car il n'y a pas de nœud en zone c et la règle souple préfère les nœuds existants |
 | Maintenance de Google : rien n'empêche d'arrêter tous les pods | `PodDisruptionBudget` : au moins 2 pods prêts | `k8s/pdb.yaml` (nouveau) | pas de coupure pendant une mise à jour des nœuds |
 
-Appliquer (sans coupure, puis refaire le stress test de l'étape 5 pour mesurer l'effet) :
+Commandes utilisées (sans coupure) ; il reste à refaire le stress test de l'étape 5 pour mesurer l'effet :
 
 ```bash
 sed "s|IMAGE|$REGION-docker.pkg.dev/$PROJECT/dss/api:v6|" k8s/deployment.yaml | kubectl apply -f -
