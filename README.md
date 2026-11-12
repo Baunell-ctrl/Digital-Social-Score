@@ -575,8 +575,8 @@ Tests faits depuis Cloud Shell avec `curl`, sur l'API déployée dans le cluster
 | Requête                    | Réponse attendue | Réponse obtenue                     |
 | --------------------------- | ----------------- | ------------------------------------ |
 | sans en-tête `X-API-Key` | 401               | 401 `Clé API invalide ou absente` |
-| avec une mauvaise clé      | 401               | à compléter                        |
-| texte vide                  | 422               | à compléter                        |
+| avec une mauvaise clé      | 401               | 401 (rapport d'attaque, 12/11)     |
+| texte vide                  | 422               | 422 (rapport d'attaque, 12/11)     |
 
 **Analyse.**
 
@@ -733,18 +733,18 @@ Les tests « auto » sont dans `tests/test_api.py` (`python -m pytest tests/test
 | Test                                   | Commande / méthode                                              | Attendu | Auto | Cloud |
 | -------------------------------------- | --------------------------------------------------------------- | ------- | ---- | ----- |
 | Sans clé API                           | requête sans `X-API-Key`                                        | 401     | ✅   | ✅ (en HTTP, avant l'Ingress) |
-| Mauvaise clé                           | en-tête `X-API-Key: mauvaise-cle`                               | 401     | ✅   | à compléter |
-| `/metrics` sans clé                    | `curl https://$IP/metrics`                                      | 401     | ✅   | à compléter |
-| Texte vide                             | `-d '{"text":""}'`                                              | 422     | ✅   | à compléter |
-| Texte de plus de 5 000 caractères      | texte généré                                                     | 422     | ✅   | à compléter |
-| Modèle inconnu                         | `-d '{"text":"hello","model":"gpt"}'`                           | 422     | ✅   | à compléter |
-| Requête de plus de 32 Ko               | corps de 40 Ko                                                  | 413     | ✅   | à compléter |
+| Mauvaise clé                           | en-tête `X-API-Key: mauvaise-cle`                               | 401     | ✅   | ✅ (rapport d'attaque, 12/11) |
+| `/metrics` sans clé                    | `curl https://$IP/metrics`                                      | 401     | ✅   | ✅ (rapport d'attaque, 12/11) |
+| Texte vide                             | `-d '{"text":""}'`                                              | 422     | ✅   | ✅ (rapport d'attaque, 12/11) |
+| Texte de plus de 5 000 caractères      | texte généré                                                     | 422     | ✅   | ✅ (rapport d'attaque, 12/11) |
+| Modèle inconnu                         | `-d '{"text":"hello","model":"gpt"}'`                           | 422     | ✅   | ✅ (rapport d'attaque, 12/11) |
+| Requête de plus de 32 Ko               | corps de 40 Ko                                                  | 413     | ✅   | ✅ (rapport d'attaque, 12/11) |
 | Trop de requêtes                       | plus de `RATE_LIMIT_PER_MINUTE` requêtes en une minute          | 429     | ✅   | ✅ 5 566 réponses 429 (étape 5) |
-| En-têtes de sécurité                   | `curl -I https://$IP/health`                                    | présents | ✅  | à compléter |
+| En-têtes de sécurité                   | `curl -I https://$IP/health`                                    | présents | ✅  | ✅ (rapport d'attaque, 12/11) |
 | Pas de texte ni de clé dans les logs   | lecture des logs après un appel                                 | absents | ✅   | à compléter |
-| HTTPS avec certificat vérifié          | `curl --cacert tls.crt https://$IP/health`                      | 200     | –    | à compléter |
-| HTTP refusé                            | `curl -m 5 http://$IP/health`                                   | échec   | –    | à compléter |
-| TLS 1.1 refusé                         | `openssl s_client -connect $IP:443 -tls1_1`                     | échec   | –    | à compléter |
+| HTTPS avec certificat vérifié          | `curl --cacert tls.crt https://$IP/health`                      | 200     | –    | ✅ certificat Google vérifié sur `https://34-54-213-190.sslip.io` (12/11) |
+| HTTP refusé                            | `curl -m 5 http://$IP/health`                                   | échec   | –    | ✅ (rapport d'attaque, 12/11) |
+| TLS 1.1 refusé                         | `openssl s_client -connect $IP:443 -tls1_1`                     | échec   | –    | ✅ refusé (12/11) |
 | Secrets chiffrés par KMS               | `gcloud container clusters describe ... --format="value(databaseEncryption)"` | `ENCRYPTED` | – | ❌ `DECRYPTED` (12/11) : étape 8 de la partie 4 à appliquer |
 
 La phase `grille` de `loadtest/attack.py` (étape 6) remplit la colonne « Cloud » en une commande : `python3 loadtest/attack.py --host https://$IP --cacert tls.crt --phases grille`. Commandes équivalentes avec `curl` (afficher seulement le code HTTP) :
