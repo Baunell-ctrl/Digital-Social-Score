@@ -68,6 +68,12 @@ class Client:
             headers["X-API-Key"] = key
         return self.s.post(self.host + path, headers=headers, timeout=timeout, **kw)
 
+    def get_code(self, path: str) -> int | str:
+        try:
+            return self.s.get(self.host + path, timeout=10).status_code
+        except requests.RequestException as e:
+            return type(e).__name__
+
     def code(self, *args, **kw) -> int | str:
         try:
             return self.post(*args, **kw).status_code
@@ -82,7 +88,7 @@ def phase_grille(c: Client) -> list[dict]:
     cases = [
         ("Sans clé API", 401, lambda: c.code(key=None, json={"text": "hello"})),
         ("Mauvaise clé", 401, lambda: c.code(key="mauvaise-cle", json={"text": "hello"})),
-        ("/metrics sans clé", 401, lambda: c.s.get(c.host + "/metrics", timeout=10).status_code),
+        ("/metrics sans clé", 401, lambda: c.get_code("/metrics")),
         ("Texte vide", 422, lambda: c.code(json={"text": ""})),
         ("Texte de plus de 5 000 caractères", 422, lambda: c.code(json={"text": "a" * 5001})),
         ("Modèle inconnu", 422, lambda: c.code(json={"text": "hello", "model": "gpt"})),
@@ -91,7 +97,11 @@ def phase_grille(c: Client) -> list[dict]:
     ]
     rows = [{"test": name, "attendu": exp, "obtenu": fn()} for name, exp, fn in cases]
 
-    h = c.s.get(c.host + "/health", timeout=10).headers
+    try:
+        h = c.s.get(c.host + "/health", timeout=10).headers
+    except requests.RequestException as e:
+        raise SystemExit(f"API injoignable ({type(e).__name__}) : vérifier --host, ou le certificat passé à --cacert "
+                         "(il doit être celui du serveur ; sinon --insecure)") from e
     wanted = ["X-Content-Type-Options", "X-Frame-Options", "Strict-Transport-Security", "Cache-Control"]
     rows.append({"test": "En-têtes de sécurité", "attendu": "présents",
                  "obtenu": "présents" if all(k in h for k in wanted) else f"manquants : {[k for k in wanted if k not in h]}"})
