@@ -3,8 +3,8 @@
     python loadtest/plot.py                 # tous les scénarios trouvés
     python loadtest/plot.py ramp stress     # certains scénarios
 
-Sorties : reports/images/loadtest_<scénario>.png et un tableau Markdown affiché dans le terminal
-(à recopier dans le README).
+Sorties : graphes reports/images/loadtest_<scénario>.png (non versionnés), tableau récapitulatif et
+tableaux palier par palier (montée progressive, stress) affichés dans le terminal pour le README.
 """
 
 import sys
@@ -112,8 +112,38 @@ def summary(names: list[str]) -> None:
               f"{a['95%']:.0f} | {a['99%']:.0f} | {a['Max Response Time']:.0f} | {f} ({100 * f / max(n, 1):.1f} %) |")
 
 
+# Fin de chaque palier (s) et nombre d'utilisateurs : mêmes valeurs que STAGES dans locustfile.py
+PALIERS = {
+    "gke_ramp": [(60, 5), (150, 20), (240, 50), (330, 100), (420, 100)],
+    "gke_stress": [(60, 20), (120, 60), (180, 120), (240, 200), (300, 300), (360, 300)],
+}
+
+
+def paliers(name: str) -> None:
+    """Tableau palier par palier : médiane de chaque palier, hors 15 premières secondes de montée."""
+    h = load_history(name)
+    t0 = h["Timestamp"].iloc[0]
+    hpa = load_optional("gke_hpa.csv")
+    print(f"\n{name} | Utilisateurs | Débit | Médiane | P95 | P99 | Pods prêts | CPU moyen")
+    start = 0
+    for end, users in PALIERS[name]:
+        w = h[(h["t"] >= start + 15) & (h["t"] < end)]
+        line = (f"| {users} | {w['Requests/s'].mean():.0f} req/s | {w['50%'].median():.0f} ms | "
+                f"{w['95%'].median():.0f} ms | {w['99%'].median():.0f} ms")
+        if hpa is not None:
+            p = hpa[(hpa["timestamp"] >= t0 + start) & (hpa["timestamp"] < t0 + end)]
+            ready = pd.to_numeric(p["ready"], errors="coerce")
+            line += (f" | {ready.min():.0f}-{ready.max():.0f} | "
+                     f"{pd.to_numeric(p['cpu_percent'], errors='coerce').mean():.0f} %")
+        print(line + " |")
+        start = end
+
+
 if __name__ == "__main__":
     names = sys.argv[1:] or [n for n in SCENARIOS if (CSV_DIR / f"{n}_stats.csv").exists()]
     for n in names:
         plot(n)
     summary(names)
+    for n in names:
+        if n in PALIERS:
+            paliers(n)
