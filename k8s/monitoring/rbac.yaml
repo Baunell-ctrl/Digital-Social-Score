@@ -1,4 +1,5 @@
-# Moindre privilège : le collecteur GMP (compte de service "collector" du namespace gmp-system)
+# Moindre privilège : le collecteur GMP (compte de service "collector" du namespace gke-gmp-system,
+# où GKE fait tourner la collecte gérée ; gmp-system ne sert qu'à une installation manuelle de GMP)
 # peut lire UN SEUL Secret du namespace default, celui qui contient la clé de collecte.
 # Il ne voit ni dss-secrets (clés des clients, LOG_SALT), ni dss-tls (clé privée TLS).
 apiVersion: rbac.authorization.k8s.io/v1
@@ -8,7 +9,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
-    resourceNames: ["dss-prometheus"]
+    resourceNames: ["dss-prometheus-scrape"]
     verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -22,4 +23,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: collector
-    namespace: gmp-system
+    namespace: gke-gmp-system
