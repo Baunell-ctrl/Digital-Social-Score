@@ -128,3 +128,53 @@ def test_client_ip_ignores_spoofed_forwarded_for(monkeypatch):
     # sans proxy de confiance, l'en-tête est ignoré
     monkeypatch.setattr(main, "TRUSTED_PROXY_HOPS", 0)
     assert main.client_ip(req("6.6.6.6")) == "10.0.0.9"
+
+
+# --------------------------------------------------------------------------- #
+# Page de démo publique
+# --------------------------------------------------------------------------- #
+
+
+def test_demo_page_served_with_csp(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "text/html" in r.headers["content-type"]
+    assert "Content-Security-Policy" in r.headers
+    assert "X-API-Key" not in r.text and "test-key" not in r.text   # aucune clé dans la page
+
+
+def test_demo_score_without_key(client):
+    main._hits.clear()
+    r = client.post("/demo/score", json={"text": "you are a stupid fucking idiot"})
+    assert r.status_code == 200
+    assert set(r.json()) == {"score", "toxic", "model", "latency_ms"}
+    assert client.post("/score", json={"text": "hello"}).status_code == 401   # /score reste protégé
+
+
+def test_demo_input_validation(client):
+    assert client.post("/demo/score", json={"text": ""}).status_code == 422
+    assert client.post("/demo/score", json={"text": "a" * 1001}).status_code == 422
+    assert client.post("/demo/score", json={"text": "hello", "model": "laya"}).json()["model"] == "lstm"
+
+
+def test_demo_rate_limit_per_ip(client, monkeypatch):
+    monkeypatch.setattr(main, "DEMO_RATE_LIMIT_PER_MINUTE", 2)
+    main._hits.clear()
+    codes = [client.post("/demo/score", json={"text": "hello"}).status_code for _ in range(3)]
+    assert codes == [200, 200, 429]
+    main._hits.clear()
+
+
+def test_demo_disabled(client, monkeypatch):
+    monkeypatch.setattr(main, "DEMO_ENABLED", False)
+    assert client.get("/").status_code == 404
+    assert client.post("/demo/score", json={"text": "hello"}).status_code == 404
+
+
+def test_demo_logs_have_no_text(client, caplog):
+    main._hits.clear()
+    with caplog.at_level("INFO", logger="dss"):
+        client.post("/demo/score", json={"text": "my private demo sentence"})
+    assert "my private demo sentence" not in caplog.text
+    assert '"client": "demo"' in caplog.text
+    main._hits.clear()

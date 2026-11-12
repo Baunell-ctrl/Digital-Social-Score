@@ -119,10 +119,10 @@ Script : `python -m src.models.lstm_binary`. Résultats détaillés : `reports/r
 
 **Fichiers produits** (dossier `artifacts/`, utilisé par l'API) :
 
-| Fichier       | Contenu                                                              |
-| ------------- | -------------------------------------------------------------------- |
-| `lstm.pt`     | les poids du modèle (16 Mo)                                          |
-| `vocab.json`  | le vocabulaire `{mot: numéro}` (0 = remplissage, 1 = mot inconnu)   |
+| Fichier         | Contenu                                                              |
+| --------------- | -------------------------------------------------------------------- |
+| `lstm.pt`     | les poids du modèle (16 Mo)                                         |
+| `vocab.json`  | le vocabulaire `{mot: numéro}` (0 = remplissage, 1 = mot inconnu) |
 | `config.json` | les tailles du modèle, la longueur maximale et le seuil             |
 
 Les trois fichiers vont ensemble : des poids chargés avec un autre vocabulaire donneraient des scores faux sans aucune erreur.
@@ -153,9 +153,9 @@ Script : `python -m src.models.bert_binary`. Résultats détaillés : `reports/r
 
 **Résultats sur le test.**
 
-| Précision | Rappel | F1    | Temps d'inférence      |
-| --------- | ------ | ----- | ---------------------- |
-| 0,941     | 0,919  | 0,930 | 6,5 ms par commentaire |
+| Précision | Rappel | F1    | Temps d'inférence     |
+| ---------- | ------ | ----- | ---------------------- |
+| 0,941      | 0,919  | 0,930 | 6,5 ms par commentaire |
 
 **Interprétation.**
 
@@ -176,9 +176,9 @@ Script : `python -m src.models.laya_binary --train-rows 10000`. Résultats déta
 
 **Résultats sur le test.**
 
-| Précision | Rappel | F1    | Temps d'inférence       |
-| --------- | ------ | ----- | ----------------------- |
-| 0,908     | 0,906  | 0,907 | 10,3 ms par commentaire |
+| Précision | Rappel | F1    | Temps d'inférence      |
+| ---------- | ------ | ----- | ----------------------- |
+| 0,908      | 0,906  | 0,907 | 10,3 ms par commentaire |
 
 **Interprétation.**
 
@@ -193,11 +193,11 @@ Script : `python -m src.models.laya_binary --train-rows 10000`. Résultats déta
 
 Résultats sur le même test (1 308 commentaires jamais vus à l'entraînement).
 
-| Modèle | Précision | Rappel | F1        | AUC   | Faux positifs | Oubliés | Inférence | Poids  | Entraînement     |
-| ------ | --------- | ------ | --------- | ----- | ------------- | ------- | --------- | ------ | ---------------- |
-| LSTM   | 0,894     | 0,911  | 0,902     | –     | 69            | 57      | **0,4 ms** | **16 Mo** | rapide, 23 364 lignes |
-| BERT   | **0,941** | **0,919** | **0,930** | **0,983** | **37**   | **52**  | 6,5 ms    | 268 Mo | 23 min, 23 364 lignes |
-| LAYA   | 0,908     | 0,906  | 0,907     | 0,973 | 59            | 60      | 10,3 ms   | 840 Mo | 5 min, 10 000 lignes, encodeur gelé |
+| Modèle | Précision      | Rappel          | F1              | AUC             | Faux positifs | Oubliés     | Inférence       | Poids           | Entraînement                        |
+| ------- | --------------- | --------------- | --------------- | --------------- | ------------- | ------------ | ---------------- | --------------- | ------------------------------------ |
+| LSTM    | 0,894           | 0,911           | 0,902           | –              | 69            | 57           | **0,4 ms** | **16 Mo** | rapide, 23 364 lignes                |
+| BERT    | **0,941** | **0,919** | **0,930** | **0,983** | **37**  | **52** | 6,5 ms           | 268 Mo          | 23 min, 23 364 lignes                |
+| LAYA    | 0,908           | 0,906           | 0,907           | 0,973           | 59            | 60           | 10,3 ms          | 840 Mo          | 5 min, 10 000 lignes, encodeur gelé |
 
 Les temps d'inférence ont été mesurés sur GPU, par lots.
 
@@ -231,12 +231,12 @@ Cette étape répond aux deux exercices du TP : **créer une API** qui reçoit u
 
 Le modèle chargé est le LSTM à un seul label (dossier `artifacts/`).
 
-| Route          | Rôle                                         | Clé API |
-| -------------- | -------------------------------------------- | ------- |
-| `POST /score`  | texte → score de 0 à 100 et décision toxique / non toxique | oui |
-| `GET /health`  | état du service                              | non     |
-| `GET /metrics` | métriques Prometheus (requêtes, latence, scores) | oui (`X-API-Key` ou `Authorization: Bearer`) |
-| `GET /docs`    | documentation interactive (Swagger)          | non     |
+| Route            | Rôle                                                         | Clé API                                         |
+| ---------------- | ------------------------------------------------------------- | ------------------------------------------------ |
+| `POST /score`  | texte → score de 0 à 100 et décision toxique / non toxique | oui                                              |
+| `GET /health`  | état du service                                              | non                                              |
+| `GET /metrics` | métriques Prometheus (requêtes, latence, scores)            | oui (`X-API-Key` ou `Authorization: Bearer`) |
+| `GET /docs`    | documentation interactive (Swagger)                           | non                                              |
 
 Exemple :
 
@@ -288,16 +288,18 @@ Le détail des mesures de sécurité et de conformité est dans l'**étape 4**.
 
 Variables d'environnement de l'API :
 
-| Variable     | Rôle                                                    | Défaut |
-| ------------ | ------------------------------------------------------- | ------ |
-| `API_KEY`    | clé attendue dans `X-API-Key` (**obligatoire**)        | aucun  |
-| `LOG_SALT`   | clé secrète du HMAC écrit dans les logs                 | aléatoire à chaque démarrage |
-| `USE_NER`    | `1` = anonymisation spaCy active, `0` = regex seules    | `1`    |
-| `ARTIFACTS_DIR` | dossier des fichiers du LSTM                          | `artifacts/` |
-| `API_KEYS`   | plusieurs clients : `nom:clé,nom:clé` (voir étape 4)    | aucun  |
-| `RATE_LIMIT_PER_MINUTE` | requêtes par client et par minute, sur chaque pod (`0` = sans limite) | `600` |
-| `TRUSTED_PROXY_HOPS` | entrées ajoutées à `X-Forwarded-For` par les proxys de confiance (2 derrière l'Ingress GKE) ; les entrées écrites par le client sont ignorées | `0` |
-| `PORT`       | port d'écoute du conteneur                              | `8080` |
+| Variable                  | Rôle                                                                                                                                                  | Défaut                         |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| `API_KEY`               | clé attendue dans `X-API-Key` (**obligatoire**)                                                                                               | aucun                           |
+| `LOG_SALT`              | clé secrète du HMAC écrit dans les logs                                                                                                             | aléatoire à chaque démarrage |
+| `USE_NER`               | `1` = anonymisation spaCy active, `0` = regex seules                                                                                               | `1`                           |
+| `ARTIFACTS_DIR`         | dossier des fichiers du LSTM                                                                                                                           | `artifacts/`                  |
+| `API_KEYS`              | plusieurs clients : `nom:clé,nom:clé` (voir étape 4)                                                                                              | aucun                           |
+| `RATE_LIMIT_PER_MINUTE` | requêtes par client et par minute, sur chaque pod (`0` = sans limite)                                                                               | `600`                         |
+| `DEMO_ENABLED` | `1` = page de démo `/` et route `/demo/score` actives, `0` = désactivées (404) | `1` |
+| `DEMO_RATE_LIMIT_PER_MINUTE` | requêtes par IP et par minute pour la démo, sur chaque pod | `20` |
+| `TRUSTED_PROXY_HOPS`    | entrées ajoutées à `X-Forwarded-For` par les proxys de confiance (2 derrière l'Ingress GKE) ; les entrées écrites par le client sont ignorées | `0`                           |
+| `PORT`                  | port d'écoute du conteneur                                                                                                                            | `8080`                        |
 
 ### 4. Déployer le modèle dans le Cloud : GKE
 
@@ -310,14 +312,14 @@ Client ──HTTPS (TLS 1.2+, IP fixe)──▶ Load balancer Google (Ingress)
        ──réseau privé Google──▶ Service interne (ClusterIP) ──▶ pods dss-api :8080
 ```
 
-| Fichier                   | Rôle                                                                                      |
-| ------------------------- | ----------------------------------------------------------------------------------------- |
-| `k8s/deployment.yaml`     | 2 pods de l'API, ressources CPU/mémoire, sondes `/health`, secrets, conteneur non root   |
+| Fichier                     | Rôle                                                                                                |
+| --------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `k8s/deployment.yaml`     | 2 pods de l'API, ressources CPU/mémoire, sondes `/health`, secrets, conteneur non root            |
 | `k8s/service.yaml`        | service **interne** au cluster (pas d'IP publique), qui répartit les requêtes entre les pods |
-| `k8s/ingress.yaml`        | **seul point d'entrée public** : load balancer HTTPS, IP fixe, aucun accès HTTP          |
-| `k8s/frontendconfig.yaml` | politique TLS du load balancer : TLS 1.2 minimum                                         |
-| `k8s/backendconfig.yaml`  | health check du load balancer sur `/health`, logs du load balancer                       |
-| `k8s/hpa.yaml`            | autoscaling : de 2 à 10 pods selon l'usage CPU (seuil 70 %)                              |
+| `k8s/ingress.yaml`        | **seul point d'entrée public** : load balancer HTTPS, IP fixe, aucun accès HTTP              |
+| `k8s/frontendconfig.yaml` | politique TLS du load balancer : TLS 1.2 minimum                                                     |
+| `k8s/backendconfig.yaml`  | health check du load balancer sur `/health`, logs du load balancer                                 |
+| `k8s/hpa.yaml`            | autoscaling : de 2 à 10 pods selon l'usage CPU (seuil 70 %)                                         |
 
 **1. Préparer le projet.** Sur [console.cloud.google.com](https://console.cloud.google.com), créer un projet, noter son ID et activer la facturation. Ouvrir Cloud Shell avec l'icône `>_` en haut à droite.
 
@@ -511,23 +513,23 @@ Tests faits depuis Cloud Shell avec `curl`, sur l'API déployée dans le cluster
 
 **Commentaires toxiques** (tous détectés) :
 
-| Texte (début)                                                         | Score | Toxique |
-| --------------------------------------------------------------------- | ----- | ------- |
-| « Honestly you are the dumbest person I have ever had the misfortune… » | 100,0 | oui     |
-| « I swear if I ever see you at that bar again I am going to beat… »   | 100,0 | oui     |
-| « Look at this clown thinking his opinion matters… »                  | 100,0 | oui     |
-| « Nice profile picture, sweetheart. Send me something a little more revealing… » | 91,3 | oui |
-| « You are a complete waste of oxygen… »                               | 99,6  | oui     |
+| Texte (début)                                                                      | Score | Toxique |
+| ----------------------------------------------------------------------------------- | ----- | ------- |
+| « Honestly you are the dumbest person I have ever had the misfortune… »          | 100,0 | oui     |
+| « I swear if I ever see you at that bar again I am going to beat… »              | 100,0 | oui     |
+| « Look at this clown thinking his opinion matters… »                             | 100,0 | oui     |
+| « Nice profile picture, sweetheart. Send me something a little more revealing… » | 91,3  | oui     |
+| « You are a complete waste of oxygen… »                                          | 99,6  | oui     |
 
 **Commentaires non toxiques** (tous acceptés) : 5 messages polis ou neutres (remerciement, désaccord argumenté, avis sur une mise à jour…), avec des scores de **0,3 · 0,7 · 11,9 · 16,9 · 0,2**.
 
 **Tests de sécurité** :
 
-| Requête                         | Réponse attendue | Réponse obtenue                          |
-| ------------------------------- | ---------------- | ---------------------------------------- |
-| sans en-tête `X-API-Key`        | 401              | 401 `Clé API invalide ou absente`        |
-| avec une mauvaise clé           | 401              | à compléter                              |
-| texte vide                      | 422              | à compléter                              |
+| Requête                    | Réponse attendue | Réponse obtenue                     |
+| --------------------------- | ----------------- | ------------------------------------ |
+| sans en-tête `X-API-Key` | 401               | 401 `Clé API invalide ou absente` |
+| avec une mauvaise clé      | 401               | à compléter                        |
+| texte vide                  | 422               | à compléter                        |
 
 **Analyse.**
 
@@ -539,14 +541,14 @@ Tests faits depuis Cloud Shell avec `curl`, sur l'API déployée dans le cluster
 
 Code : `src/api/main.py` et `k8s/`. Tests automatiques : `tests/test_api.py` (11 tests, dont 5 dédiés à la sécurité).
 
-| Exigence du TP              | Mise en œuvre                                                                             |
-| --------------------------- | ----------------------------------------------------------------------------------------- |
-| Authentification            | clé API par client, stockée dans Secret Manager puis dans un Secret Kubernetes            |
-| Chiffrement                 | HTTPS uniquement (TLS 1.2+) via l'Ingress GKE ; Secrets chiffrés par une clé Cloud KMS    |
-| Validation des entrées      | taille du texte, taille de la requête, valeurs autorisées                                 |
-| Logs pseudonymes            | HMAC-SHA256 du texte et de l'IP, jamais le texte, la clé ou l'IP en clair                 |
-| IAM                         | chaque identité n'a que les rôles nécessaires ; les pods n'ont aucun droit Google Cloud   |
-| Registre RGPD               | registre du traitement « scoring via l'API » (partie 6)                                   |
+| Exigence du TP          | Mise en œuvre                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| Authentification        | clé API par client, stockée dans Secret Manager puis dans un Secret Kubernetes           |
+| Chiffrement             | HTTPS uniquement (TLS 1.2+) via l'Ingress GKE ; Secrets chiffrés par une clé Cloud KMS   |
+| Validation des entrées | taille du texte, taille de la requête, valeurs autorisées                                |
+| Logs pseudonymes        | HMAC-SHA256 du texte et de l'IP, jamais le texte, la clé ou l'IP en clair                 |
+| IAM                     | chaque identité n'a que les rôles nécessaires ; les pods n'ont aucun droit Google Cloud |
+| Registre RGPD           | registre du traitement « scoring via l'API » (partie 6)                                  |
 
 ### 1. Authentification : une clé API par client
 
@@ -573,26 +575,26 @@ kubectl rollout restart deployment/dss-api
 
 ### 2. Chiffrement
 
-| Où                          | Comment                                                                                          |
-| --------------------------- | ------------------------------------------------------------------------------------------------ |
-| En transit (client → API)   | **HTTPS uniquement** via l'Ingress GKE : aucun port 80, **TLS 1.2 minimum** (politique `dss-tls12`, profil MODERN), certificat auto-signé pour l'IP fixe |
-| En transit (dans Google)    | le load balancer joint les pods par le réseau privé de Google ; le Service des pods est interne (`ClusterIP`, pas d'IP publique) |
-| Au repos : Secrets          | Secrets Kubernetes (clé API, clé des logs, clé privée TLS) chiffrés avec la clé Cloud KMS `dss-secrets-key` du projet, qui change tous les 90 jours |
-| Au repos : le reste         | images Docker, Secret Manager et logs chiffrés par défaut par Google Cloud (AES-256)            |
-| Données des utilisateurs    | **aucune donnée stockée** : le texte reste en mémoire le temps de la requête (quelques ms)      |
+| Où                        | Comment                                                                                                                                                                 |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| En transit (client → API) | **HTTPS uniquement** via l'Ingress GKE : aucun port 80, **TLS 1.2 minimum** (politique `dss-tls12`, profil MODERN), certificat auto-signé pour l'IP fixe |
+| En transit (dans Google)   | le load balancer joint les pods par le réseau privé de Google ; le Service des pods est interne (`ClusterIP`, pas d'IP publique)                                    |
+| Au repos : Secrets         | Secrets Kubernetes (clé API, clé des logs, clé privée TLS) chiffrés avec la clé Cloud KMS `dss-secrets-key` du projet, qui change tous les 90 jours             |
+| Au repos : le reste        | images Docker, Secret Manager et logs chiffrés par défaut par Google Cloud (AES-256)                                                                                  |
+| Données des utilisateurs  | **aucune donnée stockée** : le texte reste en mémoire le temps de la requête (quelques ms)                                                                    |
 
 L'API renvoie aussi l'en-tête `Strict-Transport-Security`, qui demande au navigateur de n'utiliser que HTTPS.
 
 ### 3. Protection de l'API
 
-| Protection                  | Règle                                                                    | Réponse si non respectée |
-| --------------------------- | ------------------------------------------------------------------------ | ------------------------ |
-| Texte                       | de 1 à 5 000 caractères                                                  | 422                      |
-| Champ `model`               | `lstm` ou `laya` uniquement                                              | 422                      |
-| Taille de la requête        | 32 Ko maximum, comptés sur les octets réellement reçus (même sans `Content-Length`) | 413           |
-| Nombre de requêtes          | 600 par minute et par client, sur chaque pod (`RATE_LIMIT_PER_MINUTE`)   | 429 + `Retry-After`      |
-| En-têtes HTTP               | `nosniff`, `X-Frame-Options: DENY`, `no-referrer`, `Cache-Control: no-store`, HSTS | –              |
-| Pods                        | utilisateur non root, pas d'élévation de privilèges, aucune capacité Linux, pas de jeton d'accès à l'API Kubernetes | – |
+| Protection            | Règle                                                                                                                    | Réponse si non respectée |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| Texte                 | de 1 à 5 000 caractères                                                                                                 | 422                        |
+| Champ `model`       | `lstm` ou `laya` uniquement                                                                                           | 422                        |
+| Taille de la requête | 32 Ko maximum, comptés sur les octets réellement reçus (même sans `Content-Length`)                                 | 413                        |
+| Nombre de requêtes   | 600 par minute et par client, sur chaque pod (`RATE_LIMIT_PER_MINUTE`)                                                  | 429 + `Retry-After`      |
+| En-têtes HTTP        | `nosniff`, `X-Frame-Options: DENY`, `no-referrer`, `Cache-Control: no-store`, HSTS                                | –                         |
+| Pods                  | utilisateur non root, pas d'élévation de privilèges, aucune capacité Linux, pas de jeton d'accès à l'API Kubernetes | –                         |
 
 **Pourquoi limiter le nombre de requêtes ?** Le cours cite le **vol de modèle** (*model stealing*) : un attaquant envoie des milliers de textes et utilise les scores pour entraîner une copie du modèle. La limite par client rend cette attaque beaucoup plus lente et la rend visible dans les logs (`rate_limited`). Elle protège aussi contre l'épuisement des ressources.
 
@@ -634,17 +636,16 @@ gcloud logging buckets update _Default --location=global --retention-days=30
 
 ### 5. IAM : moindre privilège
 
-| Identité                                   | Rôles                                                          | Pourquoi                                      |
-| ------------------------------------------ | -------------------------------------------------------------- | --------------------------------------------- |
-| Pods de l'API                              | **aucun** rôle Google Cloud, pas de jeton Kubernetes           | ils lisent leurs secrets dans les variables d'environnement ; rien d'autre |
-| Nœuds GKE (`<NUM>-compute@…`)              | lecture d'Artifact Registry, écriture de logs                  | télécharger l'image, envoyer les logs         |
-| Cloud Build (`<NUM>-compute@…`)            | écriture dans Artifact Registry, lecture du stockage, logs     | construire et pousser l'image (étape 4 de la partie 4) |
-| Agent de service GKE (`service-<NUM>@container-engine-robot…`) | chiffrer / déchiffrer avec **la seule** clé `dss-secrets-key` | chiffrement des Secrets (étape 8)   |
-| Membres de l'équipe (conseillé)            | `roles/container.developer`, `roles/logging.viewer`            | déployer et lire les logs                     |
-| Responsable du projet                      | `roles/owner`                                                  | projet, facturation, IAM                      |
-| Clients de l'API                           | aucun rôle Google Cloud                                        | ils n'ont qu'une clé API                      |
+| Identité                                                         | Rôles                                                                  | Pourquoi                                                                   |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Pods de l'API                                                     | **aucun** rôle Google Cloud, pas de jeton Kubernetes             | ils lisent leurs secrets dans les variables d'environnement ; rien d'autre |
+| Nœuds GKE (`<NUM>-compute@…`)                                 | lecture d'Artifact Registry, écriture de logs                          | télécharger l'image, envoyer les logs                                    |
+| Cloud Build (`<NUM>-compute@…`)                                | écriture dans Artifact Registry, lecture du stockage, logs             | construire et pousser l'image (étape 4 de la partie 4)                    |
+| Agent de service GKE (`service-<NUM>@container-engine-robot…`) | chiffrer / déchiffrer avec **la seule** clé `dss-secrets-key` | chiffrement des Secrets (étape 8)                                         |
+| Membres de l'équipe (conseillé)                                 | `roles/container.developer`, `roles/logging.viewer`                 | déployer et lire les logs                                                 |
+| Responsable du projet                                             | `roles/owner`                                                         | projet, facturation, IAM                                                   |
+| Clients de l'API                                                  | aucun rôle Google Cloud                                                | ils n'ont qu'une clé API                                                  |
 
-**Amélioration conseillée.** Le compte de service Compute Engine par défaut, utilisé par les nœuds et par Cloud Build, a souvent le rôle `Éditeur` sur tout le projet. Pour un nouveau cluster, on peut lui donner un compte dédié qui n'a que les rôles du tableau :
 
 ```bash
 gcloud iam service-accounts create dss-nodes --display-name="Noeuds GKE Digital Social Score"
@@ -659,44 +660,45 @@ gcloud container clusters create-auto dss-cluster --region $REGION --service-acc
 
 Ce registre complète celui de l'étape 1 (préparation du jeu de données). Modèle inspiré de celui de la CNIL.
 
-| Rubrique                         | Contenu |
-| -------------------------------- | ------- |
-| **Traitement**                   | Calcul d'un score de toxicité (0 à 100) pour des textes envoyés à l'API Digital Social Score |
-| **Responsable / rôles**          | Équipe projet Digital Social Score (TP). Pour un client qui modère sa plateforme avec l'API, ce client est responsable du traitement et l'équipe est **sous-traitante** ; Google Cloud est sous-traitant ultérieur (hébergement) |
-| **Finalité**                     | Aider à la modération des contenus en ligne : repérer les messages injurieux, haineux ou harcelants. Le score est une **aide à la décision** : il ne doit pas entraîner seul une sanction contre une personne |
-| **Base légale**                  | Intérêt légitime (lutte contre le cyberharcèlement et les contenus haineux) |
-| **Personnes concernées**         | Auteurs des textes analysés et personnes citées dans ces textes |
-| **Données traitées**             | Texte envoyé (peut contenir des noms, des opinions ou d'autres données personnelles). Données techniques : adresse IP (logs du load balancer) |
-| **Données sensibles**            | Un texte peut révéler une origine, une religion, une orientation sexuelle. Elles ne sont ni extraites ni stockées : le texte n'est utilisé que pour calculer le score |
-| **Minimisation**                 | Anonymisation du texte (regex + spaCy) avant le modèle ; texte jamais stocké ni journalisé ; logs de l'API limités au nom du client, à des identifiants HMAC, au score et à la latence |
-| **Durée de conservation**        | Texte : durée de la requête (quelques millisecondes, en mémoire). Logs : 30 jours. Secrets : jusqu'à leur rotation |
-| **Destinataires**                | Équipe projet (accès aux logs par IAM). Le client reçoit uniquement le score de son texte |
-| **Transferts hors UE**           | Aucun transfert organisé : cluster, clé KMS et secrets en région `europe-west9` (Paris). Google Cloud reste une société américaine, couverte par ses clauses contractuelles (DPA) |
-| **Mesures de sécurité**          | HTTPS uniquement (TLS 1.2+), clé API par client, Secrets chiffrés par Cloud KMS, IAM au moindre privilège, limitation des requêtes, validation des entrées, pods non root, journal d'audit pseudonymisé |
-| **Droits des personnes**         | Accès, effacement, opposition : aucun texte n'étant conservé, il n'y a rien à communiquer ni à effacer. Les identifiants HMAC ne permettent pas de retrouver un texte |
-| **Analyse d'impact (AIPD)**      | À évaluer avant une mise en production : l'évaluation automatisée de contenus fait partie des critères de la CNIL. Ici, le score porte sur un texte et non sur une personne, et ne déclenche aucune décision automatique |
-| **Limites connues**              | Le modèle peut se tromper (faux positifs, voir étape 3) ; l'anonymisation peut laisser passer des noms rares |
+| Rubrique                          | Contenu                                                                                                                                                                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Traitement**              | Calcul d'un score de toxicité (0 à 100) pour des textes envoyés à l'API Digital Social Score                                                                                                                                            |
+| **Responsable / rôles**    | Équipe projet Digital Social Score (TP). Pour un client qui modère sa plateforme avec l'API, ce client est responsable du traitement et l'équipe est **sous-traitante** ; Google Cloud est sous-traitant ultérieur (hébergement) |
+| **Finalité**               | Aider à la modération des contenus en ligne : repérer les messages injurieux, haineux ou harcelants. Le score est une **aide à la décision** : il ne doit pas entraîner seul une sanction contre une personne                   |
+| **Base légale**            | Intérêt légitime (lutte contre le cyberharcèlement et les contenus haineux)                                                                                                                                                             |
+| **Personnes concernées**   | Auteurs des textes analysés et personnes citées dans ces textes                                                                                                                                                                           |
+| **Données traitées**      | Texte envoyé (peut contenir des noms, des opinions ou d'autres données personnelles). Données techniques : adresse IP (logs du load balancer)                                                                                            |
+| **Données sensibles**      | Un texte peut révéler une origine, une religion, une orientation sexuelle. Elles ne sont ni extraites ni stockées : le texte n'est utilisé que pour calculer le score                                                                   |
+| **Minimisation**            | Anonymisation du texte (regex + spaCy) avant le modèle ; texte jamais stocké ni journalisé ; logs de l'API limités au nom du client, à des identifiants HMAC, au score et à la latence                                                |
+| **Durée de conservation**  | Texte : durée de la requête (quelques millisecondes, en mémoire). Logs : 30 jours. Secrets : jusqu'à leur rotation                                                                                                                      |
+| **Destinataires**           | Équipe projet (accès aux logs par IAM). Le client reçoit uniquement le score de son texte                                                                                                                                                |
+| **Transferts hors UE**      | Aucun transfert organisé : cluster, clé KMS et secrets en région `europe-west9` (Paris). Google Cloud reste une société américaine, couverte par ses clauses contractuelles (DPA)                                                   |
+| **Mesures de sécurité**   | HTTPS uniquement (TLS 1.2+), clé API par client, Secrets chiffrés par Cloud KMS, IAM au moindre privilège, limitation des requêtes, validation des entrées, pods non root, journal d'audit pseudonymisé                               |
+| **Droits des personnes**    | Accès, effacement, opposition : aucun texte n'étant conservé, il n'y a rien à communiquer ni à effacer. Les identifiants HMAC ne permettent pas de retrouver un texte                                                                  |
+| **Analyse d'impact (AIPD)** | À évaluer avant une mise en production : l'évaluation automatisée de contenus fait partie des critères de la CNIL. Ici, le score porte sur un texte et non sur une personne, et ne déclenche aucune décision automatique             |
+| **Page de démo**            | La page `/` et la route `/demo/score` n'ajoutent aucun traitement : mêmes règles (texte non stocké, logs pseudonymes). L'IP du visiteur ne sert qu'à limiter le nombre de requêtes, en mémoire, sous forme d'identifiant HMAC |
+| **Limites connues**         | Le modèle peut se tromper (faux positifs, voir étape 3) ; l'anonymisation peut laisser passer des noms rares                                                                                                                              |
 
 ### 7. Grille de tests de sécurité
 
 Les tests « auto » sont dans `tests/test_api.py` (`python -m pytest tests/test_api.py`). Les tests « cloud » se font avec `curl` sur le cluster GKE, depuis le dossier où se trouve `tls.crt`.
 
-| Test                                   | Commande / méthode                                              | Attendu | Auto | Cloud |
-| -------------------------------------- | --------------------------------------------------------------- | ------- | ---- | ----- |
-| Sans clé API                           | requête sans `X-API-Key`                                        | 401     | ✅   | ✅ (en HTTP, avant l'Ingress) |
-| Mauvaise clé                           | en-tête `X-API-Key: mauvaise-cle`                               | 401     | ✅   | à compléter |
-| `/metrics` sans clé                    | `curl https://$IP/metrics`                                      | 401     | ✅   | à compléter |
-| Texte vide                             | `-d '{"text":""}'`                                              | 422     | ✅   | à compléter |
-| Texte de plus de 5 000 caractères      | texte généré                                                     | 422     | ✅   | à compléter |
-| Modèle inconnu                         | `-d '{"text":"hello","model":"gpt"}'`                           | 422     | ✅   | à compléter |
-| Requête de plus de 32 Ko               | corps de 40 Ko                                                  | 413     | ✅   | à compléter |
-| Trop de requêtes                       | plus de `RATE_LIMIT_PER_MINUTE` requêtes en une minute          | 429     | ✅   | à compléter |
-| En-têtes de sécurité                   | `curl -I https://$IP/health`                                    | présents | ✅  | à compléter |
-| Pas de texte ni de clé dans les logs   | lecture des logs après un appel                                 | absents | ✅   | à compléter |
-| HTTPS avec certificat vérifié          | `curl --cacert tls.crt https://$IP/health`                      | 200     | –    | à compléter |
-| HTTP refusé                            | `curl -m 5 http://$IP/health`                                   | échec   | –    | à compléter |
-| TLS 1.1 refusé                         | `openssl s_client -connect $IP:443 -tls1_1`                     | échec   | –    | à compléter |
-| Secrets chiffrés par KMS               | `gcloud container clusters describe ... --format="value(databaseEncryption)"` | `ENCRYPTED` | – | à compléter |
+| Test                                  | Commande / méthode                                                             | Attendu       | Auto | Cloud                         |
+| ------------------------------------- | ------------------------------------------------------------------------------- | ------------- | ---- | ----------------------------- |
+| Sans clé API                         | requête sans `X-API-Key`                                                     | 401           | ✅   | ✅ (en HTTP, avant l'Ingress) |
+| Mauvaise clé                         | en-tête `X-API-Key: mauvaise-cle`                                            | 401           | ✅   | à compléter                 |
+| `/metrics` sans clé                | `curl https://$IP/metrics`                                                    | 401           | ✅   | à compléter                 |
+| Texte vide                            | `-d '{"text":""}'`                                                            | 422           | ✅   | à compléter                 |
+| Texte de plus de 5 000 caractères    | texte généré                                                                 | 422           | ✅   | à compléter                 |
+| Modèle inconnu                       | `-d '{"text":"hello","model":"gpt"}'`                                         | 422           | ✅   | à compléter                 |
+| Requête de plus de 32 Ko             | corps de 40 Ko                                                                  | 413           | ✅   | à compléter                 |
+| Trop de requêtes                     | plus de `RATE_LIMIT_PER_MINUTE` requêtes en une minute                       | 429           | ✅   | à compléter                 |
+| En-têtes de sécurité               | `curl -I https://$IP/health`                                                  | présents     | ✅   | à compléter                 |
+| Pas de texte ni de clé dans les logs | lecture des logs après un appel                                                | absents       | ✅   | à compléter                 |
+| HTTPS avec certificat vérifié       | `curl --cacert tls.crt https://$IP/health`                                    | 200           | –   | à compléter                 |
+| HTTP refusé                          | `curl -m 5 http://$IP/health`                                                 | échec        | –   | à compléter                 |
+| TLS 1.1 refusé                       | `openssl s_client -connect $IP:443 -tls1_1`                                   | échec        | –   | à compléter                 |
+| Secrets chiffrés par KMS             | `gcloud container clusters describe ... --format="value(databaseEncryption)"` | `ENCRYPTED` | –   | à compléter                 |
 
 Commandes pour remplir la colonne « Cloud » (afficher seulement le code HTTP) :
 
@@ -714,7 +716,19 @@ curl -sI --cacert tls.crt $URL/health | grep -iE "x-content-type|x-frame|strict-
 gcloud logging read 'jsonPayload.event="auth_failed"' --limit 5 --format=json                                      # journal d'audit
 ```
 
-### 8. Limites et améliorations
+### 8. Page de démo (lien à partager)
+
+L'API sert une page web simple sur `https://<IP>/` : un champ de texte, un bouton « Analyser » et le score de 0 à 100 avec une jauge. Le visiteur n'a **aucune clé à saisir**.
+
+- **Comment ça marche** : la page appelle `POST /demo/score` sur la même API. Cette route n'a pas de clé API, mais elle est limitée : LSTM uniquement, texte de 1 à 1 000 caractères, **20 requêtes par minute et par IP** (429 au-delà).
+- **La clé API n'est pas dans la page** : `/score` et `/metrics` restent protégés (401 sans clé). Les personnes qui ont besoin de l'API complète reçoivent une clé par un canal privé (partie 1).
+- **Même sécurité que le reste** : HTTPS uniquement, en-têtes de sécurité, politique `Content-Security-Policy` (aucune ressource externe), texte jamais stocké ni journalisé.
+- **Éteindre la démo** sans toucher au code : `kubectl set env deployment/dss-api DEMO_ENABLED=0`.
+- **Limite connue** : le certificat est auto-signé, donc le navigateur affiche un avertissement la première fois (« Avancé » puis « Continuer »). Un nom de domaine et un certificat géré par Google le feraient disparaître. Le compteur est par pod : avec plusieurs pods, la limite réelle est plus haute (Cloud Armor pour une limite globale).
+
+Mise en ligne : reconstruire l'image et mettre à jour le déploiement (étape 13 de la partie 4).
+
+### 9. Limites et améliorations
 
 - **Certificat auto-signé** : le chiffrement est le même qu'avec un certificat public, mais aucune autorité ne garantit le certificat. Le navigateur affiche un avertissement et chaque client doit recevoir `tls.crt` pour vérifier le serveur. En production : un nom de domaine et un certificat géré par Google (`ManagedCertificate`), renouvelé automatiquement. Le certificat auto-signé expire après 1 an et doit être régénéré.
 - **Limite de requêtes par pod** : le compteur est en mémoire. Avec 10 pods, un client peut faire jusqu'à 10 × 600 requêtes par minute. Pour une limite globale : **Cloud Armor** (WAF), branché sur l'Ingress par le `BackendConfig` (`securityPolicy`), qui ajoute aussi le filtrage d'IP et la protection contre le déni de service.
