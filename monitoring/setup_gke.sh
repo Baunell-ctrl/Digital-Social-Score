@@ -126,15 +126,25 @@ CHANNEL=$(gcloud beta monitoring channels list --filter="labels.email_address=\"
 [ -n "$CHANNEL" ] || CHANNEL=$(gcloud beta monitoring channels create --display-name="DSS - alertes ($EMAIL)" \
   --type=email --channel-labels=email_address="$EMAIL" --format="value(name)")
 
+# Cloud Monitoring refuse une règle dont la requête cite une métrique jamais reçue : il faut qu'au
+# moins une requête /score soit passée (et collectée) avant. Les règles refusées sont listées à la fin.
+FAILED=()
 for f in monitoring/alerts/*.yaml; do
   NAME=$(sed -n 's/^displayName: "\(.*\)"/\1/p' "$f")
-  if [ -n "$(gcloud alpha monitoring policies list --filter="displayName=\"$NAME\"" --format="value(name)")" ]; then
+  if [ -n "$(gcloud alpha monitoring policies list --filter="displayName=\"$NAME\"" --format="value(name)" 2>/dev/null)" ]; then
     echo "déjà créée : $NAME"; continue
   fi
   sed "s|^notificationChannels: \[\].*|notificationChannels: [\"$CHANNEL\"]|" "$f" > /tmp/dss-policy.yaml
-  gcloud alpha monitoring policies create --policy-from-file=/tmp/dss-policy.yaml >/dev/null
-  echo "créée : $NAME"
+  if gcloud alpha monitoring policies create --policy-from-file=/tmp/dss-policy.yaml >/dev/null; then
+    echo "créée : $NAME"
+  else
+    FAILED+=("$NAME")
+  fi
 done
+if [ ${#FAILED[@]} -gt 0 ]; then
+  echo; echo "Règles non créées (métriques pas encore reçues) :"; printf '  - %s\n' "${FAILED[@]}"
+  echo "Envoyer quelques requêtes (loadtest/attack.py --phases grille), attendre 2 minutes, puis relancer ce script."
+fi
 
 step "Terminé"
 cat <<EOF
