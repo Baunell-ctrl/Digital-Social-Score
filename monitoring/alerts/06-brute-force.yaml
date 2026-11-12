@@ -12,7 +12,7 @@ documentation:
 conditions:
   - displayName: "DSS - Essais de cles API (brute force)"
     conditionPrometheusQueryLanguage:
-      duration: 1m
+      duration: 60s
       evaluationInterval: 60s
       labels:
         severity: critical
