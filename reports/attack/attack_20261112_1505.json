@@ -1,0 +1,134 @@
+{
+  "host": "https://34.54.213.190",
+  "debut": "2026-11-12T14:05:29+00:00",
+  "phases": {
+    "grille": {
+      "debut": "2026-11-12T14:05:29+00:00",
+      "fin": "2026-11-12T14:05:30+00:00",
+      "resultat": [
+        {
+          "test": "Sans clé API",
+          "attendu": 401,
+          "obtenu": 401,
+          "ok": true
+        },
+        {
+          "test": "Mauvaise clé",
+          "attendu": 401,
+          "obtenu": 401,
+          "ok": true
+        },
+        {
+          "test": "/metrics sans clé",
+          "attendu": 401,
+          "obtenu": 401,
+          "ok": true
+        },
+        {
+          "test": "Texte vide",
+          "attendu": 422,
+          "obtenu": 422,
+          "ok": true
+        },
+        {
+          "test": "Texte de plus de 5 000 caractères",
+          "attendu": 422,
+          "obtenu": 422,
+          "ok": true
+        },
+        {
+          "test": "Modèle inconnu",
+          "attendu": 422,
+          "obtenu": 422,
+          "ok": true
+        },
+        {
+          "test": "Requête de plus de 32 Ko",
+          "attendu": 413,
+          "obtenu": 413,
+          "ok": true
+        },
+        {
+          "test": "Requête valide",
+          "attendu": 200,
+          "obtenu": 200,
+          "ok": true
+        },
+        {
+          "test": "En-têtes de sécurité",
+          "attendu": "présents",
+          "obtenu": "présents",
+          "ok": true
+        },
+        {
+          "test": "HTTP refusé",
+          "attendu": "échec",
+          "obtenu": "échec",
+          "ok": true
+        }
+      ]
+    },
+    "fuzzing": {
+      "debut": "2026-11-12T14:05:30+00:00",
+      "fin": "2026-11-12T14:05:30+00:00",
+      "resultat": [
+        {
+          "test": "JSON invalide",
+          "obtenu": 422,
+          "ok": true
+        },
+        {
+          "test": "Mauvais type (nombre)",
+          "obtenu": 422,
+          "ok": true
+        },
+        {
+          "test": "Champ manquant",
+          "obtenu": 422,
+          "ok": true
+        },
+        {
+          "test": "Liste au lieu d'un objet",
+          "obtenu": 422,
+          "ok": true
+        },
+        {
+          "test": "Octets non UTF-8",
+          "obtenu": 400,
+          "ok": true
+        },
+        {
+          "test": "Caractères de contrôle",
+          "obtenu": 200,
+          "ok": true
+        },
+        {
+          "test": "Injection de logs (sauts de ligne)",
+          "obtenu": 200,
+          "ok": true
+        },
+        {
+          "test": "Emojis et Unicode seuls",
+          "obtenu": 200,
+          "ok": true
+        },
+        {
+          "test": "Texte de 5 000 caractères (limite)",
+          "obtenu": 200,
+          "ok": true
+        },
+        {
+          "test": "Modèle LAYA (absent de l'image)",
+          "obtenu": 503,
+          "ok": true
+        },
+        {
+          "test": "Content-Type texte",
+          "obtenu": 422,
+          "ok": true
+        }
+      ]
+    }
+  },
+  "fin": "2026-11-12T14:05:30+00:00"
+}
