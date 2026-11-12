@@ -170,3 +170,41 @@ def test_metrics_inference_and_http_latency(client):
     # seuil de 0,3 s du SLO présent dans l'histogramme HTTP ; /health exclu des métriques
     assert 'http_request_duration_seconds_bucket{handler="/score",le="0.3",method="POST"}' in text
     assert 'handler="/health"' not in text
+
+
+# --------------------------------------------------------------------------- #
+# Page web de test : la clé API est saisie par l'utilisateur
+# --------------------------------------------------------------------------- #
+
+
+def test_web_page_served_with_csp(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "text/html" in r.headers["content-type"]
+    csp = r.headers["Content-Security-Policy"]
+    assert "default-src 'none'" in csp and "font-src 'self'" in csp
+    assert "http" not in csp.replace("'self'", "")          # aucune ressource externe autorisée
+
+
+def test_web_page_has_no_key_and_no_external_resource(client):
+    html = client.get("/").text
+    assert "test-key" not in html and "X-API-Key" in html   # l'en-tête est utilisé, aucune clé n'est écrite
+    assert "fonts.googleapis.com" not in html and "fonts.gstatic.com" not in html
+    assert 'href="/grafana/"' in html                        # bouton de supervision
+
+
+def test_fonts_served_by_api_and_cacheable(client):
+    r = client.get("/fonts/literata-latin-wght-normal.woff2")
+    assert r.status_code == 200 and len(r.content) > 10_000
+    assert r.headers["Cache-Control"] == "public, max-age=86400"
+    assert client.get("/fonts/absent.woff2").status_code == 404
+
+
+def test_keyless_demo_route_removed(client):
+    assert client.post("/demo/score", json={"text": "hello"}).status_code in (404, 405)
+    assert client.post("/score", json={"text": "hello"}).status_code == 401   # /score exige toujours la clé
+
+
+def test_web_page_can_be_disabled(client, monkeypatch):
+    monkeypatch.setattr(main, "DEMO_ENABLED", False)
+    assert client.get("/").status_code == 404
