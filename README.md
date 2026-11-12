@@ -917,7 +917,7 @@ Le cours n°3 distingue trois sources d'information. Chacune a son outil Google 
 GMP n'est **pas** une fusion de Prometheus et Grafana. Il remplace le **serveur Prometheus** : Google collecte les métriques des pods et les stocke à notre place, dans le projet. GMP parle le langage de Prometheus (PromQL), donc Grafana et Cloud Monitoring peuvent tous les deux le lire.
 
 ```
-pods dss-api ──/metrics (Bearer)──▶ collecteurs GMP (gérés par Google, namespace gmp-system)
+pods dss-api ──/metrics (Bearer)──▶ collecteurs GMP (gérés par Google, namespace gke-gmp-system)
                                           │
                                           ▼
                           Monarch : base de métriques de Cloud Monitoring (dans le projet)
@@ -950,7 +950,7 @@ Le cours présente deux méthodes (diapos 20 et 21). Nous utilisons les deux :
 
 - `/health` et `/metrics` sont **exclus** des métriques HTTP : les sondes Kubernetes et la collecte, toutes les 10 à 30 s, fausseraient les taux.
 - **Aucune donnée personnelle dans les métriques** : pas de texte, pas d'IP, pas de clé. Le seul libellé client est le **nom** du client (`default`, `prometheus`…).
-- **`/metrics` reste protégé.** Le collecteur GMP utilise sa propre clé, `prometheus`, déclarée dans `API_KEYS`. Elle est lue dans le Secret `dss-prometheus`, que le collecteur est le seul à pouvoir lire (`k8s/monitoring/rbac.yaml`). On peut la révoquer sans toucher aux clients.
+- **`/metrics` reste protégé.** Le collecteur GMP utilise sa propre clé, `prometheus`, déclarée dans `API_KEYS`. Elle est lue dans le Secret `dss-prometheus-scrape`, que le collecteur est le seul à pouvoir lire (`k8s/monitoring/rbac.yaml`). On peut la révoquer sans toucher aux clients.
 
 ### 4. Mise en place sur GKE
 

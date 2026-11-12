@@ -33,7 +33,7 @@ secret_value() {  # secret_value <nom> : valeur d'un secret Secret Manager, cré
 # --------------------------------------------------------------------------------------------- 1
 step "1. Clé de collecte Prometheus"
 PROM_KEY=$(secret_value dss-prometheus-key)
-kubectl create secret generic dss-prometheus --from-literal=token="$PROM_KEY" \
+kubectl create secret generic dss-prometheus-scrape --from-literal=token="$PROM_KEY" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 # Ajoute "prometheus:<clé>" à API_KEYS sans toucher aux autres clients déjà déclarés.
