@@ -1,0 +1,12 @@
+# Certificat TLS géré par Google pour le nom public de l'API (renouvelé automatiquement).
+# Le nom sslip.io pointe vers l'IP fixe dss-ip (34.54.213.190) : « 34-54-213-190.sslip.io ».
+# Tant que le certificat n'est pas "Active" (10 à 60 minutes), le certificat auto-signé du Secret
+# dss-tls reste présenté en secours (voir k8s/ingress.yaml). Suivi :
+#   kubectl describe managedcertificate dss-cert
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: dss-cert
+spec:
+  domains:
+    - 34-54-213-190.sslip.io

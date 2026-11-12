@@ -296,8 +296,7 @@ Variables d'environnement de l'API :
 | `ARTIFACTS_DIR`         | dossier des fichiers du LSTM                                                                                                                           | `artifacts/`                  |
 | `API_KEYS`              | plusieurs clients : `nom:clé,nom:clé` (voir étape 4)                                                                                              | aucun                           |
 | `RATE_LIMIT_PER_MINUTE` | requêtes par client et par minute, sur chaque pod (`0` = sans limite)                                                                               | `600`                         |
-| `DEMO_ENABLED` | `1` = page de démo `/` et route `/demo/score` actives, `0` = désactivées (404) | `1` |
-| `DEMO_RATE_LIMIT_PER_MINUTE` | requêtes par IP et par minute pour la démo, sur chaque pod | `20` |
+| `DEMO_ENABLED` | `1` = page web `/` active, `0` = désactivée (404) | `1` |
 | `TRUSTED_PROXY_HOPS`    | entrées ajoutées à `X-Forwarded-For` par les proxys de confiance (2 derrière l'Ingress GKE) ; les entrées écrites par le client sont ignorées | `0`                           |
 | `PORT`                  | port d'écoute du conteneur                                                                                                                            | `8080`                        |
 
@@ -676,7 +675,7 @@ Ce registre complète celui de l'étape 1 (préparation du jeu de données). Mod
 | **Mesures de sécurité**   | HTTPS uniquement (TLS 1.2+), clé API par client, Secrets chiffrés par Cloud KMS, IAM au moindre privilège, limitation des requêtes, validation des entrées, pods non root, journal d'audit pseudonymisé                               |
 | **Droits des personnes**    | Accès, effacement, opposition : aucun texte n'étant conservé, il n'y a rien à communiquer ni à effacer. Les identifiants HMAC ne permettent pas de retrouver un texte                                                                  |
 | **Analyse d'impact (AIPD)** | À évaluer avant une mise en production : l'évaluation automatisée de contenus fait partie des critères de la CNIL. Ici, le score porte sur un texte et non sur une personne, et ne déclenche aucune décision automatique             |
-| **Page de démo**            | La page `/` et la route `/demo/score` n'ajoutent aucun traitement : mêmes règles (texte non stocké, logs pseudonymes). L'IP du visiteur ne sert qu'à limiter le nombre de requêtes, en mémoire, sous forme d'identifiant HMAC |
+| **Page web**                | La page `/` n'ajoute aucun traitement : elle appelle `/score` avec la clé que l'utilisateur saisit (gardée dans son onglet, jamais écrite dans la page ni dans les logs). Les polices sont servies par l'API : aucune adresse IP de visiteur n'est envoyée à un service tiers |
 | **Limites connues**         | Le modèle peut se tromper (faux positifs, voir étape 3) ; l'anonymisation peut laisser passer des noms rares                                                                                                                              |
 
 ### 7. Grille de tests de sécurité
@@ -716,17 +715,19 @@ curl -sI --cacert tls.crt $URL/health | grep -iE "x-content-type|x-frame|strict-
 gcloud logging read 'jsonPayload.event="auth_failed"' --limit 5 --format=json                                      # journal d'audit
 ```
 
-### 8. Page de démo (lien à partager)
+### 8. Page web et accès à la supervision (lien à partager)
 
-L'API sert une page web simple sur `https://<IP>/` : un champ de texte, un bouton « Analyser » et le score de 0 à 100 avec une jauge. Le visiteur n'a **aucune clé à saisir**.
+L'API sert une page web sur **https://34-54-213-190.sslip.io/** : champ de texte, bouton « Analyser », score de 0 à 100 avec une jauge, thèmes clair et sombre. Une personne qui a **le lien et la clé API** peut l'utiliser sans rien installer.
 
-- **Comment ça marche** : la page appelle `POST /demo/score` sur la même API. Cette route n'a pas de clé API, mais elle est limitée : LSTM uniquement, texte de 1 à 1 000 caractères, **20 requêtes par minute et par IP** (429 au-delà).
-- **La clé API n'est pas dans la page** : `/score` et `/metrics` restent protégés (401 sans clé). Les personnes qui ont besoin de l'API complète reçoivent une clé par un canal privé (partie 1).
-- **Même sécurité que le reste** : HTTPS uniquement, en-têtes de sécurité, politique `Content-Security-Policy` (aucune ressource externe), texte jamais stocké ni journalisé.
-- **Éteindre la démo** sans toucher au code : `kubectl set env deployment/dss-api DEMO_ENABLED=0`.
-- **Limite connue** : le certificat est auto-signé, donc le navigateur affiche un avertissement la première fois (« Avancé » puis « Continuer »). Un nom de domaine et un certificat géré par Google le feraient disparaître. Le compteur est par pod : avec plusieurs pods, la limite réelle est plus haute (Cloud Armor pour une limite globale).
+- **Authentification** : la page demande la clé API et l'envoie en `X-API-Key` à `POST /score`, comme n'importe quel client. La clé reste dans l'onglet du navigateur (`sessionStorage`) et n'est écrite ni dans la page, ni dans le code, ni dans les logs. Sans clé valide, l'API répond 401 et la page affiche « Clé API invalide ». La limite de 600 requêtes par minute s'applique à cette clé.
+- **Pas d'accès libre** : une première version de la page appelait une route sans clé (`/demo/score`). Elle a été supprimée : tout passe par `/score`, protégé par la clé.
+- **Sécurité de la page** : HTTPS uniquement, `Content-Security-Policy` stricte (`default-src 'none'`, aucune ressource externe), en-têtes de sécurité. Les polices (Literata, Instrument Sans, licence OFL) sont **hébergées par l'API** (`/fonts/`) : charger Google Fonts aurait envoyé l'adresse IP de chaque visiteur à Google.
+- **Bouton « Monitoring »** : ouvre Grafana sur `/grafana/`. Grafana est exposé par le même Ingress, avec une **page de connexion**. On y entre avec le compte **`lecteur`** (rôle Viewer : voir les tableaux de bord, rien modifier), dont le mot de passe est donné avec la clé API : `gcloud secrets versions access latest --secret=grafana-viewer-password`. Le compte `admin` n'est jamais partagé. Le tableau de bord montre le trafic, la latence, les erreurs, les pods qui répondent et le CPU.
+- **Certificat HTTPS** : certificat **géré par Google** (`k8s/managed-cert.yaml`) pour le nom `34-54-213-190.sslip.io`, qui pointe vers l'IP fixe : plus d'avertissement du navigateur. Le certificat auto-signé reste présenté en secours tant que celui de Google n'est pas actif.
+- **Éteindre la page** sans toucher au code : `kubectl set env deployment/dss-api DEMO_ENABLED=0`. Couper l'accès à Grafana : `kubectl scale deployment/grafana --replicas=0`.
+- **Limites** : Grafana est joignable depuis internet : seuls la page de connexion, un mot de passe aléatoire et le blocage après échecs de connexion de Grafana le protègent (pas de limite globale de requêtes : Cloud Armor, voir partie 9). La base de Grafana est perdue à chaque redémarrage de son pod : relancer `monitoring/setup_gke.sh`, qui recrée la source de données et le compte lecteur. Le compteur de requêtes est par pod.
 
-Mise en ligne : reconstruire l'image et mettre à jour le déploiement (étape 13 de la partie 4).
+Mise en ligne : reconstruire l'image (`gcloud builds submit`), mettre à jour le déploiement (étape 13 de la partie 4), puis `kubectl apply -f k8s/managed-cert.yaml -f k8s/ingress.yaml -f k8s/monitoring/grafana.yaml` et `monitoring/setup_gke.sh`.
 
 ### 9. Limites et améliorations
 
@@ -977,7 +978,7 @@ Le script peut être relancé sans risque. Il fait quatre choses :
 **Accès à Grafana, sans IP publique :**
 
 ```bash
-kubectl port-forward svc/grafana 3000:3000                         # puis http://localhost:3000 (Cloud Shell : « Aperçu sur le Web », port 3000)
+kubectl port-forward svc/grafana 3000:3000                         # puis http://localhost:3000/grafana/ (ou, en public, https://34-54-213-190.sslip.io/grafana/ avec le compte lecteur)
 gcloud secrets versions access latest --secret=grafana-admin-password   # utilisateur : admin
 ```
 
