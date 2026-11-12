@@ -1,0 +1,3 @@
+Method,Name,Error,Occurrences,First Seen,Last Seen
+POST,POST /score,CatchResponseError('HTTP 502'),751,2026-11-12T10:52:27Z,2026-11-12T10:52:40Z
+POST,POST /score,CatchResponseError('HTTP 0'),1,2026-11-12T10:52:38Z,2026-11-12T10:52:38Z

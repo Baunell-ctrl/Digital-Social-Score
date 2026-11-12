@@ -690,7 +690,7 @@ Les tests « auto » sont dans `tests/test_api.py` (`python -m pytest tests/test
 | Texte de plus de 5 000 caractères      | texte généré                                                     | 422     | ✅   | à compléter |
 | Modèle inconnu                         | `-d '{"text":"hello","model":"gpt"}'`                           | 422     | ✅   | à compléter |
 | Requête de plus de 32 Ko               | corps de 40 Ko                                                  | 413     | ✅   | à compléter |
-| Trop de requêtes                       | plus de `RATE_LIMIT_PER_MINUTE` requêtes en une minute          | 429     | ✅   | à compléter |
+| Trop de requêtes                       | plus de `RATE_LIMIT_PER_MINUTE` requêtes en une minute          | 429     | ✅   | ✅ 5 566 réponses 429 (étape 5) |
 | En-têtes de sécurité                   | `curl -I https://$IP/health`                                    | présents | ✅  | à compléter |
 | Pas de texte ni de clé dans les logs   | lecture des logs après un appel                                 | absents | ✅   | à compléter |
 | HTTPS avec certificat vérifié          | `curl --cacert tls.crt https://$IP/health`                      | 200     | –    | à compléter |
@@ -717,9 +717,202 @@ gcloud logging read 'jsonPayload.event="auth_failed"' --limit 5 --format=json   
 ### 8. Limites et améliorations
 
 - **Certificat auto-signé** : le chiffrement est le même qu'avec un certificat public, mais aucune autorité ne garantit le certificat. Le navigateur affiche un avertissement et chaque client doit recevoir `tls.crt` pour vérifier le serveur. En production : un nom de domaine et un certificat géré par Google (`ManagedCertificate`), renouvelé automatiquement. Le certificat auto-signé expire après 1 an et doit être régénéré.
-- **Limite de requêtes par pod** : le compteur est en mémoire. Avec 10 pods, un client peut faire jusqu'à 10 × 600 requêtes par minute. Pour une limite globale : **Cloud Armor** (WAF), branché sur l'Ingress par le `BackendConfig` (`securityPolicy`), qui ajoute aussi le filtrage d'IP et la protection contre le déni de service.
+- **Limite de requêtes par pod** : le compteur est en mémoire. Avec 10 pods, un client peut faire jusqu'à 10 × 600 requêtes par minute (mesuré à l'étape 5 : environ 6 300 requêtes acceptées par minute avec une seule clé). Pour une limite globale : **Cloud Armor** (WAF), branché sur l'Ingress par le `BackendConfig` (`securityPolicy`), qui ajoute aussi le filtrage d'IP et la protection contre le déni de service.
 - **Clés API sans expiration** : une rotation régulière (partie 1) est nécessaire. Pour des jetons à durée de vie courte, passer à OAuth2 / JWT.
 - **Attaques adverses** : un texte volontairement déformé (« id1ot », espaces entre les lettres) peut tromper le LSTM. Ce point sera traité avec les attaques sur l'IA (cours n°6).
+
+## Étape 5 : simulation de montée en charge
+
+Code : `loadtest/locustfile.py` (scénarios), `loadtest/run_gke.sh` (enchaînement des tests sur le cluster), `loadtest/plot.py` (graphes et tableau). Résultats bruts : `reports/loadtest/` (CSV et rapports HTML de Locust, relevé de l'autoscaling, métriques Cloud Monitoring). Tests faits le 12 novembre 2026, de 11 h 35 à 12 h 00, sur l'API déployée dans GKE.
+
+### En bref
+
+| Question | Réponse mesurée |
+| -------- | --------------- |
+| Débit maximal | **environ 195 requêtes par seconde** avec 10 pods, soit **environ 20 requêtes par seconde par pod** (500 m de CPU) |
+| Latence à vide | médiane **45 ms**, P95 210 ms, P99 390 ms (1 utilisateur) |
+| Latence sous charge normale | jusqu'à 120 utilisateurs : médiane 170 ms, P95 550 ms, P99 840 ms |
+| Point de rupture | au-delà de **120 utilisateurs** : le débit ne monte plus, la latence explose (P95 3,6 s, P99 5,6 s à 300 utilisateurs) |
+| Taux d'erreur | **0,01 %** en montée progressive, **0,03 %** en stress (des 502), **4 %** quand tous les pods sont supprimés d'un coup |
+| Autoscaling | de **2 à 10 pods** ; le HPA réagit en moins d'une minute, mais 3 pods ont attendu **4 minutes** que Google crée des nœuds |
+| Failover | perte d'**un** pod : **0 erreur** ; perte de **tous** les pods : **13 secondes** d'erreurs, retour à 10 pods en 40 secondes |
+| Limite de requêtes | elle fonctionne (**5 566 réponses 429**), mais elle compte **par pod** : 10 pods = 10 × 600 requêtes/minute |
+| Goulot | le **CPU** (jusqu'à 123 % de la demande) ; la mémoire reste à **12 %** |
+
+### 1. Environnement de test
+
+| Élément | Valeur |
+| ------- | ------ |
+| Plateforme | GKE **Autopilot**, région `europe-west9` (Paris), Kubernetes géré par Google |
+| Application | API FastAPI + LSTM (`dss/api:v3`), anonymisation spaCy active, derrière l'Ingress HTTPS |
+| Pods | 2 à 10 (HPA, seuil CPU 70 %) ; chaque pod demande 500 m de CPU et 1,5 Go de mémoire, 1 processus uvicorn |
+| Outil | **Locust 2.47**, lancé depuis un Mac (connexion internet vers Paris) |
+| Requêtes | `POST /score` en HTTPS avec la clé API, 10 textes toxiques ou neutres tirés au hasard ; chaque utilisateur attend 0,2 à 0,6 s entre deux requêtes |
+| Limite de requêtes | levée pendant les tests de capacité (`RATE_LIMIT_PER_MINUTE=0`), remise à 600 pour le dernier test |
+
+**À savoir pour lire les chiffres.** Les latences sont mesurées **côté client** : elles comprennent le trajet internet entre le Mac et Paris en plus du temps de l'API (19 à 27 ms par requête côté API, mesuré à l'étape 3). La machine qui envoie la charge n'est pas un serveur : avec 300 utilisateurs, une partie de la latence peut venir d'elle. Les valeurs « max » (jusqu'à 10 s) correspondent à des cas isolés (première connexion TLS, pod qui redémarre).
+
+### 2. Pourquoi Locust
+
+Le TP propose Apache Bench, Locust ou k6. Nous avons choisi **Locust**.
+
+| Critère | **Locust** | Apache Bench (`ab`) | k6 |
+| ------- | ---------- | ------------------- | -- |
+| Langage du scénario | **Python**, comme tout le projet | aucun : une seule requête répétée | JavaScript |
+| Textes variés, en-tête de clé API | oui | une seule requête fixe | oui |
+| Montée progressive par paliers | **oui** (`LoadTestShape`) | non : nombre fixe de connexions | oui |
+| P50 / P95 / P99 **au fil du temps** | **oui** : CSV seconde par seconde | seulement un total en fin de test | oui, mais l'export est à configurer |
+| Suivre un failover pendant le test | oui (erreurs par seconde) | non | oui |
+| Rapport | **HTML + CSV** | texte | texte ou JSON |
+| Installation | `pip install locust` | déjà sur macOS et Linux | binaire séparé |
+| Limite | moins de débit par machine que k6 | trop simple pour l'étape 5 | langage différent du projet |
+
+Pour nos volumes (quelques centaines de requêtes par seconde), le débit de Locust suffit, et le scénario s'écrit en Python à côté du code de l'API.
+
+### 3. Scénarios
+
+| Scénario | Charge | Question posée |
+| -------- | ------ | -------------- |
+| **Référence** | 1 utilisateur, 1 minute | Quelle est la latence à vide ? |
+| **Croissance progressive** | 5 → 20 → 50 → 100 utilisateurs, 7 minutes | L'autoscaling suit-il la charge ? La latence reste-t-elle stable ? |
+| **Stress** | 20 → 60 → 120 → 200 → 300 utilisateurs, 6 minutes | Où est le point de rupture ? |
+| **Failover** | 40 utilisateurs constants, 4 minutes ; suppression d'1 pod à 60 s, puis de **tous** les pods à 150 s | Le service survit-il à une panne ? |
+| **Limite de requêtes** | une seule clé, 5 puis 20 utilisateurs sans pause, 90 s | La protection anti-abus de l'étape 4 répond-elle 429 ? |
+
+Lancer tous les tests sur le cluster (environ 30 minutes, le cluster monte jusqu'à 10 pods) :
+
+```bash
+pip install -r requirements-loadtest.txt
+gcloud container clusters get-credentials dss-cluster --region europe-west9
+PROJECT=<ID_DU_PROJET> ./loadtest/run_gke.sh       # remet la limite à 600 à la fin
+python loadtest/plot.py                             # graphes dans reports/images/
+```
+
+Un seul scénario : `SCENARIO=ramp API_KEY=$API_KEY locust -f loadtest/locustfile.py --headless --host https://$IP --csv reports/loadtest/gke_ramp --csv-full-history --html reports/loadtest/gke_ramp.html`.
+
+### 4. Résultats
+
+| Scénario | Requêtes | Débit max (req/s) | Latence moyenne (ms) | P50 (ms) | P95 (ms) | P99 (ms) | Erreurs | CPU moyen | Mémoire moyenne | Pods | Observations |
+| -------- | -------- | ----------------- | -------------------- | -------- | -------- | -------- | ------- | --------- | --------------- | ---- | ------------ |
+| Référence | 116 | 2 | 106 | 45 | 210 | 390 | 0 % | faible | 12 % | 2 | latence de base, trajet internet compris |
+| Croissance progressive | 35 279 | 153 | 269 | 120 | 990 | 1 600 | 0,01 % (4 × 502) | 76 % | 12 % | 2 → 7 (10 demandés) | autoscaling efficace, mais 3 pods en attente de nœuds |
+| Stress | 54 508 | 201 | 673 | 300 | 2 600 | 4 700 | 0,03 % (15 × 502) | 96 % | 11 % | 7 → 10 | plafond à environ 195 req/s, saturation CPU |
+| Failover | 18 678 | 87 | 105 | 52 | 200 | 660 | 4,0 % (752) | 59 % | 10 % | 10 → 1 → 10 | 13 s d'erreurs quand tous les pods tombent |
+| Limite (5 utilisateurs) | 4 158 | 47 | 56 | 43 | 120 | 140 | 0 % | faible | 9 % | 10 | aucune 429 : 280 req/min par pod, sous la limite |
+| Limite (20 utilisateurs) | 15 057 | 167 | 69 | 53 | 150 | 210 | 37 % (5 566 × 429, voulues) | faible | 9 % | 10 | environ 6 300 req/min acceptées = 10 pods × 600 |
+
+CPU : moyenne du CPU utilisé par rapport au CPU demandé (relevé du HPA toutes les 5 s). Mémoire : moyenne de la mémoire utilisée par rapport à la mémoire demandée (Cloud Monitoring, `kubernetes.io/container/memory/request_utilization`).
+
+#### Vue d'ensemble dans Cloud Monitoring : les trois phases de charge
+
+![Requêtes reçues par les pods, vues par Cloud Monitoring](reports/images/cloud_monitoring_backend_request_count.png)
+
+*Source : **Google Cloud Monitoring**, Metrics Explorer, métrique `backend_request_count` de la ressource « Cloud Load Balancing Backend Service » (requêtes transmises par le load balancer de l'Ingress aux pods `dss-api`), en requêtes par seconde, moyenne par minute, heure de Paris.*
+
+Ce graphique ne vient pas de Locust mais de Google : c'est le load balancer qui compte les requêtes qu'il envoie aux pods. Il confirme donc les mesures de Locust avec une source indépendante. On y voit **trois phases de charge** :
+
+| Phase | Heure | Ce que montre le graphique | Test correspondant |
+| ----- | ----- | -------------------------- | ------------------ |
+| Repos | avant 11 h 36 | presque 0 requête : aucun test en cours | – |
+| **1. Montée progressive** | 11 h 36 → 11 h 44 | le débit monte par étapes jusqu'à environ **130 req/s** | croissance progressive (5 → 100 utilisateurs) |
+| Creux | 11 h 44 → 11 h 45 | chute à environ 65 req/s | fin de la montée progressive, début du stress à 20 utilisateurs seulement |
+| **2. Stress** | 11 h 45 → 11 h 50 | pic à environ **185 req/s**, puis plateau : le débit ne monte plus malgré 200 puis 300 utilisateurs | stress test (point de rupture) |
+| Descente | 11 h 50 → 11 h 57 | environ 80 req/s, puis presque 0 | failover (40 utilisateurs constants, puis suppression des pods à 11 h 52), puis redémarrage des pods pour remettre la limite de requêtes |
+| **3. Rafale d'un seul client** | 11 h 57 → 12 h 00 | remontée brutale à environ **155 req/s**, puis retour au calme | test de la limite de requêtes : une seule clé, 5 puis 20 utilisateurs sans pause ; une partie des réponses sont des 429 |
+
+**Ce qu'il faut en retenir.**
+
+- **Les trois phases correspondent aux trois façons dont la charge peut arriver** : une hausse progressive (heures de pointe), une surcharge au-delà de la capacité (pic exceptionnel) et une rafale d'un seul client (abus, robot, tentative de vol du modèle).
+- **Le plafond de la phase 2 est visible ici aussi** : le débit reste sous 200 req/s alors que Locust ajoute des utilisateurs. C'est la capacité maximale des 10 pods, mesurée à environ 195 req/s par Locust.
+- **Les valeurs sont un peu plus basses que celles de Locust** (185 au lieu de 195 req/s au pic) parce que Cloud Monitoring fait la moyenne sur une minute : les pics de quelques secondes sont lissés.
+- **La phase 3 compte aussi les réponses 429** : le load balancer transmet toutes les requêtes aux pods, et ce sont les pods qui refusent celles qui dépassent la limite. Le graphique montre donc la charge reçue, pas la charge acceptée (environ 6 300 requêtes par minute acceptées, voir « Limite de requêtes »).
+- **Le failover est presque invisible à cette échelle** : la coupure de 13 secondes disparaît dans la moyenne par minute. C'est pour cela que les graphes de Locust, seconde par seconde, sont utilisés pour l'analyser.
+
+#### Croissance progressive
+
+![Croissance progressive](reports/images/loadtest_gke_ramp.png)
+
+| Palier | Débit | P50 | P95 | P99 | Pods prêts | CPU moyen |
+| ------ | ----- | --- | --- | --- | ---------- | --------- |
+| 5 utilisateurs | 11 req/s | 46 ms | 150 ms | 200 ms | 2 | 5 % |
+| 20 utilisateurs | 38 req/s | 66 ms | 310 ms | 770 ms | 2 → 3 | 56 % |
+| 50 utilisateurs | 85 req/s | 88 ms | 600 ms | 1 400 ms | 4 → 7 | 89 % |
+| 100 utilisateurs | 135 req/s | 170 ms | 1 100 ms | 1 500 ms | 7 | 99 % |
+
+- **L'autoscaling suit la charge.** Le CPU dépasse 70 % environ 50 secondes après le passage à 20 utilisateurs ; le HPA demande alors un 3ᵉ pod, prêt **11 secondes** plus tard. À 50 utilisateurs, il passe à 7 pods en 1 minute 30.
+- **Le débit suit les utilisateurs** (11 → 38 → 85 → 135 req/s) et il n'y a presque aucune erreur (4 sur 35 279).
+- **Mais la latence monte** : le P95 passe de 150 ms à 1,1 s. Le CPU reste au-dessus du seuil pendant toute la montée : les pods ajoutés arrivent toujours un peu après la charge.
+- **Les 3 derniers pods ont attendu 4 minutes.** À 100 utilisateurs, le HPA demande 10 pods, mais seuls 7 sont prêts jusqu'à 11 h 45. Kubernetes indique `Pod didn't trigger scale-up: in backoff after failed scale-up` : Autopilot n'a pas pu créer tout de suite les nouveaux nœuds et a réessayé plus tard. C'est la principale cause de la latence élevée à la fin de ce test.
+
+#### Stress test
+
+![Stress test](reports/images/loadtest_gke_stress.png)
+
+| Palier | Débit | P50 | P95 | P99 | Erreurs | Pods prêts | CPU moyen |
+| ------ | ----- | --- | --- | --- | ------- | ---------- | --------- |
+| 20 utilisateurs | 43 req/s | 45 ms | 130 ms | 160 ms | 0 | 7 | 63 % |
+| 60 utilisateurs | 113 req/s | 72 ms | 200 ms | 460 ms | 0 | 7 → 10 | 63 % |
+| 120 utilisateurs | **193 req/s** | 170 ms | 550 ms | 840 ms | 0 | 10 | 99 % |
+| 200 utilisateurs | 192 req/s | 490 ms | 1 700 ms | 2 200 ms | 1 | 10 | 116 % |
+| 300 utilisateurs | 188 req/s | 600 ms | 3 600 ms | 5 600 ms | 6 | 8 → 10 | 119 % |
+| 300 utilisateurs (maintien) | 191 req/s | 850 ms | 3 100 ms | 4 600 ms | 8 | 8 → 10 | 120 % |
+
+- **Capacité maximale : environ 195 requêtes par seconde avec 10 pods**, soit environ 20 par pod. Au-delà de 120 utilisateurs, le débit ne monte plus : les requêtes en plus attendent dans les files des pods, d'où une latence multipliée par 6 (P95 de 550 ms à 3,6 s).
+- **Le goulot est le CPU** : à 120 % de la demande, chaque pod est saturé, et le HPA est déjà au maximum (10 pods). La mémoire reste à 11 % : elle n'est pas un problème.
+- **Les 15 erreurs 502 viennent de redémarrages de pods.** Les événements Kubernetes montrent `Liveness probe failed: ... context deadline exceeded` : un pod saturé met plus d'1 seconde à répondre à `/health`, Kubernetes le croit bloqué et le **redémarre**, ce qui coupe les requêtes en cours. La sonde, faite pour protéger le service, aggrave ici la surcharge (voir les améliorations).
+- **Le service ne s'effondre pas** : même à 300 utilisateurs, 99,97 % des requêtes réussissent. Il devient lent, pas indisponible.
+
+#### Failover
+
+![Failover](reports/images/loadtest_gke_failover.png)
+
+| Événement | Erreurs | Effet observé | Retour à la normale |
+| --------- | ------- | ------------- | ------------------- |
+| Suppression d'**1 pod** sur 10 (à 60 s) | **0** | débit de 85 à 70 req/s, P99 à 4,5 s pendant environ 20 s | nouveau pod prêt en **16 s** |
+| Suppression des **10 pods** (à 150 s) | **752** (751 × 502, 1 coupure de connexion) | service indisponible pendant **13 s** | 1ᵉʳ pod prêt en 20 s, 10 pods en **40 s** |
+
+- **Perdre un pod est sans effet pour les utilisateurs** : le load balancer et la sonde de disponibilité (`readinessProbe`) retirent le pod du trafic, les 9 autres absorbent la charge, et Kubernetes recrée le pod tout seul. C'est l'intérêt d'avoir **plusieurs pods** derrière un load balancer.
+- **Perdre tous les pods d'un coup provoque une vraie coupure**, courte (13 s) car les nouveaux pods démarrent vite (l'image est probablement déjà présente sur les nœuds). Dans la réalité, ce cas correspond à une panne de nœud ou de zone : avant le test, les 2 pods tournaient **sur le même nœud**. Une panne de ce nœud aurait coupé tout le service.
+
+#### Limite de requêtes
+
+![Limite de requêtes, 20 utilisateurs](reports/images/loadtest_gke_ratelimit.png)
+
+- Avec **5 utilisateurs** (environ 2 800 requêtes par minute sur une seule clé) : **aucune réponse 429**. Le load balancer répartit les requêtes sur 10 pods, et chaque pod n'en voit que 280 par minute, sous sa limite de 600.
+- Avec **20 utilisateurs** (environ 10 000 requêtes par minute) : **5 566 réponses 429**. Environ 6 300 requêtes par minute sont acceptées, soit presque exactement **10 pods × 600**.
+- **Conclusion** : la limite fonctionne, mais sa valeur réelle dépend du nombre de pods. C'est la limite déjà notée à l'étape 4 ; une limite globale demande Cloud Armor.
+
+### 5. Réponses aux questions du TP
+
+| Demande du TP | Ce que nous avons fait | Résultat |
+| ------------- | ---------------------- | -------- |
+| Utiliser Apache Bench, Locust ou k6 | Locust, scénarios en Python (partie 2) | 6 scénarios, environ 128 000 requêtes |
+| Simuler une **croissance progressive** | 5 → 100 utilisateurs par paliers | autoscaling de 2 à 7 pods (10 demandés), 0,01 % d'erreurs |
+| Simuler un **stress test** | jusqu'à 300 utilisateurs | plafond à environ 195 req/s, P99 jusqu'à 5,6 s, 0,03 % d'erreurs |
+| Simuler un **failover** | suppression d'1 pod, puis de tous les pods, sous charge | 0 erreur pour 1 pod ; 13 s de coupure pour tous les pods |
+| Mesurer la **latence moyenne** | Locust, côté client | 106 ms à vide, 269 ms en montée, 673 ms en stress |
+| Mesurer **P95 / P99** | Locust, seconde par seconde | à vide 210 / 390 ms ; à 120 utilisateurs 550 / 840 ms ; à 300 utilisateurs 3,6 / 5,6 s |
+| Mesurer le **taux d'erreur** | réponses autres que 200 | 0,01 % ; 0,03 % ; 4 % (failover total) |
+| Proposer des améliorations | à partir des mesures (partie 6) | sonde de santé, autoscaling, répartition des pods, cache, ressources |
+
+### 6. Pistes d'amélioration
+
+Classées de la plus utile à la moins utile, d'après les mesures.
+
+| Problème mesuré | Amélioration | Effet attendu |
+| --------------- | ------------ | ------------- |
+| Pods redémarrés en pleine charge (`Liveness probe failed`) : 15 erreurs 502 | Donner plus de temps à la sonde de vie : `timeoutSeconds: 5` et `failureThreshold: 5` dans `k8s/deployment.yaml`. Elle doit détecter un pod **bloqué**, pas un pod **occupé** | plus de redémarrages sous charge, donc plus de 502 au stress test |
+| Plafond à 195 req/s, HPA déjà à 10 pods | Monter `maxReplicas` (par exemple 20) ; la capacité suit le nombre de pods (environ 20 req/s par pod) | environ 400 req/s avec 20 pods |
+| Le CPU dépasse le seuil avant que les pods arrivent | Seuil HPA à **50 %** au lieu de 70 % et `minReplicas: 3` : le cluster grandit plus tôt et garde de la marge | latence plus stable pendant les montées |
+| 3 pods ont attendu 4 minutes leurs nœuds (Autopilot) | Garder de la capacité d'avance : `minReplicas` plus haut aux heures chargées, ou pods de réserve à faible priorité qui libèrent leur place | plus d'attente de nœuds pendant les pics |
+| Les 2 pods tournaient sur le même nœud | `topologySpreadConstraints` par zone dans `k8s/deployment.yaml` : les pods sont répartis sur plusieurs zones de Paris | une panne de nœud ou de zone ne coupe plus tout le service |
+| Mises à jour et maintenance de Google | `PodDisruptionBudget` (`minAvailable: 1`) | Kubernetes n'arrête jamais tous les pods en même temps lors d'une maintenance |
+| Mémoire utilisée à 12 % de la demande (environ 200 Mo sur 1,5 Go) | Demander **768 Mo** au lieu de 1,5 Go (garder une marge pour le chargement de spaCy) | facture Autopilot plus basse : on paie la mémoire demandée |
+| Textes identiques envoyés plusieurs fois (spam, attaque) | **Cache** du score par identifiant HMAC du texte (jamais le texte lui-même), en mémoire ou dans Memorystore (Redis) | réponse immédiate pour un texte déjà vu ; compatible RGPD |
+| Limite de requêtes multipliée par le nombre de pods | **Cloud Armor** devant l'Ingress (limite par IP ou par clé, globale) | une vraie limite de 600 requêtes par minute, quel que soit le nombre de pods |
+| Un seul processus Python par pod, limité par le CPU | Mesurer le coût de l'anonymisation spaCy et tester 2 processus uvicorn par pod avec 1 CPU | plus de débit par pod, si la mémoire le permet |
+
+**Pour les prochains tests** : lancer Locust depuis une machine de Google Cloud dans la même région (Cloud Shell ou une VM), pour mesurer l'API sans le trajet internet, et refaire le stress test après chaque amélioration pour comparer.
 
 ## Lancer le projet
 
