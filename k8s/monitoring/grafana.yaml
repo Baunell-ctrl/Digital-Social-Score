@@ -1,8 +1,10 @@
 # Grafana dans le cluster, branché sur Managed Service for Prometheus (GMP).
 #
 # GMP stocke les métriques mais ne fournit pas Grafana : on l'héberge ici, dans un seul pod.
-# - Aucun accès public : Service ClusterIP, pas d'Ingress. Accès depuis son poste par
-#     kubectl port-forward svc/grafana 3000:3000   puis http://localhost:3000
+# - Accès public sur https://34-54-213-190.sslip.io/grafana/ par l'Ingress (k8s/ingress.yaml), avec
+#   page de connexion : compte "lecteur" en lecture seule (monitoring/create_viewer.sh) ; le compte
+#   admin n'est jamais partagé. Accès administrateur possible aussi par
+#     kubectl port-forward svc/grafana 3000:3000   puis http://localhost:3000/grafana/
 # - Mot de passe admin dans le Secret grafana-admin (créé par monitoring/setup_gke.sh).
 # - Tableau de bord chargé depuis la ConfigMap grafana-dashboards (monitoring/grafana/dss-dashboard.json).
 # - La source de données "gmp" est créée par l'API Grafana (setup_gke.sh), puis tenue à jour par
@@ -64,6 +66,14 @@ spec:
               value: "false"
             - name: GF_USERS_ALLOW_SIGN_UP
               value: "false"
+            - name: GF_SERVER_ROOT_URL                  # servi sous /grafana/ derrière l'Ingress
+              value: "https://34-54-213-190.sslip.io/grafana/"
+            - name: GF_SERVER_SERVE_FROM_SUB_PATH
+              value: "true"
+            - name: GF_SECURITY_COOKIE_SECURE           # cookie de session envoyé en HTTPS seulement
+              value: "true"
+            - name: GF_SECURITY_DISABLE_GRAVATAR        # pas d'appel à un service tiers
+              value: "true"
             - name: GF_ANALYTICS_REPORTING_ENABLED     # pas d'envoi de statistiques à Grafana Labs
               value: "false"
             - name: GF_ANALYTICS_CHECK_FOR_UPDATES
@@ -80,7 +90,7 @@ spec:
               drop: ["ALL"]
           readinessProbe:
             httpGet:
-              path: /api/health
+              path: /grafana/api/health
               port: 3000
             periodSeconds: 10
           volumeMounts:
@@ -100,12 +110,25 @@ spec:
         - name: data              # base SQLite de Grafana ; perdue si le pod redémarre (relancer setup_gke.sh)
           emptyDir: {}
 ---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: grafana
+spec:
+  healthCheck:
+    type: HTTP
+    requestPath: /grafana/api/health
+    port: 3000
+---
 apiVersion: v1
 kind: Service
 metadata:
   name: grafana
   labels:
     app: grafana
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "grafana"}'
 spec:
   type: ClusterIP
   selector:
@@ -154,7 +177,7 @@ spec:
               image: gke.gcr.io/prometheus-engine/datasource-syncer:v0.17.2-gke.2
               args:
                 - "--datasource-uids=gmp"
-                - "--grafana-api-endpoint=http://grafana.default.svc:3000"
+                - "--grafana-api-endpoint=http://grafana.default.svc:3000/grafana"
                 - "--grafana-api-token=$(GRAFANA_API_TOKEN)"
                 - "--project-id=$(PROJECT_ID)"
               env:

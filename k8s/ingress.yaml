@@ -1,7 +1,9 @@
 # Point d'entrée public de l'API sur GKE : load balancer HTTPS de Google.
 # - IP fixe "dss-ip" (gcloud compute addresses create dss-ip --global)
 # - HTTPS uniquement : allow-http "false" => aucun port 80, la clé API ne circule jamais en clair
-# - certificat TLS dans le Secret "dss-tls" (auto-signé, voir README étape 3 partie 5)
+# - certificat Google "dss-cert" pour 34-54-213-190.sslip.io (k8s/managed-cert.yaml), plus le certificat
+#   auto-signé du Secret "dss-tls" gardé en secours (README étape 3 partie 5)
+# - "/" : l'API et sa page web ; "/grafana" : Grafana (page de connexion, compte lecteur en lecture seule)
 # - politique TLS 1.2+ via le FrontendConfig "dss-api"
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -12,9 +14,20 @@ metadata:
     kubernetes.io/ingress.global-static-ip-name: dss-ip
     kubernetes.io/ingress.allow-http: "false"
     networking.gke.io/v1beta1.FrontendConfig: dss-api
+    networking.gke.io/managed-certificates: dss-cert
 spec:
   tls:
     - secretName: dss-tls
+  rules:
+    - http:
+        paths:
+          - path: /grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
   defaultBackend:
     service:
       name: dss-api
