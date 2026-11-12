@@ -1,0 +1,24 @@
+# Regle d'alerte Cloud Monitoring, condition en PromQL sur les metriques collectees par GMP.
+# Creee par monitoring/setup_gke.sh (gcloud monitoring policies create --policy-from-file).
+displayName: "DSS - SLO latence viole"
+combiner: OR
+severity: WARNING
+documentation:
+  mimeType: text/markdown
+  content: |
+    Moins de 95 % des requetes /score repondent en moins de 300 ms depuis 10 minutes (regle SLO du cours n°3).
+
+    A faire : Verifier le CPU des pods et le nombre de pods (HPA). Si le HPA est au maximum, augmenter maxReplicas.
+conditions:
+  - displayName: "DSS - SLO latence viole"
+    conditionPrometheusQueryLanguage:
+      duration: 10m
+      evaluationInterval: 60s
+      labels:
+        severity: warning
+      query: |
+        sum(rate(http_request_duration_seconds_bucket{job="dss-api",handler="/score",le="0.3"}[5m]))
+        / sum(rate(http_request_duration_seconds_count{job="dss-api",handler="/score"}[5m])) < 0.95
+alertStrategy:
+  autoClose: 1800s
+notificationChannels: []    # rempli par setup_gke.sh (canal email)

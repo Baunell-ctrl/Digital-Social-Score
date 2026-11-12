@@ -1,0 +1,23 @@
+# Regle d'alerte Cloud Monitoring, condition en PromQL sur les metriques collectees par GMP.
+# Creee par monitoring/setup_gke.sh (gcloud monitoring policies create --policy-from-file).
+displayName: "DSS - Limite de requetes depassee (extraction du modele ?)"
+combiner: OR
+severity: WARNING
+documentation:
+  mimeType: text/markdown
+  content: |
+    Un client a depasse 600 requetes par minute : abus ou tentative de vol du modele (model stealing).
+
+    A faire : gcloud logging read 'jsonPayload.event="rate_limited"' --freshness=15m ; revoquer la cle du client si besoin (API_KEYS).
+conditions:
+  - displayName: "DSS - Limite de requetes depassee (extraction du modele ?)"
+    conditionPrometheusQueryLanguage:
+      duration: 60s
+      evaluationInterval: 60s
+      labels:
+        severity: warning
+      query: |
+        sum by (client) (increase(dss_rate_limited_total{job="dss-api"}[5m])) > 0
+alertStrategy:
+  autoClose: 1800s
+notificationChannels: []    # rempli par setup_gke.sh (canal email)

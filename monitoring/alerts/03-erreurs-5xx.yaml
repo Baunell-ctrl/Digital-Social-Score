@@ -1,0 +1,23 @@
+# Regle d'alerte Cloud Monitoring, condition en PromQL sur les metriques collectees par GMP.
+# Creee par monitoring/setup_gke.sh (gcloud monitoring policies create --policy-from-file).
+displayName: "DSS - Erreurs 5xx > 1 %"
+combiner: OR
+severity: CRITICAL
+documentation:
+  mimeType: text/markdown
+  content: |
+    Plus de 1 % des requetes /score se terminent par une erreur serveur (5xx) depuis 5 minutes.
+
+    A faire : kubectl logs -l app=dss-api --tail=100 ; kubectl get events --sort-by=.lastTimestamp
+conditions:
+  - displayName: "DSS - Erreurs 5xx > 1 %"
+    conditionPrometheusQueryLanguage:
+      duration: 5m
+      evaluationInterval: 60s
+      labels:
+        severity: critical
+      query: |
+        sum(rate(http_requests_total{job="dss-api",handler="/score",status="5xx"}[5m])) / sum(rate(http_requests_total{job="dss-api",handler="/score"}[5m])) > 0.01
+alertStrategy:
+  autoClose: 1800s
+notificationChannels: []    # rempli par setup_gke.sh (canal email)
