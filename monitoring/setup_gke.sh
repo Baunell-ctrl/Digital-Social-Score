@@ -61,28 +61,42 @@ gcloud projects add-iam-policy-binding "$PROJECT" --condition=None -q >/dev/null
 # Le secret du synchroniseur doit exister avant le CronJob (jeton provisoire, remplacé plus bas).
 kubectl get secret grafana-syncer >/dev/null 2>&1 || kubectl create secret generic grafana-syncer \
   --from-literal=token=pending --from-literal=project="$PROJECT"
+EXISTED=$(kubectl get deployment grafana -o name 2>/dev/null || true)
 kubectl apply -f k8s/monitoring/grafana.yaml
-kubectl rollout restart deployment/grafana    # recharge le tableau de bord s'il a changé
+# Grafana déjà installé : redémarrage pour recharger le tableau de bord s'il a changé.
+[ -z "$EXISTED" ] || kubectl rollout restart deployment/grafana
 kubectl rollout status deployment/grafana --timeout=5m
 
+# Attendre qu'il ne reste qu'UN pod Grafana : sinon le port-forward peut viser l'ancien pod en cours d'arrêt.
+for _ in $(seq 60); do
+  [ "$(kubectl get pods -l app=grafana --no-headers 2>/dev/null | wc -l)" -eq 1 ] && break; sleep 2
+done
+POD=$(kubectl get pods -l app=grafana -o jsonpath='{.items[0].metadata.name}')
+kubectl wait --for=condition=ready "pod/$POD" --timeout=3m
+
 # Source de données "gmp" et jeton du synchroniseur, par l'API de Grafana (via un port-forward local).
-kubectl port-forward svc/grafana 3300:3000 >/dev/null 2>&1 &
+kubectl port-forward "pod/$POD" 3300:3000 >/tmp/dss-grafana-pf.log 2>&1 &
 PF=$!
 trap 'kill $PF 2>/dev/null || true' EXIT
-for _ in $(seq 30); do curl -sf http://localhost:3300/api/health >/dev/null && break; sleep 1; done
-G="curl -sf -u admin:$GRAFANA_PASSWORD -H Content-Type:application/json http://localhost:3300"
+for i in $(seq 60); do
+  curl -sf http://localhost:3300/api/health >/dev/null && break
+  [ "$i" -eq 60 ] && { echo "Grafana ne répond pas :"; cat /tmp/dss-grafana-pf.log; exit 1; }
+  sleep 1
+done
+# --fail-with-body : en cas d'erreur, Grafana explique pourquoi au lieu d'une réponse vide
+g() { curl -sS --fail-with-body -u "admin:$GRAFANA_PASSWORD" -H "Content-Type: application/json" "http://localhost:3300$@"; }
+json() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 
-$G/api/datasources/uid/gmp >/dev/null 2>&1 || $G/api/datasources -X POST -d "{
+g /api/datasources/uid/gmp >/dev/null 2>&1 || g /api/datasources -X POST -d "{
   \"name\": \"Managed Service for Prometheus\", \"uid\": \"gmp\", \"type\": \"prometheus\",
   \"access\": \"proxy\", \"isDefault\": true,
   \"url\": \"https://monitoring.googleapis.com/v1/projects/$PROJECT/location/global/prometheus\"}" >/dev/null
 
-SA_ID=$($G "/api/serviceaccounts/search?query=datasource-syncer" | python3 -c \
-  "import json,sys; r=json.load(sys.stdin)['serviceAccounts']; print(r[0]['id'] if r else '')")
-[ -n "$SA_ID" ] || SA_ID=$($G /api/serviceaccounts -X POST \
-  -d '{"name": "datasource-syncer", "role": "Admin"}' | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
-TOKEN=$($G "/api/serviceaccounts/$SA_ID/tokens" -X POST -d "{\"name\": \"syncer-$(date +%s)\"}" \
-  | python3 -c "import json,sys; print(json.load(sys.stdin)['key'])")
+SA_ID=$(g "/api/serviceaccounts/search?query=datasource-syncer" \
+  | json "next((a['id'] for a in d['serviceAccounts'] if a['name'] == 'datasource-syncer'), '')")
+[ -n "$SA_ID" ] || SA_ID=$(g /api/serviceaccounts -X POST \
+  -d '{"name": "datasource-syncer", "role": "Admin"}' | json "d['id']")
+TOKEN=$(g "/api/serviceaccounts/$SA_ID/tokens" -X POST -d "{\"name\": \"syncer-$(date +%s)\"}" | json "d['key']")
 kubectl create secret generic grafana-syncer --from-literal=token="$TOKEN" --from-literal=project="$PROJECT" \
   --dry-run=client -o yaml | kubectl apply -f -
 
