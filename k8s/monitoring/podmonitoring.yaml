@@ -1,0 +1,29 @@
+# Collecte des métriques de l'API par Managed Service for Prometheus (GMP).
+# Sur GKE Autopilot, la collecte gérée est déjà active : ce fichier suffit, aucun serveur Prometheus
+# n'est à installer. Les collecteurs de Google (namespace gmp-system) lisent /metrics sur chaque pod
+# toutes les 30 s et stockent les séries dans Cloud Monitoring (Monarch), dans le projet.
+#
+# /metrics est protégé par une clé API : le collecteur présente le jeton "Bearer" lu dans le Secret
+# dss-prometheus (clé dédiée "prometheus", révocable, visible sous ce nom dans les logs de l'API).
+# Le droit de lire ce Secret est donné par k8s/monitoring/rbac.yaml.
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: dss-api
+  labels:
+    app: dss-api
+spec:
+  selector:
+    matchLabels:
+      app: dss-api
+  endpoints:
+    - port: 8080
+      path: /metrics
+      scheme: http          # trafic interne au cluster, de pod à pod (le HTTPS s'arrête à l'Ingress)
+      interval: 30s
+      authorization:
+        type: Bearer
+        credentials:
+          secret:
+            name: dss-prometheus
+            key: token

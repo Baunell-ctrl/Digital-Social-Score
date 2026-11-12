@@ -537,7 +537,7 @@ Tests faits depuis Cloud Shell avec `curl`, sur l'API déployée dans le cluster
 
 ## Étape 4 : sécurisation et conformité RGPD
 
-Code : `src/api/main.py` et `k8s/`. Tests automatiques : `tests/test_api.py` (11 tests, dont 5 dédiés à la sécurité).
+Code : `src/api/main.py` et `k8s/`. Tests automatiques : `tests/test_api.py` (16 tests, dont 3 pour les métriques de l'étape 6).
 
 | Exigence du TP              | Mise en œuvre                                                                             |
 | --------------------------- | ----------------------------------------------------------------------------------------- |
@@ -698,7 +698,7 @@ Les tests « auto » sont dans `tests/test_api.py` (`python -m pytest tests/test
 | TLS 1.1 refusé                         | `openssl s_client -connect $IP:443 -tls1_1`                     | échec   | –    | à compléter |
 | Secrets chiffrés par KMS               | `gcloud container clusters describe ... --format="value(databaseEncryption)"` | `ENCRYPTED` | – | à compléter |
 
-Commandes pour remplir la colonne « Cloud » (afficher seulement le code HTTP) :
+La phase `grille` de `loadtest/attack.py` (étape 6) remplit la colonne « Cloud » en une commande : `python3 loadtest/attack.py --host https://$IP --cacert tls.crt --phases grille`. Commandes équivalentes avec `curl` (afficher seulement le code HTTP) :
 
 ```bash
 httpcode() { curl -s -o /dev/null -w "%{http_code}\n" --cacert tls.crt "$@"; }
@@ -913,6 +913,172 @@ Classées de la plus utile à la moins utile, d'après les mesures.
 | Un seul processus Python par pod, limité par le CPU | Mesurer le coût de l'anonymisation spaCy et tester 2 processus uvicorn par pod avec 1 CPU | plus de débit par pod, si la mémoire le permet |
 
 **Pour les prochains tests** : lancer Locust depuis une machine de Google Cloud dans la même région (Cloud Shell ou une VM), pour mesurer l'API sans le trajet internet, et refaire le stress test après chaque amélioration pour comparer.
+
+## Étape 6 : supervision et alertes
+
+Code : `src/api/main.py` (métriques), `k8s/monitoring/` (collecte et Grafana), `monitoring/` (tableau de bord, alertes, script d'installation), `loadtest/attack.py` (simulation d'attaque). Tests : `tests/test_api.py` (3 tests de métriques).
+
+### 1. Les trois piliers de l'observabilité
+
+Le cours n°3 distingue trois sources d'information. Chacune a son outil Google Cloud :
+
+| Pilier | Ce qu'il dit | Outil | Dans le projet |
+| ------ | ------------ | ----- | -------------- |
+| **Métriques** | des valeurs agrégées : combien, à quelle vitesse | **Managed Service for Prometheus** (GMP), affiché dans Grafana | `/metrics` de l'API, collecté toutes les 30 s |
+| **Logs** | des événements horodatés : qui, quoi, quand | **Cloud Logging** | une ligne JSON par requête, pseudonymisée (étape 4) |
+| **Traces** | le chemin d'une requête entre services | **Cloud Trace** | non mis en place : un seul service, la latence d'inférence suffit (voir les limites) |
+
+### 2. Qui fait quoi
+
+GMP n'est **pas** une fusion de Prometheus et Grafana. Il remplace le **serveur Prometheus** : Google collecte les métriques des pods et les stocke à notre place, dans le projet. GMP parle le langage de Prometheus (PromQL), donc Grafana et Cloud Monitoring peuvent tous les deux le lire.
+
+```
+pods dss-api ──/metrics (Bearer)──▶ collecteurs GMP (gérés par Google, namespace gmp-system)
+                                          │
+                                          ▼
+                          Monarch : base de métriques de Cloud Monitoring (dans le projet)
+                           │                         │                        │
+                     Grafana (PromQL)       Metrics Explorer (PromQL)   règles d'alerte (PromQL)
+                    tableau de bord du TP     graphes rapides            ──▶ email
+```
+
+| Rôle | Outil | Pourquoi |
+| ---- | ----- | -------- |
+| Collecte et stockage | **GMP** | aucun serveur Prometheus à installer, à mettre à jour ni à sauvegarder ; déjà actif sur GKE Autopilot |
+| Tableau de bord | **Grafana**, dans le cluster | le TP demande « Prometheus/Grafana » ; c'est l'outil montré dans le cours (diapo 23) |
+| Alertes | **Cloud Monitoring** | lit directement les métriques GMP et envoie des emails, sans Alertmanager à héberger |
+| Analyse d'attaque | **Cloud Logging** | les logs JSON de l'API y sont déjà |
+
+**Pourquoi GMP plutôt qu'un Prometheus installé dans le cluster ?** Un Prometheus auto-hébergé demande un disque persistant, de la mémoire, des mises à jour et une sauvegarde. Il perd ses données si son pod tombe, et il faut le dimensionner quand le nombre de pods augmente. Avec GMP, Google s'en charge, les données sont gardées **24 mois**, et les requêtes restent en PromQL standard : on pourrait revenir à un Prometheus classique sans réécrire le tableau de bord ni les alertes.
+
+### 3. Les métriques de l'API
+
+Le cours présente deux méthodes (diapos 20 et 21). Nous utilisons les deux :
+
+| Méthode | Métrique | Contenu |
+| ------- | -------- | ------- |
+| 1. Middleware prêt à l'emploi (`prometheus-fastapi-instrumentator`) | `http_requests_total{handler, status}` | nombre de requêtes par route et par code (`2xx`, `4xx`, `5xx`) |
+| | `http_request_duration_seconds{handler}` | latence HTTP par route ; seuils à 0,3 s (SLO) et 0,5 s (alerte) |
+| 2. Instrumentation manuelle (`prometheus_client`) | `dss_inference_latency_seconds{model}` | durée de l'inférence seule : anonymisation, nettoyage et LSTM |
+| | `dss_toxicity_score` | distribution des scores renvoyés (0 à 100) |
+| | `dss_auth_failures_total{reason}` | requêtes refusées pour clé `absente` ou `invalide` (401) |
+| | `dss_rate_limited_total{client}` | requêtes refusées par la limite (429), par client |
+
+- `/health` et `/metrics` sont **exclus** des métriques HTTP : les sondes Kubernetes et la collecte, toutes les 10 à 30 s, fausseraient les taux.
+- **Aucune donnée personnelle dans les métriques** : pas de texte, pas d'IP, pas de clé. Le seul libellé client est le **nom** du client (`default`, `prometheus`…).
+- **`/metrics` reste protégé.** Le collecteur GMP utilise sa propre clé, `prometheus`, déclarée dans `API_KEYS`. Elle est lue dans le Secret `dss-prometheus`, que le collecteur est le seul à pouvoir lire (`k8s/monitoring/rbac.yaml`). On peut la révoquer sans toucher aux clients.
+
+### 4. Mise en place sur GKE
+
+Dans Cloud Shell, à la racine du dépôt, une fois l'image reconstruite avec les nouvelles métriques :
+
+```bash
+TAG=v4; IMAGE=$REGION-docker.pkg.dev/$PROJECT/dss/api:$TAG
+gcloud builds submit --tag $IMAGE .
+kubectl set image deployment/dss-api api=$IMAGE && kubectl rollout status deployment/dss-api
+
+PROJECT=$PROJECT EMAIL=<adresse des alertes> ./monitoring/setup_gke.sh
+```
+
+Le script peut être relancé sans risque. Il fait quatre choses :
+
+| Étape | Ce qui est créé |
+| ----- | --------------- |
+| 1. Clé de collecte | secret `dss-prometheus-key` (Secret Manager) → Secret Kubernetes `dss-prometheus` ; ajout de `prometheus:<clé>` à `API_KEYS`, puis redémarrage progressif des pods |
+| 2. Collecte GMP | `PodMonitoring` (`k8s/monitoring/podmonitoring.yaml`) et droit de lecture sur ce seul Secret |
+| 3. Grafana | pod Grafana (`k8s/monitoring/grafana.yaml`), mot de passe dans Secret Manager (`grafana-admin-password`), tableau de bord chargé depuis `monitoring/grafana/dss-dashboard.json`, et **datasource-syncer** de Google |
+| 4. Alertes | métrique basée sur les logs `dss_auth_failed`, canal email, 7 règles d'alerte (`monitoring/alerts/*.yaml`) |
+
+**Comment Grafana lit GMP.** Grafana interroge l'API Prometheus de Cloud Monitoring, qui exige un jeton Google. Le **datasource-syncer**, l'outil officiel de Google, est un CronJob qui écrit toutes les 10 minutes un jeton neuf dans la source de données de Grafana (un jeton dure 1 heure). Le synchroniseur obtient ce jeton par **Workload Identity**, avec le seul rôle `roles/monitoring.viewer` : il lit les métriques et ne peut rien modifier. Grafana lui-même n'a aucun droit Google Cloud.
+
+**Accès à Grafana, sans IP publique :**
+
+```bash
+kubectl port-forward svc/grafana 3000:3000                         # puis http://localhost:3000 (Cloud Shell : « Aperçu sur le Web », port 3000)
+gcloud secrets versions access latest --secret=grafana-admin-password   # utilisateur : admin
+```
+
+**Vérifier la collecte** dans la console, sous **Monitoring → Metrics Explorer → PromQL** : `up{job="dss-api"}` doit valoir 1 pour chaque pod, environ une minute après l'installation.
+
+### 5. Tableau de bord Grafana
+
+Les panneaux reprennent le « dashboard typique » du cours (diapo 22), auxquels s'ajoutent des panneaux propres au modèle et à la sécurité :
+
+| Ligne | Panneaux |
+| ----- | -------- |
+| Vue d'ensemble | requêtes/s, latence P95, part d'erreurs 5xx, pods qui répondent |
+| Trafic et latence | requêtes/s par code ; latence HTTP P50/P95/P99 ; **SLO** (part des requêtes sous 300 ms) ; latence de l'inférence seule |
+| Ressources | CPU et mémoire de chaque pod, rapportés à la demande (métriques système de Cloud Monitoring, lues en PromQL) |
+| Modèle et sécurité | part des textes jugés toxiques ; échecs d'authentification par minute ; réponses 429 par minute et par client |
+
+La part des textes toxiques sert d'indicateur de **dérive** (cours n°1) : un changement brutal peut venir d'une campagne de spam ou de textes d'un nouveau type que le modèle connaît mal.
+
+<!-- ![Tableau de bord Grafana pendant un test de charge](reports/images/grafana_dashboard.png) -->
+
+*À compléter : capture `reports/images/grafana_dashboard.png`, prise pendant `SCENARIO=ramp` puis pendant la simulation d'attaque.*
+
+### 6. Alertes
+
+Les règles reprennent les exemples du cours (diapos 24 et 25). Elles sont écrites en PromQL dans `monitoring/alerts/` et évaluées par Cloud Monitoring chaque minute. Une notification part par email.
+
+| Alerte | Condition | Durée | Gravité | Origine |
+| ------ | --------- | ----- | ------- | ------- |
+| SLO latence | moins de 95 % des requêtes `/score` sous 300 ms | 10 min | warning | règle SLO du cours (diapo 25) |
+| Latence P95 | P95 de `/score` > 500 ms | 5 min | warning | « latence > 500 ms » (diapo 24) |
+| Erreurs 5xx | plus de 1 % de réponses 5xx | 5 min | critical | « erreurs 5xx > 1 % » (diapo 24) |
+| CPU | un pod au-dessus de 90 % du CPU demandé | 5 min | warning | « CPU > 90 % » (diapo 24) |
+| Service indisponible | aucun pod ne répond à la collecte | 2 min | critical | test de failover (étape 5) |
+| Brute force | plus de 20 échecs d'authentification par minute | 1 min | critical | journal d'audit (étape 4) |
+| Extraction du modèle | au moins une réponse 429 sur 5 min | 1 min | warning | vol de modèle (cours n°1) |
+
+**Seuils choisis d'après les mesures de l'étape 5.** À vide, l'API répond en 19 à 27 ms (étape 3). Le P95 ne dépasse 500 ms que lorsque le CPU sature : à partir de 50 utilisateurs en croissance progressive, quand les pods ajoutés n'étaient pas encore prêts, et de 120 utilisateurs au stress test. L'alerte signale donc une vraie saturation, pas un ralentissement passager. Le seuil CPU de 90 % est au-dessus de celui du HPA (70 %) : l'alerte ne se déclenche que si l'autoscaling ne suit plus, par exemple au maximum de 10 pods ou en attente de nœuds.
+
+Chaque alerte contient, dans sa documentation, la commande à lancer pour enquêter (`kubectl logs`, `gcloud logging read`…).
+
+### 7. Simulation d'attaque et analyse des logs
+
+Script : `loadtest/attack.py`. Il enchaîne quatre phases et enregistre l'heure de début et de fin de chacune, pour les retrouver dans les logs et sur le tableau de bord.
+
+```bash
+API_KEY=$(gcloud secrets versions access latest --secret=dss-api-key) \
+  python3 loadtest/attack.py --host https://$IP --cacert tls.crt
+```
+
+| Phase | Ce que fait l'attaquant | Réponse attendue | Ce qui doit le détecter |
+| ----- | ----------------------- | ---------------- | ----------------------- |
+| Grille | les tests de la grille de l'étape 4, une requête chacun | 401, 422, 413, en-têtes présents, HTTP refusé | – |
+| Fuzzing | JSON invalide, mauvais types, octets non UTF-8, injection de fausses lignes de log | 4xx, **jamais 5xx** | – |
+| Brute force | 3 minutes d'essais de clés au hasard, 2 par seconde | 401 | alerte **Brute force**, panneau « Échecs d'authentification » |
+| Extraction | 90 s de rafale, 20 requêtes en parallèle avec une seule clé valide | 200 puis 429 | alerte **Extraction du modèle**, panneau « Requêtes refusées » |
+
+Test en local (API sur le poste, limite à 100 requêtes par minute) : la grille passe entièrement (401, 401, 401, 422, 422, 422, 413, 200, en-têtes présents). Le fuzzing ne provoque aucune erreur 5xx (JSON invalide : 422 ; octets non UTF-8 : 400). La rafale obtient **100 réponses 200, puis 4 019 réponses 429**.
+
+**Analyser les logs après l'attaque :**
+
+```bash
+# combien d'échecs, et depuis combien de sources différentes (ip_id = HMAC de l'IP, pas l'IP)
+gcloud logging read 'resource.labels.container_name="api" AND jsonPayload.event="auth_failed"' \
+  --freshness=30m --format="value(jsonPayload.ip_id)" | sort | uniq -c | sort -rn
+# quel client a été bloqué par la limite
+gcloud logging read 'jsonPayload.event="rate_limited"' --freshness=30m \
+  --format="value(jsonPayload.client)" | sort | uniq -c
+# l'IP réelle, si une enquête l'exige : logs du load balancer (gardés 30 jours, voir étape 4)
+gcloud logging read 'resource.type="http_load_balancer" AND httpRequest.status=401' --freshness=30m --limit=5
+```
+
+Le même `ip_id` sur des centaines de lignes `auth_failed` signe un brute force depuis une seule source. Le texte et la clé essayée n'apparaissent jamais dans les logs. La **ligne de log injectée** par le fuzzing (`{"event": "score", "client": "admin"}` dans le texte) n'apparaît pas non plus : le texte n'est jamais journalisé, seul son HMAC l'est.
+
+**Réponse à l'incident :** révoquer la clé du client concerné en la retirant de `API_KEYS` (étape 4, partie 1). Pour bloquer une source au niveau du réseau, ajouter une règle **Cloud Armor** sur l'Ingress.
+
+*À compléter après l'exécution sur GKE : résumé du rapport `reports/attack/attack_<date>.json`, captures de l'alerte déclenchée et de l'email reçu.*
+
+### 8. Limites et améliorations
+
+- **5xx du load balancer** : quand tous les pods tombent, le load balancer répond 502 sans qu'aucun pod ne compte ces erreurs. L'alerte « Service indisponible » couvre ce cas. Pour une mesure complète, ajouter une alerte sur la métrique `loadbalancing.googleapis.com/https/request_count` (code de réponse 5xx), qui voit les erreurs côté load balancer.
+- **Grafana sans disque** : si son pod redémarre, la source de données et le jeton du synchroniseur sont perdus. Il suffit de relancer `setup_gke.sh` ; le tableau de bord, lui, est rechargé automatiquement. En production : un disque persistant ou **Grafana Cloud** / Cloud Monitoring seul.
+- **Traces** : avec un seul service, la latence d'inférence suffit à savoir où passe le temps. Si l'API appelait d'autres services (base de données, autre modèle), **OpenTelemetry + Cloud Trace** montrerait le détail de chaque requête.
+- **Coût** : GMP facture les échantillons ingérés. Avec 2 à 10 pods collectés toutes les 30 s, le volume reste très faible. Le pod Grafana (250 m de CPU) est facturé par Autopilot tant qu'il tourne : `kubectl scale deployment/grafana --replicas=0` en dehors des séances.
+- **Alertes par email seulement** : en production, ajouter un canal d'astreinte (PagerDuty, Slack) pour les alertes `critical`.
 
 ## Lancer le projet
 

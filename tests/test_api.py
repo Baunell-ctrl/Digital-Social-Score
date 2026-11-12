@@ -128,3 +128,45 @@ def test_client_ip_ignores_spoofed_forwarded_for(monkeypatch):
     # sans proxy de confiance, l'en-tête est ignoré
     monkeypatch.setattr(main, "TRUSTED_PROXY_HOPS", 0)
     assert main.client_ip(req("6.6.6.6")) == "10.0.0.9"
+
+
+# --------------------------------------------------------------------------- #
+# Étape 6 : supervision (métriques Prometheus)
+# --------------------------------------------------------------------------- #
+
+
+def _metric(client, line_start: str) -> float:
+    """Valeur d'une série dans /metrics (0 si absente)."""
+    text = client.get("/metrics", headers={"X-API-Key": "test-key"}).text
+    for line in text.splitlines():
+        if line.startswith(line_start + " "):
+            return float(line.split()[-1])
+    return 0.0
+
+
+def test_metrics_count_auth_failures(client):
+    before = _metric(client, 'dss_auth_failures_total{reason="invalide"}')
+    client.post("/score", json={"text": "hello"}, headers={"X-API-Key": "bad"})
+    assert _metric(client, 'dss_auth_failures_total{reason="invalide"}') == before + 1
+
+
+def test_metrics_count_rate_limited(client, monkeypatch):
+    monkeypatch.setattr(main, "RATE_LIMIT_PER_MINUTE", 1)
+    main._hits.clear()
+    before = _metric(client, 'dss_rate_limited_total{client="default"}')
+    h = {"X-API-Key": "test-key"}
+    client.post("/score", json={"text": "hello"}, headers=h)
+    assert client.post("/score", json={"text": "hello"}, headers=h).status_code == 429
+    monkeypatch.setattr(main, "RATE_LIMIT_PER_MINUTE", 0)
+    assert _metric(client, 'dss_rate_limited_total{client="default"}') == before + 1
+    main._hits.clear()
+
+
+def test_metrics_inference_and_http_latency(client):
+    before = _metric(client, 'dss_inference_latency_seconds_count{model="lstm"}')
+    client.post("/score", json={"text": "hello"}, headers={"X-API-Key": "test-key"})
+    assert _metric(client, 'dss_inference_latency_seconds_count{model="lstm"}') == before + 1
+    text = client.get("/metrics", headers={"X-API-Key": "test-key"}).text
+    # seuil de 0,3 s du SLO présent dans l'histogramme HTTP ; /health exclu des métriques
+    assert 'http_request_duration_seconds_bucket{handler="/score",le="0.3",method="POST"}' in text
+    assert 'handler="/health"' not in text

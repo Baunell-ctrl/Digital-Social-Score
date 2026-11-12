@@ -1,0 +1,23 @@
+# Regle d'alerte Cloud Monitoring, condition en PromQL sur les metriques collectees par GMP.
+# Creee par monitoring/setup_gke.sh (gcloud monitoring policies create --policy-from-file).
+displayName: "DSS - Latence P95 > 500 ms"
+combiner: OR
+severity: WARNING
+documentation:
+  mimeType: text/markdown
+  content: |
+    La latence P95 de /score depasse 500 ms depuis 5 minutes.
+
+    A faire : Regarder le panneau CPU du tableau de bord Grafana ; une saturation CPU est la cause la plus probable (etape 5).
+conditions:
+  - displayName: "DSS - Latence P95 > 500 ms"
+    conditionPrometheusQueryLanguage:
+      duration: 5m
+      evaluationInterval: 60s
+      labels:
+        severity: warning
+      query: |
+        histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job="dss-api",handler="/score"}[5m]))) > 0.5
+alertStrategy:
+  autoClose: 1800s
+notificationChannels: []    # rempli par setup_gke.sh (canal email)
