@@ -196,6 +196,7 @@ def test_web_page_has_no_key_and_no_external_resource(client):
 def test_fonts_served_by_api_and_cacheable(client):
     r = client.get("/fonts/literata-latin-wght-normal.woff2")
     assert r.status_code == 200 and len(r.content) > 10_000
+    assert r.headers["content-type"] == "font/woff2"
     assert r.headers["Cache-Control"] == "public, max-age=86400"
     assert client.get("/fonts/absent.woff2").status_code == 404
 

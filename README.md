@@ -420,7 +420,7 @@ kubectl create secret generic dss-secrets \
   --from-literal=LOG_SALT="$(gcloud secrets versions access latest --secret=dss-log-salt)"
 ```
 
-**10. Préparer le HTTPS : IP fixe, politique TLS et certificat.** Le projet n'a pas de nom de domaine : on utilise un **certificat auto-signé** valable pour l'IP fixe. Le trafic est chiffré exactement comme avec un certificat public ; la différence est que le navigateur ne le connaît pas et affiche un avertissement (voir étape 4, partie 8).
+**10. Préparer le HTTPS : IP fixe, politique TLS et certificat.** Le projet n'a pas de nom de domaine : on utilise un **certificat auto-signé** valable pour l'IP fixe. (Ce certificat sert de secours : le service présente en priorité le certificat Google du nom `34-54-213-190.sslip.io`, voir étape 4, partie 8.) Le trafic est chiffré exactement comme avec un certificat public ; la différence est que le navigateur ne le connaît pas et affiche un avertissement (voir étape 4, partie 8).
 
 ```bash
 gcloud compute addresses create dss-ip --global
@@ -468,7 +468,7 @@ curl -m 5 http://$IP/health                                   # doit échouer : 
 openssl s_client -connect $IP:443 -tls1_1 </dev/null           # doit échouer : TLS 1.1 refusé
 ```
 
-La documentation interactive est disponible sur `https://$IP/docs` (bouton **Authorize** pour saisir la clé). Le navigateur affiche un avertissement (« connexion non privée ») : c'est attendu avec un certificat auto-signé, la connexion reste chiffrée.
+La documentation interactive est disponible sur `https://$IP/docs` (bouton **Authorize** pour saisir la clé). Par le nom `https://34-54-213-190.sslip.io/docs`, le navigateur n'affiche aucun avertissement (certificat Google) ; par l'adresse IP seule, il affiche « connexion non privée », attendue avec le certificat auto-signé.
 
 **13. Mettre à jour sans coupure.** Construire une nouvelle image avec un nouveau tag, puis remplacer l'image du déploiement. Kubernetes démarre un nouveau pod, attend qu'il soit prêt, puis arrête l'ancien (*rolling update*).
 
@@ -576,7 +576,7 @@ kubectl rollout restart deployment/dss-api
 
 | Où                        | Comment                                                                                                                                                                 |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| En transit (client → API) | **HTTPS uniquement** via l'Ingress GKE : aucun port 80, **TLS 1.2 minimum** (politique `dss-tls12`, profil MODERN), certificat auto-signé pour l'IP fixe |
+| En transit (client → API) | **HTTPS uniquement** via l'Ingress GKE : aucun port 80, **TLS 1.2 minimum** (politique `dss-tls12`, profil MODERN), certificat **géré par Google** pour `34-54-213-190.sslip.io` (l'auto-signé reste en secours) |
 | En transit (dans Google)   | le load balancer joint les pods par le réseau privé de Google ; le Service des pods est interne (`ClusterIP`, pas d'IP publique)                                    |
 | Au repos : Secrets         | Secrets Kubernetes (clé API, clé des logs, clé privée TLS) chiffrés avec la clé Cloud KMS `dss-secrets-key` du projet, qui change tous les 90 jours             |
 | Au repos : le reste        | images Docker, Secret Manager et logs chiffrés par défaut par Google Cloud (AES-256)                                                                                  |
@@ -731,7 +731,7 @@ Mise en ligne : reconstruire l'image (`gcloud builds submit`), mettre à jour le
 
 ### 9. Limites et améliorations
 
-- **Certificat auto-signé** : le chiffrement est le même qu'avec un certificat public, mais aucune autorité ne garantit le certificat. Le navigateur affiche un avertissement et chaque client doit recevoir `tls.crt` pour vérifier le serveur. En production : un nom de domaine et un certificat géré par Google (`ManagedCertificate`), renouvelé automatiquement. Le certificat auto-signé expire après 1 an et doit être régénéré.
+- **Nom de domaine de démonstration** : le certificat Google est émis pour `34-54-213-190.sslip.io`, un nom public gratuit qui pointe vers l'IP fixe. Pour un service durable, il faut un nom de domaine propre, car ce nom dépend du service sslip.io. Le certificat auto-signé du Secret `dss-tls` n'est plus qu'un secours (il expire après 1 an).
 - **Limite de requêtes par pod** : le compteur est en mémoire. Avec 10 pods, un client peut faire jusqu'à 10 × 600 requêtes par minute (mesuré à l'étape 5 : environ 6 300 requêtes acceptées par minute avec une seule clé). Pour une limite globale : **Cloud Armor** (WAF), branché sur l'Ingress par le `BackendConfig` (`securityPolicy`), qui ajoute aussi le filtrage d'IP et la protection contre le déni de service.
 - **Clés API sans expiration** : une rotation régulière (partie 1) est nécessaire. Pour des jetons à durée de vie courte, passer à OAuth2 / JWT.
 - **Attaques adverses** : un texte volontairement déformé (« id1ot », espaces entre les lettres) peut tromper le LSTM. Ce point sera traité avec les attaques sur l'IA (cours n°6).

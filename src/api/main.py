@@ -25,6 +25,7 @@ import hashlib
 import hmac
 import json
 import logging
+import mimetypes
 import os
 import secrets
 import threading
@@ -55,6 +56,7 @@ MAX_BODY_BYTES = 32_768
 # Page web de test (``/``) : l'utilisateur y saisit sa clé API. Désactivable avec DEMO_ENABLED=0.
 DEMO_ENABLED = os.environ.get("DEMO_ENABLED", "1") == "1"
 STATIC_DIR = Path(__file__).parent / "static"
+mimetypes.add_type("font/woff2", ".woff2")  # absent de la base de types de l'image Python slim
 DEMO_PAGE = STATIC_DIR / "index.html"
 # La page contient son CSS et son JS ; les polices sont servies par l'API elle-même (/fonts/) :
 # aucune ressource externe, donc aucune adresse IP de visiteur envoyée à un tiers (RGPD).
