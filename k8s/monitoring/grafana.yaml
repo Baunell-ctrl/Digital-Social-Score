@@ -1,0 +1,178 @@
+# Grafana dans le cluster, branché sur Managed Service for Prometheus (GMP).
+#
+# GMP stocke les métriques mais ne fournit pas Grafana : on l'héberge ici, dans un seul pod.
+# - Aucun accès public : Service ClusterIP, pas d'Ingress. Accès depuis son poste par
+#     kubectl port-forward svc/grafana 3000:3000   puis http://localhost:3000
+# - Mot de passe admin dans le Secret grafana-admin (créé par monitoring/setup_gke.sh).
+# - Tableau de bord chargé depuis la ConfigMap grafana-dashboards (monitoring/grafana/dss-dashboard.json).
+# - La source de données "gmp" est créée par l'API Grafana (setup_gke.sh), puis tenue à jour par
+#   le CronJob datasource-syncer (plus bas) : il écrit l'URL de GMP et un jeton OAuth Google
+#   renouvelé toutes les 10 minutes. Grafana n'a donc aucun droit Google Cloud lui-même.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: dss
+        folder: Digital Social Score
+        type: file
+        disableDeletion: true
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472            # utilisateur "grafana" de l'image officielle
+        fsGroup: 472
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.3.0
+          ports:
+            - name: web
+              containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: admin
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin
+                  key: password
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "false"
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+            - name: GF_ANALYTICS_REPORTING_ENABLED     # pas d'envoi de statistiques à Grafana Labs
+              value: "false"
+            - name: GF_ANALYTICS_CHECK_FOR_UPDATES
+              value: "false"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            periodSeconds: 10
+          volumeMounts:
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+            - name: data
+              mountPath: /var/lib/grafana
+      volumes:
+        - name: provisioning
+          configMap:
+            name: grafana-provisioning
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards
+        - name: data              # base SQLite de Grafana ; perdue si le pod redémarre (relancer setup_gke.sh)
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  labels:
+    app: grafana
+spec:
+  type: ClusterIP
+  selector:
+    app: grafana
+  ports:
+    - name: web
+      port: 3000
+      targetPort: 3000
+---
+# Compte de service Kubernetes du synchroniseur. Par Workload Identity, il reçoit le seul rôle
+# roles/monitoring.viewer (lecture des métriques), donné par setup_gke.sh.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: datasource-syncer
+---
+# Synchroniseur officiel de Google (même image que
+# github.com/GoogleCloudPlatform/prometheus-engine/cmd/datasource-syncer, v0.17.2).
+# Différence : le jeton Grafana est lu dans un Secret au lieu d'être écrit en clair dans le manifeste.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: datasource-syncer
+spec:
+  schedule: "*/10 * * * *"        # le jeton Google dure 1 h : on le renouvelle toutes les 10 min
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 600
+      template:
+        metadata:
+          labels:
+            app: datasource-syncer
+        spec:
+          serviceAccountName: datasource-syncer
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: datasource-syncer
+              image: gke.gcr.io/prometheus-engine/datasource-syncer:v0.17.2-gke.2
+              args:
+                - "--datasource-uids=gmp"
+                - "--grafana-api-endpoint=http://grafana.default.svc:3000"
+                - "--grafana-api-token=$(GRAFANA_API_TOKEN)"
+                - "--project-id=$(PROJECT_ID)"
+              env:
+                - name: GRAFANA_API_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-syncer
+                      key: token
+                - name: PROJECT_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-syncer
+                      key: project
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]

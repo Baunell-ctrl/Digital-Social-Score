@@ -1,0 +1,18 @@
+timestamp,event
+1794479746,limite 0
+1794479746,debut baseline
+1794479807,fin baseline
+1794479807,debut ramp
+1794480229,fin ramp
+1794480229,debut stress
+1794480590,fin stress
+1794480590,debut constant
+1794480651,suppression du pod dss-api-64f68f8dc5-5fjrk
+1794480741,suppression de tous les pods
+1794480831,fin constant
+1794480992,limite 600
+1794480992,debut ratelimit
+1794481083,fin ratelimit
+1794481083,termine
+1794481102,debut ratelimit 20 utilisateurs
+1794481193,fin ratelimit 20 utilisateurs

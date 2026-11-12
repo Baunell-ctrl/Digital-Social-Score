@@ -9,9 +9,14 @@ Sécurité / RGPD (étape 4 du TP, détaillée dans le README) :
 - validation des entrées (texte de 1 à 5 000 caractères, corps de requête limité à 32 Ko) ;
 - le texte n'est jamais stocké ni journalisé : seul un identifiant HMAC (pseudonyme) est écrit ;
 - échecs d'authentification journalisés (journal d'audit), sans la clé ni l'adresse IP en clair ;
-- en-têtes de sécurité HTTP ; HTTPS fourni par la plateforme cloud (Cloud Run) ;
-- page de démo (``/``) et route publique ``/demo/score`` : sans clé API, LSTM seul, texte de 1 à 1 000
-  caractères, limitée par IP (la clé API n'est jamais dans la page).
+- en-têtes de sécurité HTTP ; HTTPS fourni par l'Ingress GKE (TLS 1.2+) ;
+- page web (``/``) : l'utilisateur y saisit sa clé API, qui n'est jamais dans la page ni dans le code.
+
+Supervision (étape 6) : ``/metrics`` expose les métriques Prometheus, collectées sur GKE par
+Managed Service for Prometheus (voir k8s/monitoring/) :
+- HTTP (Instrumentator) : requêtes, codes de réponse, latence par route ;
+- IA (instrumentation manuelle) : latence d'inférence, distribution des scores ;
+- sécurité : échecs d'authentification et requêtes refusées par la limite (429).
 """
 
 from __future__ import annotations
@@ -32,8 +37,8 @@ from typing import Literal
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, Security
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import APIKeyHeader
-from prometheus_client import CONTENT_TYPE_LATEST, Histogram, generate_latest
-from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from prometheus_fastapi_instrumentator import Instrumentator, metrics as instr_metrics
 from pydantic import BaseModel, Field
 
 from .predictor import LayaPredictor, ToxicityPredictor
@@ -65,7 +70,17 @@ LOG_SALT = os.environ.get("LOG_SALT") or secrets.token_hex(32)
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("dss")
 
+# --- Métriques Prometheus propres à l'API (méthode n°2 du cours : instrumentation manuelle) ---
+# Seuils de latence (secondes) : 0,3 s pour le SLO du cours, 0,5 s pour l'alerte de latence.
+LATENCY_BUCKETS = (0.01, 0.025, 0.05, 0.1, 0.2, 0.3, 0.5, 1, 2.5, 5, 10)
 SCORE_HIST = Histogram("dss_toxicity_score", "Scores de toxicité renvoyés", buckets=(10, 25, 50, 75, 90, 100))
+INFERENCE_LATENCY = Histogram("dss_inference_latency_seconds",
+                              "Durée de l'inférence seule (anonymisation + nettoyage + modèle)",
+                              ["model"], buckets=LATENCY_BUCKETS)
+AUTH_FAILURES = Counter("dss_auth_failures_total", "Requêtes refusées pour clé API absente ou invalide",
+                        ["reason"])
+RATE_LIMITED = Counter("dss_rate_limited_total", "Requêtes refusées par la limite de requêtes (429)",
+                       ["client"])
 
 state: dict = {}
 
@@ -98,7 +113,10 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Digital Social Score", version="1.1.0", lifespan=lifespan)
-Instrumentator().instrument(app)
+# Méthode n°1 du cours : middleware prêt à l'emploi (requêtes, codes 2xx/4xx/5xx, latence par route).
+# /health et /metrics sont exclus : les sondes Kubernetes et la collecte fausseraient les taux.
+Instrumentator(excluded_handlers=["/health", "/metrics"]).add(
+    instr_metrics.default(latency_lowr_buckets=LATENCY_BUCKETS)).instrument(app)
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -183,8 +201,10 @@ def authenticate(key: str | None, request: Request) -> str:
     for known, name in state["keys"].items():
         if key and secrets.compare_digest(key.encode(), known.encode()):
             return name
+    reason = "absente" if not key else "invalide"
+    AUTH_FAILURES.labels(reason=reason).inc()
     log.warning(json.dumps({"event": "auth_failed", "path": request.url.path,
-                            "reason": "absente" if not key else "invalide",
+                            "reason": reason,
                             "ip_id": pseudonym(client_ip(request))}))
     raise HTTPException(status_code=401, detail="Clé API invalide ou absente")
 
@@ -208,6 +228,7 @@ def rate_limit(client: str, limit: int | None = None) -> None:
             hits.popleft()
         if len(hits) >= limit:
             retry = int(60 - (now - hits[0])) + 1
+            RATE_LIMITED.labels(client=client).inc()
             log.warning(json.dumps({"event": "rate_limited", "client": client}))
             raise HTTPException(status_code=429, detail="Trop de requêtes, réessayer plus tard",
                                 headers={"Retry-After": str(retry)})
@@ -267,6 +288,7 @@ def score(req: ScoreRequest, client: str = Depends(check_api_key)) -> ScoreRespo
     t0 = time.perf_counter()
     proba = predictor.predict(req.text)
     latency = (time.perf_counter() - t0) * 1000
+    INFERENCE_LATENCY.labels(model=req.model).observe(latency / 1000)
     value = round(proba * 100, 1)
     SCORE_HIST.observe(value)
 

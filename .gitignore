@@ -22,3 +22,6 @@ data/external/
 # Certificats et clés TLS (la clé privée ne doit jamais être versionnée)
 *.key
 tls.crt
+
+# graphes Locust régénérés par loadtest/plot.py
+reports/images/loadtest_*.png
