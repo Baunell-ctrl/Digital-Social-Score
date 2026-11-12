@@ -23,6 +23,15 @@ spec:
         app: dss-api
     spec:
       automountServiceAccountToken: false   # l'API n'a pas besoin d'accéder à l'API Kubernetes
+      # Étape 5 : les 2 pods tournaient sur le même nœud. On les répartit sur les zones de Paris
+      # (a, b, c) : la panne d'une machine ou d'une zone ne coupe plus tout le service.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: dss-api
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000            # utilisateur "app" créé dans le Dockerfile
@@ -78,9 +87,11 @@ spec:
               path: /health
               port: 8080
             periodSeconds: 10
-          livenessProbe:           # redémarre le pod s'il ne répond plus
+            timeoutSeconds: 3
+          livenessProbe:           # redémarre le pod s'il est BLOQUÉ (pas seulement occupé)
             httpGet:
               path: /health
               port: 8080
             periodSeconds: 20
-            failureThreshold: 3
+            timeoutSeconds: 5      # étape 5 : avec 1 s, des pods saturés étaient redémarrés (erreurs 502)
+            failureThreshold: 5    # environ 100 s sans réponse avant de redémarrer

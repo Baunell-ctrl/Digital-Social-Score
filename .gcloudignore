@@ -8,3 +8,6 @@ docs/
 reports/
 **/__pycache__/
 models/
+
+# secrets locaux, jamais envoyés à Cloud Build
+.env

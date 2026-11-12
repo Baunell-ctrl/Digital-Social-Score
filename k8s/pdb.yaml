@@ -1,0 +1,12 @@
+# Pendant une maintenance de Google (mise à jour de nœud, réparation), Kubernetes n'arrête jamais
+# assez de pods pour en laisser moins de 2 prêts. Ne protège pas d'une panne brutale (voir la répartition
+# par zone dans k8s/deployment.yaml).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dss-api
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: dss-api

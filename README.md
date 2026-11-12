@@ -1,11 +1,59 @@
 # Digital Social Score
 
 API de détection de toxicité dans des textes, conforme au RGPD.
-Le dépôt couvre trois étapes :
+Le dépôt suit les étapes du TP :
 
 1. **Données** : exploration, anonymisation et registre de traitement.
 2. **Modèles** : nettoyage des textes, puis entraînement et comparaison de trois modèles (LSTM, BERT, LAYA).
-3. **API** : service web sécurisé qui renvoie un score de toxicité de 0 à 100, packagé avec Docker.
+3. **API** : service web qui renvoie un score de toxicité de 0 à 100, packagé avec Docker et déployé sur GKE.
+4. **Sécurité et RGPD** : clé API, HTTPS, IAM, logs pseudonymes, registre.
+5. **Montée en charge** : tests Locust sur le cluster, limites mesurées.
+6. **Supervision** : Prometheus géré par Google, Grafana, alertes, simulation d'attaque.
+
+## Vue d'ensemble : architecture et connexions
+
+**Accès** (les valeurs secrètes sont dans Secret Manager, et en local dans un fichier `.env` jamais poussé) :
+
+| Quoi | Adresse | Identifiant |
+| ---- | ------- | ----------- |
+| Page web (tester un texte) | https://34-54-213-190.sslip.io/ | clé API, à saisir dans la page |
+| API | `POST https://34-54-213-190.sslip.io/score` | en-tête `X-API-Key` |
+| Documentation de l'API | https://34-54-213-190.sslip.io/docs | – |
+| Supervision (Grafana) | https://34-54-213-190.sslip.io/grafana/ | compte `lecteur` (lecture seule) |
+
+Lire un secret (toujours préciser le projet, sinon gcloud cherche dans le projet par défaut) :
+`gcloud secrets versions access latest --secret=dss-api-key --project=project-1dc38f00-079d-4d45-996; echo`
+(et `grafana-viewer-password` pour Grafana).
+
+```
+                           Internet
+  Navigateur, client ──HTTPS (certificat Google, TLS 1.2+)──▶ Load balancer Google (Ingress, IP fixe)
+                                                                 │ "/"                   │ "/grafana"
+                                                                 ▼                       ▼
+                                                   pods dss-api (API + page)      pod Grafana
+                                                   2 à 10, autoscaling (HPA)      (connexion obligatoire)
+                                                    │ logs JSON    ▲ /metrics          │ PromQL
+                                                    ▼              │ (clé "prometheus") ▼
+                                              Cloud Logging   collecteurs Prometheus ──▶ Cloud Monitoring ──▶ alertes par email
+                                                              gérés par Google (GMP)    (métriques)
+
+  À l'installation : Secret Manager ──▶ Secrets Kubernetes ──▶ variables d'environnement des pods
+                     Cloud Build ──▶ Artifact Registry (image Docker) ──▶ nœuds GKE Autopilot
+```
+
+| Connexion | Comment | Qui s'authentifie, et avec quoi | Chiffrement |
+| --------- | ------- | ------------------------------- | ----------- |
+| Client → load balancer | HTTPS sur l'IP fixe, nom `34-54-213-190.sslip.io` | la page et `/docs` sont publiques ; `/score` exige la **clé API** | TLS 1.2+, certificat **géré par Google** ; port 80 fermé |
+| Load balancer → pods de l'API | HTTP sur le réseau privé de Google ; les pods n'ont pas d'IP publique | – (seul le load balancer peut les joindre) | réseau privé Google |
+| Page web → `/score` | la page envoie le texte avec la clé saisie par l'utilisateur | **clé API** (en-tête `X-API-Key`), gardée dans l'onglet du navigateur | HTTPS |
+| Load balancer → Grafana | même load balancer, chemin `/grafana` | **identifiant Grafana** (compte `lecteur` : voir, rien modifier) | HTTPS jusqu'au load balancer |
+| Prometheus géré (GMP) → `/metrics` | lecture toutes les 30 s, dans le cluster | clé API dédiée `prometheus`, lue dans un Secret que seul le collecteur peut lire | réseau du cluster |
+| Grafana → Cloud Monitoring | requêtes PromQL vers l'API de Google | jeton Google renouvelé toutes les 10 min par le `datasource-syncer` (**Workload Identity**, rôle lecture seule `monitoring.viewer`) | HTTPS |
+| Pods → Cloud Logging | GKE collecte la sortie standard des pods | automatique (agent de GKE) | HTTPS |
+| Secret Manager → pods | copie dans des Secrets Kubernetes à l'installation | votre compte Google (IAM) | Secrets chiffrés par Google (clé KMS du projet : à activer, étape 4) |
+| Cloud Build → Artifact Registry → GKE | construction puis téléchargement de l'image | comptes de service, rôles minimaux (IAM, étape 4) | HTTPS |
+
+Chaque connexion vers l'extérieur est authentifiée et chiffrée. Les seuls points en clair sont internes à Google (load balancer → pods, collecte des métriques), sur des pods sans adresse publique.
 
 ## Étape 1
 
@@ -543,7 +591,7 @@ Code : `src/api/main.py` et `k8s/`. Tests automatiques : `tests/test_api.py` (16
 | Exigence du TP          | Mise en œuvre                                                                             |
 | ----------------------- | ------------------------------------------------------------------------------------------ |
 | Authentification        | clé API par client, stockée dans Secret Manager puis dans un Secret Kubernetes           |
-| Chiffrement             | HTTPS uniquement (TLS 1.2+) via l'Ingress GKE ; Secrets chiffrés par une clé Cloud KMS   |
+| Chiffrement             | HTTPS uniquement (TLS 1.2+) via l'Ingress GKE ; Secrets chiffrés par une clé Cloud KMS (prévu, **pas encore actif** : voir partie 2) |
 | Validation des entrées | taille du texte, taille de la requête, valeurs autorisées                                |
 | Logs pseudonymes        | HMAC-SHA256 du texte et de l'IP, jamais le texte, la clé ou l'IP en clair                 |
 | IAM                     | chaque identité n'a que les rôles nécessaires ; les pods n'ont aucun droit Google Cloud |
@@ -578,7 +626,7 @@ kubectl rollout restart deployment/dss-api
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | En transit (client → API) | **HTTPS uniquement** via l'Ingress GKE : aucun port 80, **TLS 1.2 minimum** (politique `dss-tls12`, profil MODERN), certificat **géré par Google** pour `34-54-213-190.sslip.io` (l'auto-signé reste en secours) |
 | En transit (dans Google)   | le load balancer joint les pods par le réseau privé de Google ; le Service des pods est interne (`ClusterIP`, pas d'IP publique)                                    |
-| Au repos : Secrets         | Secrets Kubernetes (clé API, clé des logs, clé privée TLS) chiffrés avec la clé Cloud KMS `dss-secrets-key` du projet, qui change tous les 90 jours             |
+| Au repos : Secrets         | Secrets Kubernetes (clé API, clé des logs, clé privée TLS) chiffrés avec la clé Cloud KMS `dss-secrets-key` du projet, qui change tous les 90 jours **À activer** : vérifié le 12/11/2026, le cluster n'utilise pas encore cette clé (`databaseEncryption: DECRYPTED`, étape 8 de la partie 4 non appliquée). Les Secrets restent chiffrés par Google, avec ses propres clés. |
 | Au repos : le reste        | images Docker, Secret Manager et logs chiffrés par défaut par Google Cloud (AES-256)                                                                                  |
 | Données des utilisateurs  | **aucune donnée stockée** : le texte reste en mémoire le temps de la requête (quelques ms)                                                                    |
 
@@ -697,7 +745,7 @@ Les tests « auto » sont dans `tests/test_api.py` (`python -m pytest tests/test
 | HTTPS avec certificat vérifié          | `curl --cacert tls.crt https://$IP/health`                      | 200     | –    | à compléter |
 | HTTP refusé                            | `curl -m 5 http://$IP/health`                                   | échec   | –    | à compléter |
 | TLS 1.1 refusé                         | `openssl s_client -connect $IP:443 -tls1_1`                     | échec   | –    | à compléter |
-| Secrets chiffrés par KMS               | `gcloud container clusters describe ... --format="value(databaseEncryption)"` | `ENCRYPTED` | – | à compléter |
+| Secrets chiffrés par KMS               | `gcloud container clusters describe ... --format="value(databaseEncryption)"` | `ENCRYPTED` | – | ❌ `DECRYPTED` (12/11) : étape 8 de la partie 4 à appliquer |
 
 La phase `grille` de `loadtest/attack.py` (étape 6) remplit la colonne « Cloud » en une commande : `python3 loadtest/attack.py --host https://$IP --cacert tls.crt --phases grille`. Commandes équivalentes avec `curl` (afficher seulement le code HTTP) :
 
@@ -896,7 +944,7 @@ Classées de la plus utile à la moins utile.
 | **Minimum planifié** | une tâche planifiée (`CronJob`) monte `minReplicas` (par exemple de 2 à 6) avant les heures chargées connues, puis le redescend | payé seulement pendant ces heures ; inutile pour un pic imprévu |
 | **Seuil plus bas** | HPA à 50 % : le cluster grandit plus tôt, ce qui laisse aux nœuds le temps d'arriver | quelques pods de plus en moyenne |
 
-Pour valider ces pistes : appliquer d'abord les trois premières lignes, puis relancer `loadtest/run_gke.sh` depuis une machine Google Cloud de la même région (Cloud Shell ou une VM), afin de comparer avant et après sans le trajet internet.
+Les modifications retenues sont décrites dans l'étape 6, partie 9. Pour les valider : les appliquer, puis relancer `loadtest/run_gke.sh` depuis une machine Google Cloud de la même région (Cloud Shell ou une VM), afin de comparer avant et après sans le trajet internet.
 
 ## Étape 6 : supervision et alertes
 
@@ -975,10 +1023,10 @@ Le script peut être relancé sans risque. Il fait quatre choses :
 
 **Comment Grafana lit GMP.** Grafana interroge l'API Prometheus de Cloud Monitoring, qui exige un jeton Google. Le **datasource-syncer**, l'outil officiel de Google, est un CronJob qui écrit toutes les 10 minutes un jeton neuf dans la source de données de Grafana (un jeton dure 1 heure). Le synchroniseur obtient ce jeton par **Workload Identity**, avec le seul rôle `roles/monitoring.viewer` : il lit les métriques et ne peut rien modifier. Grafana lui-même n'a aucun droit Google Cloud.
 
-**Accès à Grafana, sans IP publique :**
+**Accès à Grafana :** en public sur https://34-54-213-190.sslip.io/grafana/ (bouton « Monitoring » de la page), avec le compte `lecteur` ; en administrateur par un tunnel :
 
 ```bash
-kubectl port-forward svc/grafana 3000:3000                         # puis http://localhost:3000/grafana/ (ou, en public, https://34-54-213-190.sslip.io/grafana/ avec le compte lecteur)
+kubectl port-forward svc/grafana 3000:3000                         # puis http://localhost:3000/grafana/
 gcloud secrets versions access latest --secret=grafana-admin-password   # utilisateur : admin
 ```
 
@@ -1063,6 +1111,29 @@ Le même `ip_id` sur des centaines de lignes `auth_failed` signe un brute force 
 - **Traces** : avec un seul service, la latence d'inférence suffit à savoir où passe le temps. Si l'API appelait d'autres services (base de données, autre modèle), **OpenTelemetry + Cloud Trace** montrerait le détail de chaque requête.
 - **Coût** : GMP facture les échantillons ingérés. Avec 2 à 10 pods collectés toutes les 30 s, le volume reste très faible. Le pod Grafana (250 m de CPU) est facturé par Autopilot tant qu'il tourne : `kubectl scale deployment/grafana --replicas=0` en dehors des séances.
 - **Alertes par email seulement** : en production, ajouter un canal d'astreinte (PagerDuty, Slack) pour les alertes `critical`.
+
+### 9. Améliorations de résilience tirées de l'étape 5
+
+Les tests de charge de l'étape 5 ont montré quatre faiblesses de réglage. Les modifications ci-dessous sont **prêtes dans les manifestes** du dépôt ; elles ne sont pas encore appliquées au cluster ni re-mesurées.
+
+| Constat de l'étape 5 | Modification | Fichier | Effet attendu |
+| -------------------- | ------------ | ------- | ------------- |
+| Le HPA réagit, mais les pods (et parfois les nœuds) arrivent après la charge : P95 de 1,1 s pendant la montée | seuil CPU **70 % → 50 %** | `k8s/hpa.yaml` | des pods demandés plus tôt, le temps qu'ils démarrent avant la saturation |
+| Peu de marge au repos, et 1 pod perdu = 1 seul restant | `minReplicas` **2 → 3** | `k8s/hpa.yaml` | 2 pods restent prêts après une panne ; un pod de plus payé en permanence |
+| Plafond à environ 195 req/s avec 10 pods | `maxReplicas` **10 → 15** | `k8s/hpa.yaml` | environ 290 req/s (20 par pod), à confirmer par un nouveau stress test |
+| Pods saturés redémarrés par la sonde de vie (15 erreurs 502) | sonde de vie : délai **1 s → 5 s**, **5 échecs** au lieu de 3 | `k8s/deployment.yaml` | un pod occupé n'est plus pris pour un pod bloqué |
+| Les 2 pods sur le même nœud | répartition sur les zones a, b et c (`topologySpreadConstraints`) | `k8s/deployment.yaml` | la panne d'une machine ou d'une zone ne coupe plus tout le service |
+| Maintenance de Google : rien n'empêche d'arrêter tous les pods | `PodDisruptionBudget` : au moins 2 pods prêts | `k8s/pdb.yaml` (nouveau) | pas de coupure pendant une mise à jour des nœuds |
+
+Appliquer (sans coupure, puis refaire le stress test de l'étape 5 pour mesurer l'effet) :
+
+```bash
+sed "s|IMAGE|$REGION-docker.pkg.dev/$PROJECT/dss/api:v6|" k8s/deployment.yaml | kubectl apply -f -
+kubectl apply -f k8s/hpa.yaml -f k8s/pdb.yaml
+kubectl rollout status deployment/dss-api
+```
+
+Non retenu pour l'instant : des pods de réserve pour supprimer l'attente des nœuds Autopilot (coût permanent), Cloud Armor (limite globale, voir la partie 8) et la réduction de la mémoire demandée (économie, pas résilience).
 
 ## Lancer le projet
 

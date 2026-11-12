@@ -7,3 +7,4 @@ reports
 tests
 **/__pycache__
 models/
+.env
