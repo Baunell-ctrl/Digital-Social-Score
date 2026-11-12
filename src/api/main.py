@@ -99,6 +99,13 @@ async def lifespan(_: FastAPI):
     if any(len(k) < 16 for k in state["keys"]):
         log.warning(json.dumps({"event": "weak_api_key", "detail": "clé API de moins de 16 caractères"}))
     state["predictor"] = ToxicityPredictor(use_ner=os.environ.get("USE_NER", "1") == "1")
+    # Séries créées à 0 dès le démarrage : sans elles, une métrique n'existe qu'après le premier
+    # événement (premier 401, premier 429…) et une règle d'alerte qui la cite est refusée.
+    for reason in ("absente", "invalide"):
+        AUTH_FAILURES.labels(reason=reason)
+    for name in set(state["keys"].values()):
+        RATE_LIMITED.labels(client=name)
+    INFERENCE_LATENCY.labels(model="lstm")
     yield
 
 
