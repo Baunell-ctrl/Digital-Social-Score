@@ -12,7 +12,7 @@ documentation:
 conditions:
   - displayName: "DSS - Erreurs 5xx > 1 %"
     conditionPrometheusQueryLanguage:
-      duration: 5m
+      duration: 300s
       evaluationInterval: 60s
       labels:
         severity: critical
