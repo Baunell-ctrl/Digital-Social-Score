@@ -37,6 +37,7 @@ from typing import Literal
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, Security
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import APIKeyHeader
+from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from prometheus_fastapi_instrumentator import Instrumentator, metrics as instr_metrics
 from pydantic import BaseModel, Field
@@ -51,14 +52,15 @@ API_KEYS = os.environ.get("API_KEYS", "")
 # Requêtes autorisées par client et par minute, sur chaque instance (0 = pas de limite).
 RATE_LIMIT_PER_MINUTE = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "600"))
 MAX_BODY_BYTES = 32_768
-# Page de démo publique (sans clé API) : désactivable avec DEMO_ENABLED=0, limitée par IP.
+# Page web de test (``/``) : l'utilisateur y saisit sa clé API. Désactivable avec DEMO_ENABLED=0.
 DEMO_ENABLED = os.environ.get("DEMO_ENABLED", "1") == "1"
-DEMO_RATE_LIMIT_PER_MINUTE = int(os.environ.get("DEMO_RATE_LIMIT_PER_MINUTE", "20"))
-DEMO_MAX_CHARS = 1000
-DEMO_PAGE = Path(__file__).parent / "static" / "index.html"
-# La page contient son CSS et son JS : on n'autorise que cela (et aucune ressource externe).
+STATIC_DIR = Path(__file__).parent / "static"
+DEMO_PAGE = STATIC_DIR / "index.html"
+# La page contient son CSS et son JS ; les polices sont servies par l'API elle-même (/fonts/) :
+# aucune ressource externe, donc aucune adresse IP de visiteur envoyée à un tiers (RGPD).
 DEMO_CSP = ("default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
-            "connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+            "font-src 'self'; connect-src 'self'; img-src 'self' data:; "
+            "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 # Nombre d'entrées ajoutées à la fin de X-Forwarded-For par les proxys de confiance, IP du client comprise.
 # GKE Ingress : 2 (le load balancer Google ajoute "<IP du client>, <IP du load balancer>").
 # En local, sans proxy : 0 (on prend l'IP de la connexion).
@@ -114,8 +116,8 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Digital Social Score", version="1.1.0", lifespan=lifespan)
 # Méthode n°1 du cours : middleware prêt à l'emploi (requêtes, codes 2xx/4xx/5xx, latence par route).
-# /health et /metrics sont exclus : les sondes Kubernetes et la collecte fausseraient les taux.
-Instrumentator(excluded_handlers=["/health", "/metrics"]).add(
+# /health, /metrics et les polices sont exclus : les sondes Kubernetes et la collecte fausseraient les taux.
+Instrumentator(excluded_handlers=["/health", "/metrics", "/fonts/.*"]).add(
     instr_metrics.default(latency_lowr_buckets=LATENCY_BUCKETS)).instrument(app)
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -134,6 +136,8 @@ async def security_middleware(request: Request, call_next):
     """Ajoute les en-têtes de sécurité à toutes les réponses."""
     response = await call_next(request)
     response.headers.update(SECURITY_HEADERS)
+    if request.url.path.startswith("/fonts/") and response.status_code == 200:
+        response.headers["Cache-Control"] = "public, max-age=86400"  # polices : aucune donnée sensible
     return response
 
 
@@ -305,36 +309,17 @@ def score(req: ScoreRequest, client: str = Depends(check_api_key)) -> ScoreRespo
 
 
 # --------------------------------------------------------------------------- #
-# Page de démo publique : sans clé API, LSTM seul, limitée par IP
+# Page web de test : la clé API est saisie par l'utilisateur, jamais écrite dans la page
 # --------------------------------------------------------------------------- #
 
 
-class DemoRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=DEMO_MAX_CHARS)
-
-
-def demo_guard(request: Request) -> None:
-    """404 si la démo est coupée ; sinon limite par IP (clé du compteur = IP pseudonymisée)."""
-    if not DEMO_ENABLED:
-        raise HTTPException(status_code=404, detail="Not Found")
-    rate_limit("demo:" + pseudonym(client_ip(request)), DEMO_RATE_LIMIT_PER_MINUTE)
-
-
 @app.get("/", include_in_schema=False)
-def demo_page() -> Response:
+def web_page() -> Response:
     if not DEMO_ENABLED:
         raise HTTPException(status_code=404, detail="Not Found")
     return FileResponse(DEMO_PAGE, media_type="text/html; charset=utf-8",
                         headers={"Content-Security-Policy": DEMO_CSP})
 
 
-@app.post("/demo/score", response_model=ScoreResponse, include_in_schema=False)
-def demo_score(req: DemoRequest, _: None = Depends(demo_guard)) -> ScoreResponse:
-    t0 = time.perf_counter()
-    proba = state["predictor"].predict(req.text)
-    latency = (time.perf_counter() - t0) * 1000
-    value = round(proba * 100, 1)
-    SCORE_HIST.observe(value)
-    log.info(json.dumps({"event": "score", "client": "demo", "model": "lstm",
-                         "text_id": pseudonym(req.text), "score": value, "latency_ms": round(latency, 2)}))
-    return ScoreResponse(score=value, toxic=proba >= THRESHOLD, model="lstm", latency_ms=round(latency, 2))
+# Polices de la page (licence OFL), mises en cache par le navigateur : seules ressources statiques publiques.
+app.mount("/fonts", StaticFiles(directory=STATIC_DIR / "fonts", check_dir=False), name="fonts")
