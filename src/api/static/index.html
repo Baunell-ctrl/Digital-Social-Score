@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Digital Social Score</title>
+<meta name="description" content="Détecteur de toxicité de textes : un score de 0 à 100.">
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #14161a; --muted: #6b7280; --line: #e5e7eb;
+    --accent: #4f46e5; --accent-text: #ffffff; --ok: #16a34a; --warn: #d97706; --bad: #dc2626;
+    --track: #eceef2; --shadow: 0 1px 2px rgba(16,24,40,.05), 0 8px 30px rgba(16,24,40,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1013; --card: #171a1f; --text: #eceef2; --muted: #9aa3b2; --line: #272b33;
+      --accent: #818cf8; --accent-text: #0e1013; --ok: #4ade80; --warn: #fbbf24; --bad: #f87171;
+      --track: #262a31; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px;
+    background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { width: 100%; max-width: 560px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; box-shadow: var(--shadow); }
+  textarea {
+    width: 100%; min-height: 130px; resize: vertical; padding: 12px 14px; border-radius: 12px;
+    border: 1px solid var(--line); background: transparent; color: inherit; font: inherit; line-height: 1.5;
+  }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+  .count { color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+  button.go {
+    border: 0; border-radius: 10px; padding: 10px 20px; font: inherit; font-weight: 600; cursor: pointer;
+    background: var(--accent); color: var(--accent-text);
+  }
+  button.go:disabled { opacity: .5; cursor: not-allowed; }
+  button.go:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .chip {
+    border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px;
+    padding: 4px 12px; font: inherit; font-size: .85rem; cursor: pointer;
+  }
+  .chip:hover { color: var(--text); border-color: var(--muted); }
+  #result { margin-top: 20px; display: none; }
+  #result.show { display: block; }
+  .scoreline { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .score { font-size: 3rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .score small { font-size: 1rem; color: var(--muted); font-weight: 500; }
+  .verdict { font-weight: 600; }
+  .track { height: 10px; border-radius: 999px; background: var(--track); overflow: hidden; margin-top: 12px; }
+  .bar { height: 100%; width: 0; border-radius: 999px; background: var(--ok); transition: width .5s ease, background-color .3s; }
+  .meta { color: var(--muted); font-size: .85rem; margin-top: 10px; }
+  #error { margin-top: 16px; color: var(--bad); display: none; }
+  #error.show { display: block; }
+  footer { color: var(--muted); font-size: .8rem; margin-top: 18px; text-align: center; }
+  footer a { color: inherit; }
+  @media (prefers-reduced-motion: reduce) { .bar { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Digital Social Score</h1>
+  <p class="sub">Collez un texte : l'IA estime sa toxicité de 0 (respectueux) à 100 (très toxique).</p>
+
+  <div class="card">
+    <label for="text" class="sub" style="display:block;margin-bottom:8px">Votre texte (en anglais)</label>
+    <textarea id="text" maxlength="1000" placeholder="Thank you for your help, have a nice day"></textarea>
+    <div class="row">
+      <span class="count"><span id="n">0</span> / 1000</span>
+      <button class="go" id="go" disabled>Analyser</button>
+    </div>
+    <div class="chips" aria-label="Exemples">
+      <button class="chip" type="button">Thank you for your help, have a nice day</button>
+      <button class="chip" type="button">You are a complete waste of oxygen</button>
+      <button class="chip" type="button">I disagree, but I see your point</button>
+    </div>
+
+    <div id="error" role="alert"></div>
+
+    <div id="result" aria-live="polite">
+      <div class="scoreline">
+        <div class="score"><span id="score">0</span><small> / 100</small></div>
+        <div class="verdict" id="verdict"></div>
+      </div>
+      <div class="track"><div class="bar" id="bar"></div></div>
+      <div class="meta" id="meta"></div>
+    </div>
+  </div>
+
+  <footer>
+    Modèle LSTM. Le texte n'est ni stocké ni journalisé. Résultat indicatif : une aide à la modération, pas une décision.<br>
+    <a href="/docs">Documentation de l'API</a>
+  </footer>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const text = $("text"), go = $("go"), n = $("n"), err = $("error"), res = $("result");
+
+  const update = () => { n.textContent = text.value.length; go.disabled = !text.value.trim(); };
+  text.addEventListener("input", update);
+  document.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => {
+    text.value = c.textContent; update(); analyze();
+  }));
+  text.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) analyze(); });
+  go.addEventListener("click", analyze);
+
+  const showError = (msg) => { err.textContent = msg; err.classList.add("show"); res.classList.remove("show"); };
+
+  async function analyze() {
+    const value = text.value.trim();
+    if (!value) return;
+    err.classList.remove("show");
+    go.disabled = true; go.textContent = "Analyse…";
+    try {
+      const r = await fetch("/demo/score", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: value }),
+      });
+      if (r.status === 429) {
+        const wait = r.headers.get("Retry-After");
+        return showError("Trop de requêtes. Réessayez dans " + (wait || "quelques") + " secondes.");
+      }
+      if (r.status === 404) return showError("La démo est désactivée.");
+      if (r.status === 422) return showError("Texte invalide : 1 à 1000 caractères.");
+      if (!r.ok) return showError("Le service est indisponible. Réessayez plus tard.");
+      show(await r.json());
+    } catch (_) {
+      showError("Impossible de joindre l'API. Vérifiez votre connexion.");
+    } finally {
+      go.textContent = "Analyser"; update();
+    }
+  }
+
+  function show(d) {
+    const s = d.score;
+    const color = s >= 50 ? "var(--bad)" : s >= 25 ? "var(--warn)" : "var(--ok)";
+    $("score").textContent = s.toFixed(1);
+    $("verdict").textContent = d.toxic ? "Inapproprié" : "Acceptable";
+    $("verdict").style.color = color;
+    $("bar").style.backgroundColor = color;
+    res.classList.add("show");
+    requestAnimationFrame(() => { $("bar").style.width = Math.max(2, s) + "%"; });
+    $("meta").textContent = "Modèle " + d.model.toUpperCase() + " · " + d.latency_ms + " ms";
+  }
+})();
+</script>
+</body>
+</html>

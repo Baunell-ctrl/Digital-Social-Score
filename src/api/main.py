@@ -9,7 +9,9 @@ Sécurité / RGPD (étape 4 du TP, détaillée dans le README) :
 - validation des entrées (texte de 1 à 5 000 caractères, corps de requête limité à 32 Ko) ;
 - le texte n'est jamais stocké ni journalisé : seul un identifiant HMAC (pseudonyme) est écrit ;
 - échecs d'authentification journalisés (journal d'audit), sans la clé ni l'adresse IP en clair ;
-- en-têtes de sécurité HTTP ; HTTPS fourni par la plateforme cloud (Cloud Run).
+- en-têtes de sécurité HTTP ; HTTPS fourni par la plateforme cloud (Cloud Run) ;
+- page de démo (``/``) et route publique ``/demo/score`` : sans clé API, LSTM seul, texte de 1 à 1 000
+  caractères, limitée par IP (la clé API n'est jamais dans la page).
 """
 
 from __future__ import annotations
@@ -22,12 +24,13 @@ import os
 import secrets
 import threading
 import time
+from pathlib import Path
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, Security
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import APIKeyHeader
 from prometheus_client import CONTENT_TYPE_LATEST, Histogram, generate_latest
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -43,6 +46,14 @@ API_KEYS = os.environ.get("API_KEYS", "")
 # Requêtes autorisées par client et par minute, sur chaque instance (0 = pas de limite).
 RATE_LIMIT_PER_MINUTE = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "600"))
 MAX_BODY_BYTES = 32_768
+# Page de démo publique (sans clé API) : désactivable avec DEMO_ENABLED=0, limitée par IP.
+DEMO_ENABLED = os.environ.get("DEMO_ENABLED", "1") == "1"
+DEMO_RATE_LIMIT_PER_MINUTE = int(os.environ.get("DEMO_RATE_LIMIT_PER_MINUTE", "20"))
+DEMO_MAX_CHARS = 1000
+DEMO_PAGE = Path(__file__).parent / "static" / "index.html"
+# La page contient son CSS et son JS : on n'autorise que cela (et aucune ressource externe).
+DEMO_CSP = ("default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+            "connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 # Nombre d'entrées ajoutées à la fin de X-Forwarded-For par les proxys de confiance, IP du client comprise.
 # GKE Ingress : 2 (le load balancer Google ajoute "<IP du client>, <IP du load balancer>").
 # En local, sans proxy : 0 (on prend l'IP de la connexion).
@@ -182,16 +193,20 @@ _hits: dict[str, deque] = defaultdict(deque)
 _hits_lock = threading.Lock()
 
 
-def rate_limit(client: str) -> None:
+def rate_limit(client: str, limit: int | None = None) -> None:
     """Fenêtre glissante d'une minute par client (compteur propre à chaque instance)."""
-    if RATE_LIMIT_PER_MINUTE <= 0:
+    limit = RATE_LIMIT_PER_MINUTE if limit is None else limit
+    if limit <= 0:
         return
     now = time.monotonic()
     with _hits_lock:
+        if len(_hits) > 10_000:  # évite que les compteurs d'IP anciennes grossissent sans fin
+            for k in [k for k, v in _hits.items() if not v or now - v[-1] > 60]:
+                del _hits[k]
         hits = _hits[client]
         while hits and now - hits[0] > 60:
             hits.popleft()
-        if len(hits) >= RATE_LIMIT_PER_MINUTE:
+        if len(hits) >= limit:
             retry = int(60 - (now - hits[0])) + 1
             log.warning(json.dumps({"event": "rate_limited", "client": client}))
             raise HTTPException(status_code=429, detail="Trop de requêtes, réessayer plus tard",
@@ -265,3 +280,39 @@ def score(req: ScoreRequest, client: str = Depends(check_api_key)) -> ScoreRespo
         model=req.model,
         latency_ms=round(latency, 2),
     )
+
+
+# --------------------------------------------------------------------------- #
+# Page de démo publique : sans clé API, LSTM seul, limitée par IP
+# --------------------------------------------------------------------------- #
+
+
+class DemoRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=DEMO_MAX_CHARS)
+
+
+def demo_guard(request: Request) -> None:
+    """404 si la démo est coupée ; sinon limite par IP (clé du compteur = IP pseudonymisée)."""
+    if not DEMO_ENABLED:
+        raise HTTPException(status_code=404, detail="Not Found")
+    rate_limit("demo:" + pseudonym(client_ip(request)), DEMO_RATE_LIMIT_PER_MINUTE)
+
+
+@app.get("/", include_in_schema=False)
+def demo_page() -> Response:
+    if not DEMO_ENABLED:
+        raise HTTPException(status_code=404, detail="Not Found")
+    return FileResponse(DEMO_PAGE, media_type="text/html; charset=utf-8",
+                        headers={"Content-Security-Policy": DEMO_CSP})
+
+
+@app.post("/demo/score", response_model=ScoreResponse, include_in_schema=False)
+def demo_score(req: DemoRequest, _: None = Depends(demo_guard)) -> ScoreResponse:
+    t0 = time.perf_counter()
+    proba = state["predictor"].predict(req.text)
+    latency = (time.perf_counter() - t0) * 1000
+    value = round(proba * 100, 1)
+    SCORE_HIST.observe(value)
+    log.info(json.dumps({"event": "score", "client": "demo", "model": "lstm",
+                         "text_id": pseudonym(req.text), "score": value, "latency_ms": round(latency, 2)}))
+    return ScoreResponse(score=value, toxic=proba >= THRESHOLD, model="lstm", latency_ms=round(latency, 2))
