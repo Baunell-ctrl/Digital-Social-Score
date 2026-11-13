@@ -1197,9 +1197,9 @@ kubectl get nodes -L topology.kubernetes.io/zone   # zone de chaque nœud
 | Question du TP                                      | Réponse courte                                                                                                                                                                 | Partie |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | Quelles technologies, pourquoi, comment ?           | métriques Prometheus exposées par l'API, collectées par Managed Service for Prometheus, affichées dans Grafana, alertes dans Cloud Monitoring, logs JSON dans Cloud Logging | 1      |
-| Tester la supervision Prometheus/Grafana            | collecte de chaque pod toutes les 30 s, tableau de bord de 13 panneaux, 7 règles d'alerte                                                                                      | 2      |
+| Tester la supervision Prometheus/Grafana            | collecte de chaque pod toutes les 30 s, tableau de bord de 10 panneaux, 7 règles d'alerte                                                                                      | 2      |
 | Observer la stabilité du système en cas de stress | le service ralentit mais ne tombe pas (99,97 % de réussite à 300 utilisateurs) ; chaque symptôme a son panneau et son alerte                                                 | 3      |
-| Simuler panne ou attaque et évaluer la continuité | panne : 0 erreur pour 1 pod perdu, 13 s de coupure si tous tombent ; attaque : grille 10/10 et fuzzing sans plantage sur GKE                                                    | 4      |
+| Simuler panne ou attaque et évaluer la continuité | 12 mécanismes de sécurité challengés par 11 attaques et pannes : 7 tiennent, 2 tiennent avec une faiblesse, 1 validée en local seulement, 1 à jouer ; test avec utilisateurs témoins à venir | 4      |
 | Analyser les logs et les comportements anormaux     | journal d'audit pseudonymisé (`auth_failed`, `rate_limited`), requêtes `gcloud logging read`                                                                            | 5      |
 
 Code : `src/api/main.py` (métriques et logs), `k8s/monitoring/` (collecte et Grafana), `monitoring/` (tableau de bord, alertes), `deploy/monitoring.sh` (installation), `loadtest/attack.py` (simulation d'attaque). Tests : `tests/test_api.py` (3 tests de métriques).
@@ -1424,20 +1424,62 @@ gcloud secrets versions access latest --secret=grafana-admin-password   # utilis
 
 **Vérifier la collecte** dans la console, sous **Monitoring → Metrics Explorer → PromQL** : `up{job="dss-api"}` doit valoir 1 pour chaque pod, environ une minute après l'installation.
 
-**Tableau de bord Grafana.** Les panneaux reprennent le « dashboard typique » du cours (diapo 22), auxquels s'ajoutent des panneaux propres au modèle et à la sécurité. Rafraîchi toutes les 30 s, sur la dernière heure.
+**Tableau de bord Grafana.** Dix panneaux, en deux lignes : des **chiffres clés** lisibles d'un coup d'œil, puis quatre **courbes** qui montrent l'évolution pendant un test. Il se rafraîchit toutes les 30 s et affiche les 30 dernières minutes. Fichier : `monitoring/grafana/dss-dashboard.json`.
 
-| Ligne                 | Panneaux                                                                                                                         | Requête PromQL principale                                                                                   |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Vue d'ensemble        | requêtes/s, latence P95, part d'erreurs 5xx, pods qui répondent                                                                | `count(up{job="dss-api"} == 1)` pour les pods                                                              |
-| Trafic et latence     | requêtes/s par code ; latence HTTP P50/P95/P99 ; **SLO** (part des requêtes sous 300 ms) ; latence de l'inférence seule | `histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{handler="/score"}[2m])))` |
-| Ressources            | CPU et mémoire de chaque pod, rapportés à la demande                                                                          | `kubernetes_io:container_cpu_request_utilization{container_name="api"}`                                    |
-| Modèle et sécurité | part des textes jugés toxiques ; échecs d'authentification par minute ; réponses 429 par minute et par client                 | `sum by (reason) (rate(dss_auth_failures_total[2m])) * 60`                                                 |
+*Ligne « Chiffres clés ».* Les latences et les erreurs changent de couleur selon les seuils des alertes : vert, orange, rouge.
 
-La part des textes toxiques sert d'indicateur de **dérive** (cours n°1) : un changement brutal peut venir d'une campagne de spam ou de textes d'un nouveau type que le modèle connaît mal.
+| Panneau | Ce qu'il dit | Seuils (orange / rouge) |
+| ------- | ------------ | ----------------------- |
+| Requêtes / seconde | la charge reçue par `/score` | – |
+| **Latence P95** | 95 % des requêtes vont plus vite que cette valeur | 300 ms (SLO) / 500 ms (alerte) |
+| **Latence P99** | 99 % des requêtes vont plus vite : les pires cas | 300 ms / 500 ms |
+| **Temps d'inférence (P95)** | durée du calcul seul : anonymisation, nettoyage et LSTM (pas le LSTM seul, qui prend environ 0,4 ms) | 50 ms / 100 ms |
+| Erreurs 5xx | part des réponses en erreur serveur | – / 1 % |
+| Pods qui répondent | nombre de pods collectés par Prometheus | – |
 
-<!-- ![Tableau de bord Grafana pendant un test de charge](reports/images/grafana_dashboard.png) -->
+*Ligne « Courbes ».*
 
-*À compléter : capture `reports/images/grafana_dashboard.png`, prise pendant `SCENARIO=ramp` puis pendant la simulation d'attaque.*
+| Panneau | Ce qu'on y lit |
+| ------- | -------------- |
+| **Latence HTTP (P95, P99) et temps d'inférence** | trois courbes sur le même graphique. À vide, elles sont proches (20 à 30 ms). Sous charge, si la latence HTTP monte alors que l'inférence reste basse, le temps est perdu en **file d'attente** (pods saturés) et non dans le modèle |
+| Requêtes / seconde par code de réponse | la montée en charge ; les 429 (limite de requêtes) et les 5xx apparaissent comme des courbes à part |
+| **CPU par pod et nombre de pods** | le CPU de chaque pod (100 % = ce qu'il a demandé) et, sur l'axe de droite, le nombre de pods : on voit le CPU monter, puis le HPA ajouter des pods |
+| Sécurité : échecs d'authentification et refus 429 par minute | un brute force fait monter les échecs d'authentification ; une extraction du modèle fait monter les 429 d'un client |
+
+La part des textes toxiques (dérive du modèle, cours n°1) n'est plus affichée, pour garder un tableau de bord lisible. La métrique `dss_toxicity_score` est toujours exposée par l'API et reste interrogeable dans Metrics Explorer.
+
+*Pour charger le nouveau tableau de bord* (il vient d'une ConfigMap, lue au démarrage de Grafana) : `PROJECT=$PROJECT ALERTS=0 ./monitoring/setup_gke.sh`. Le script redémarre Grafana et recrée la source de données et le compte `lecteur`.
+
+**Stress test pour remplir le tableau de bord.** Le but est de produire des captures où l'on voit, dans l'ordre, la charge monter, le CPU saturer, l'autoscaling réagir et la latence se dégrader. On rejoue le scénario `stress` de l'étape 5 (20 → 60 → 120 → 200 → 300 utilisateurs, 6 minutes), cette fois avec les réglages de résilience (3 à 15 pods, seuil 50 %). Il sert aussi de **nouvelle mesure** à comparer à l'étape 5.
+
+```bash
+# 1. lever la limite de requêtes (sinon on ne verrait que des 429), attendre les pods
+kubectl set env deployment/dss-api RATE_LIMIT_PER_MINUTE=0
+kubectl rollout status deployment/dss-api
+
+# 2. lancer le stress test depuis Cloud Shell (6 minutes), Grafana ouvert à côté
+API_KEY=$(gcloud secrets versions access latest --secret=dss-api-key)
+SCENARIO=stress API_KEY=$API_KEY locust -f loadtest/locustfile.py --headless \
+  --host https://34-54-213-190.sslip.io --csv reports/loadtest/gke_stress_v2 \
+  --csv-full-history --html reports/loadtest/gke_stress_v2.html
+
+# 3. remettre la limite
+kubectl set env deployment/dss-api RATE_LIMIT_PER_MINUTE=600
+kubectl rollout status deployment/dss-api
+```
+
+| Moment du test | Ce qu'on doit voir sur le tableau de bord |
+| -------------- | ----------------------------------------- |
+| 0 à 1 min (20 utilisateurs) | requêtes/s faibles, latence basse, 3 pods |
+| 1 à 3 min (60 puis 120 utilisateurs) | requêtes/s qui montent, CPU au-dessus de 50 %, **le nombre de pods augmente** |
+| 3 à 5 min (200 puis 300 utilisateurs) | débit qui plafonne, CPU près de 100 %, **latence P95 et P99 qui montent alors que l'inférence reste basse** |
+| après le test | tout retombe ; les pods redescendent après quelques minutes (délai de stabilisation du HPA) |
+
+Ce sont des **attentes**, à confirmer par le test : la comparaison avec l'étape 5 (plafond de 195 req/s avec 10 pods, 673 ms de latence moyenne) dira si les réglages ont amélioré le service. Captures à prendre : une au pic du test (toutes les courbes visibles) et une de la fin. Pour la simulation d'attaque, une capture du panneau « Sécurité » pendant les phases `bruteforce` et `extraction` de `attack.py` (limite remise à 600).
+
+<!-- ![Tableau de bord pendant le stress test](reports/images/grafana_stress.png) -->
+
+*À compléter : capture `reports/images/grafana_stress.png` (stress test) et `reports/images/grafana_attaque.png` (attaque).*
 
 **Alertes.** Les règles reprennent les exemples du cours (diapos 24 et 25), évaluées par Cloud Monitoring chaque minute. Une notification part par email.
 
@@ -1459,12 +1501,12 @@ Pendant le stress test de l'étape 5, le service est resté **stable** : il a ra
 
 | Symptôme observé à l'étape 5                                             | Mesuré par              | Panneau Grafana                                                     | Alerte                                                                                                                                                   |
 | ---------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CPU saturé (99 à 123 % de la demande) au-delà de 120 utilisateurs         | relevé du HPA           | « CPU utilisé / CPU demandé, par pod »                          | CPU > 90 %                                                                                                                                               |
-| P95 au-dessus de 500 ms, SLO de 300 ms non tenu                              | Locust                   | « Latence HTTP de /score », « SLO »                             | Latence P95, SLO latence                                                                                                                                 |
-| Latence HTTP multipliée par 6, alors que le calcul ne prend que 19 à 27 ms | Locust                   | « Latence de l'inférence seule » comparée à « Latence HTTP » | – : si l'inférence reste rapide pendant que la latence HTTP monte, le temps est perdu en **file d'attente** (pods saturés), pas dans le modèle |
+| CPU saturé (99 à 123 % de la demande) au-delà de 120 utilisateurs         | relevé du HPA           | « CPU par pod et nombre de pods »                          | CPU > 90 %                                                                                                                                               |
+| P95 au-dessus de 500 ms, SLO de 300 ms non tenu                              | Locust                   | « Latence P95 », « Latence P99 », courbe de latence                             | Latence P95, SLO latence                                                                                                                                 |
+| Latence HTTP multipliée par 6, alors que le calcul ne prend que 19 à 27 ms | Locust                   | « Latence HTTP (P95, P99) et temps d'inférence » (les deux courbes comparées) | – : si l'inférence reste rapide pendant que la latence HTTP monte, le temps est perdu en **file d'attente** (pods saturés), pas dans le modèle |
 | Pods redémarrés par la sonde de vie (15 erreurs 502)                       | événements Kubernetes  | « Pods qui répondent »                                           | – (voir ci-dessous)                                                                                                                                     |
 | Plateau du débit à environ 195 req/s                                       | Locust, Cloud Monitoring | « Requêtes / seconde »                                           | –                                                                                                                                                       |
-| Rafale d'un seul client (5 566 réponses 429)                                | Locust                   | « Requêtes refusées par la limite »                             | Extraction du modèle                                                                                                                                    |
+| Rafale d'un seul client (5 566 réponses 429)                                | Locust                   | « Sécurité » (courbe des 429)                             | Extraction du modèle                                                                                                                                    |
 
 **Ce que la supervision ne voit pas bien.**
 
@@ -1473,41 +1515,96 @@ Pendant le stress test de l'étape 5, le service est resté **stable** : il a ra
 
 ### 4. Simuler panne ou attaque et évaluer la continuité du service
 
-**Panne.** Testée à l'étape 5 (partie 3), sous 40 utilisateurs constants :
+Cette partie fait le bilan en deux temps : **les mécanismes de sécurité mis en place** (étapes 3 à 6), puis **les attaques et pannes que nous avons lancées pour les mettre à l'épreuve**. Le principe : chaque défense est challengée par au moins une attaque, et chaque résultat est mesuré.
 
-| Panne simulée           | Continuité du service                                                             |
-| ------------------------ | ---------------------------------------------------------------------------------- |
-| 1 pod supprimé          | **continu** : 0 erreur, pod remplacé en 16 s                                |
-| tous les pods supprimés | **coupure de 13 s** (4 % d'erreurs sur le test), service complet après 40 s |
+#### 4.1 Les mécanismes de sécurité en place
 
-Depuis, la redondance a été renforcée (étape 5, partie 7) : 3 pods au minimum, répartis sur 2 zones, et un `PodDisruptionBudget`. La panne d'un nœud entier n'a pas encore été testée.
+Une requête traverse plusieurs barrières, dans cet ordre. Si une barrière la refuse, les suivantes (et surtout le modèle, qui coûte du CPU) ne sont jamais atteintes.
 
-**Attaque.** Script `loadtest/attack.py` :
+```
+Client ──▶ 1. Load balancer : HTTPS seulement, TLS 1.2 minimum
+       ──▶ 2. Pod : taille de la requête (32 Ko max)                 → 413
+       ──▶ 3. Clé API valide ?                                       → 401 + log auth_failed
+       ──▶ 4. Limite de requêtes du client dépassée ?                → 429 + log rate_limited
+       ──▶ 5. Texte valide (1 à 5 000 caractères, modèle connu) ?    → 422
+       ──▶ 6. Anonymisation, puis modèle LSTM                        → 200 + score
+       ──▶ 7. Log pseudonyme (HMAC du texte, jamais le texte)
+```
+
+| Mécanisme | Ce qu'il empêche | Où |
+| --------- | ---------------- | -- |
+| **HTTPS uniquement**, TLS 1.2 minimum, aucun port 80 | écoute du trafic, vol de la clé API en clair | `k8s/ingress.yaml`, `k8s/frontendconfig.yaml` |
+| **Clé API par client**, comparée en temps constant | accès sans autorisation ; deviner la clé par mesure du temps de réponse | `authenticate()` dans `src/api/main.py` |
+| **Limite de 600 requêtes par minute et par client** (sur chaque pod) | flood d'un client, copie du modèle par requêtes massives | `rate_limit()` dans `src/api/main.py` |
+| **Validation des entrées** : texte de 1 à 5 000 caractères, modèle `lstm` ou `laya` | textes vides ou énormes, valeurs inattendues | `ScoreRequest` dans `src/api/main.py` |
+| **Taille de requête limitée** à 32 Ko, comptée sur les octets réellement reçus | saturation de la mémoire par une requête géante | `BodySizeLimitMiddleware` dans `src/api/main.py` |
+| **En-têtes de sécurité** (HSTS, `nosniff`, `X-Frame-Options`, CSP stricte sur la page) | détournement de la page web, cache des scores | `security_middleware` dans `src/api/main.py` |
+| **Logs pseudonymes** : HMAC du texte et de l'IP, jamais le texte, la clé ou l'IP en clair ; IP prise chez le load balancer, pas chez le client | fuite de données personnelles par les logs ; injection de fausses lignes ; falsification de l'IP | `pseudonym()` et `client_ip()` dans `src/api/main.py` |
+| **`/metrics` protégé** par une clé dédiée au collecteur | espionnage de l'activité du service | route `/metrics`, `k8s/monitoring/` |
+| **Pods durcis** : non root, aucune capacité Linux, aucun jeton Kubernetes, pas d'IP publique | prise de contrôle d'un pod, rebond vers le cluster | `k8s/deployment.yaml` |
+| **Secrets hors du code** (Secret Manager, puis Secrets Kubernetes) ; IAM au moindre privilège | fuite de clé dans Git ; droits excessifs | étape 4, parties 1 et 5 |
+| **Redondance** : 3 à 15 pods, répartis par zone, sondes de santé, `PodDisruptionBudget` | coupure du service quand un pod ou une machine tombe | `k8s/deployment.yaml`, `k8s/hpa.yaml`, `k8s/pdb.yaml` |
+| **Alertes** : brute force, extraction du modèle, service indisponible, erreurs 5xx, latence, CPU | attaque ou panne qui passerait inaperçue | `monitoring/alerts/` |
+
+#### 4.2 Les attaques et pannes lancées pour les challenger
+
+Outils : `loadtest/attack.py` (attaques), Locust et `loadtest/run_gke.sh` (flood et pannes, étape 5).
 
 ```bash
 API_KEY=$(gcloud secrets versions access latest --secret=dss-api-key) \
-  python3 loadtest/attack.py --host https://$IP --cacert tls.crt
+  python3 loadtest/attack.py --host https://$IP --cacert tls.crt     # phases : grille, fuzzing, bruteforce, extraction
 ```
 
-| Phase       | Ce que fait l'attaquant                                                            | Réponse attendue                                | Ce qui doit le détecter                                                  |
-| ----------- | ---------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------- |
-| Grille      | les tests de la grille de l'étape 4, une requête chacun                          | 401, 422, 413, en-têtes présents, HTTP refusé | –                                                                        |
-| Fuzzing     | JSON invalide, mauvais types, octets non UTF-8, injection de fausses lignes de log | 4xx, **jamais de plantage**                | –                                                                        |
-| Brute force | 3 minutes d'essais de clés au hasard, 2 par seconde                               | 401                                              | alerte **Brute force**, panneau « Échecs d'authentification »    |
-| Extraction  | 90 s de rafale, 20 requêtes en parallèle avec une seule clé valide              | 200 puis 429                                     | alerte **Extraction du modèle**, panneau « Requêtes refusées » |
+| # | Attaque | Mécanisme challengé | Où, quand | Résultat | Verdict |
+| - | ------- | ------------------- | --------- | -------- | ------- |
+| 1 | Appel **sans clé**, avec une **mauvaise clé**, et sur `/metrics` sans clé | clé API | GKE, 12/11 | 401 dans les 3 cas | ✅ tient |
+| 2 | Texte **vide**, texte de **plus de 5 000 caractères**, **modèle inconnu** | validation des entrées | GKE, 12/11 | 422 dans les 3 cas | ✅ tient |
+| 3 | Requête **géante** (40 Ko) | taille de requête | GKE, 12/11 | 413 | ✅ tient |
+| 4 | Connexion en **HTTP** clair, puis en **TLS 1.1** | HTTPS, politique TLS | GKE, 12/11 | les deux refusées | ✅ tient |
+| 5 | **Fuzzing** : 11 entrées malformées (JSON invalide, mauvais types, octets non UTF-8, caractères de contrôle, emojis seuls…) | validation, robustesse de l'API | GKE, 12/11 | 422 ou 400, jamais de plantage ; le seul 5xx est un 503 voulu (LAYA absent de l'image) | ✅ tient |
+| 6 | **Injection de logs** : un texte qui contient une fausse ligne `{"event": "score", "client": "admin"}` | logs pseudonymes | GKE, 12/11 (requête acceptée, 200) ; texte absent des logs vérifié par le test automatique `test_audit_log_has_no_secret` | la fausse ligne n'apparaît jamais : le texte n'est pas journalisé, seul son HMAC l'est | ✅ tient |
+| 7 | **Flood d'un client** : une seule clé, 20 utilisateurs sans pause | limite de requêtes | GKE, 12/11 (étape 5) | 5 566 réponses 429 ; mais environ **6 300 requêtes acceptées par minute** au lieu de 600 | ⚠️ tient, avec une faille : la limite compte **par pod** (10 pods × 600) |
+| 8 | **Extraction** : rafale de 90 s, 20 requêtes en parallèle, une clé valide | limite de requêtes, alerte | local | 100 réponses 200, puis 4 019 réponses 429 | ✅ en local ; **à refaire sur GKE** |
+| 9 | **Brute force** : 3 min d'essais de clés au hasard, 2 par seconde | clé API, alerte, journal d'audit | – | – | **à faire sur GKE** |
+| 10 | **Panne d'un pod** sous 40 utilisateurs | redondance, load balancer | GKE, 12/11 (étape 5) | 0 erreur, pod remplacé en 16 s | ✅ tient |
+| 11 | **Panne de tous les pods** sous 40 utilisateurs | redondance | GKE, 12/11 (étape 5) | 13 s de coupure (751 erreurs 502), service complet après 40 s | ⚠️ coupure courte, non vue par les alertes (partie 3) |
 
-**Résultats sur GKE** (12/11/2026, 15 h 05, rapport `reports/attack/attack_20261112_1505.json`, phases `grille` et `fuzzing`) :
+Rapport de l'attaque sur GKE : `reports/attack/attack_20261112_1505.json` (phases `grille` et `fuzzing`, 12/11/2026 à 15 h 05).
 
-| Phase   | Résultat                                                                                                                                                                                                                                                                                                                                          |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Grille  | **10 tests sur 10 conformes** : 401 sans clé, avec une mauvaise clé et sur `/metrics` ; 422 pour un texte vide, trop long ou un modèle inconnu ; 413 au-delà de 32 Ko ; 200 pour une requête valide ; en-têtes de sécurité présents ; HTTP refusé                                                                                |
-| Fuzzing | **11 cas, aucun plantage** : JSON invalide, mauvais type, champ manquant, liste au lieu d'un objet, `Content-Type` texte → 422 ; octets non UTF-8 → 400 ; caractères de contrôle, injection de logs, emojis seuls, texte de 5 000 caractères → 200 (traités normalement) ; modèle LAYA → 503, voulu (LAYA n'est pas dans l'image) |
+#### 4.3 Bilan
 
-**Résultats en local** (API sur le poste, limite à 100 requêtes par minute) : la rafale d'extraction obtient **100 réponses 200, puis 4 019 réponses 429**.
+- **Ce qui tient** : toutes les attaques sur l'accès et sur les entrées sont bloquées **avant le modèle**, avec le bon code d'erreur, et aucune n'a fait planter l'API. La perte d'un pod est invisible pour les utilisateurs.
+- **Ce qui tient mal** : la limite de requêtes est comptée sur chaque pod. Un client obtient 600 requêtes par minute **multipliées par le nombre de pods**, et l'autoscaling lui en donne davantage quand la charge monte. Une limite globale demanderait **Cloud Armor** devant le load balancer (cours n°5).
+- **Ce qui n'est pas encore prouvé** : la continuité du service **pour les autres utilisateurs** pendant une attaque. Le code le permet (la limite est tenue par client), mais ce n'est pas mesuré. C'est l'objet du test suivant.
 
-*À compléter : phases `bruteforce` et `extraction` sur GKE, avec les captures de l'alerte déclenchée et de l'email reçu. Avec 3 pods, la limite compte 600 requêtes par minute **sur chaque pod** : il faut plus de 1 800 requêtes par minute pour obtenir des 429.*
+#### 4.4 Test à venir : attaque avec des utilisateurs témoins
 
-**Continuité pendant une attaque.** La limite de requêtes est tenue **par client** (`_hits[client]` dans `rate_limit()`) : un client bloqué ne bloque pas les autres. Le brute force est refusé dès la vérification de la clé, avant le modèle, et coûte très peu de CPU. Cette continuité pour les autres clients découle du code mais n'a pas été mesurée pendant une attaque.
+**But.** Montrer, sur une seule capture, l'attaque **et** son absence d'effet (ou son effet) sur des utilisateurs normaux.
+
+**Deux populations en même temps**, chacune avec sa propre clé API (sinon la limite par client bloquerait aussi les témoins) :
+
+- **Témoins** : 10 utilisateurs qui envoient chacun un message toutes les 5 s (2 requêtes par seconde en tout), pendant tout le test.
+- **Attaquant** : `attack.py`.
+
+| Période | Témoins | Attaquant |
+| ------- | ------- | --------- |
+| 0 à 3 min | oui | – (référence) |
+| 3 à 6 min | oui | brute force |
+| 6 à 8 min | oui | – (retour au calme) |
+| 8 à 10 min | oui | flood d'une clé (extraction) |
+| 10 à 12 min | oui | – |
+
+**Ce qui doit se passer, d'après le code.**
+
+*Brute force.* Chaque essai est refusé en 401 dès la vérification de la clé, sans appeler le modèle : il coûte quelques millisecondes de CPU. Le compteur d'échecs monte, une ligne `auth_failed` est écrite avec l'`ip_id`, et l'alerte « Brute force » part après environ une minute. **Effet attendu sur les témoins : aucun.**
+
+*Flood d'une clé.* Sur chaque pod, les 600 premières requêtes de la minute passent dans le modèle (200), les suivantes sont refusées tout de suite (429). L'attaquant peut donc occuper jusqu'à 10 requêtes par seconde de calcul par pod, alors qu'un pod en traite environ 20 : la moitié de sa capacité. Le CPU monte, le HPA ajoute des pods, et l'alerte « Extraction du modèle » se déclenche. **Effet attendu sur les témoins : une hausse passagère de la latence, le temps que les nouveaux pods arrivent, sans erreur.**
+
+**Ce qu'on mesure pour les témoins** : taux de succès, latence P95 et P99, à chaque période. **Critère de réussite** : 100 % de succès, et un P95 qui reste sous 300 ms (notre SLO).
+
+**À savoir pour lire les résultats** : les réponses 429 de l'attaquant sont très rapides et font **baisser** la latence globale. Il faut donc lire la latence **des témoins**, mesurée à part, et non la latence de tout le service.
+
+*Résultats et captures à compléter après le test.*
 
 ### 5. Analyser les logs et les comportements anormaux
 
@@ -1534,7 +1631,7 @@ kubectl get events --sort-by=.lastTimestamp | grep -iE "probe|killing|backoff"
 | **Extraction du modèle** (copie par requêtes massives)                                     | lignes `rate_limited` pour un même `client` ; réponses 429                                                  | alerte Extraction ; **révoquer la clé** du client en la retirant de `API_KEYS` (étape 4, partie 1) |
 | **Injection de logs** (fausse ligne `{"event": "score", "client": "admin"}` dans le texte) | **absente** des logs : le texte n'est jamais journalisé, seul son HMAC l'est                               | rien à faire : l'attaque échoue par construction                                                            |
 | **Saturation**                                                                               | `Liveness probe failed` dans les événements ; P95 et CPU en hausse                                            | vérifier le HPA (`kubectl get hpa dss-api`) ; relever `maxReplicas` si le maximum est atteint            |
-| **Dérive des données**                                                                     | part des textes toxiques qui change brutalement                                                                   | regarder si c'est une campagne de spam ou un nouveau type de texte ; réentraîner si besoin                  |
+| **Dérive des données**                                                                     | part des textes toxiques qui change brutalement (métrique `dss_toxicity_score`, à interroger dans Metrics Explorer : plus affichée dans Grafana)                                                                   | regarder si c'est une campagne de spam ou un nouveau type de texte ; réentraîner si besoin                  |
 | **Spam** (même texte répété)                                                             | même `text_id` sur de nombreuses lignes `score`                                                              | limiter le client ; un cache (étape 5, partie 6) éviterait de recalculer                                    |
 
 Le même `ip_id` sur des centaines de lignes `auth_failed` signe un brute force depuis une seule source. Le texte et la clé essayée n'apparaissent jamais dans les logs.
