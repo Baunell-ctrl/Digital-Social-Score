@@ -2,12 +2,12 @@
 #
 # GMP stocke les métriques mais ne fournit pas Grafana : on l'héberge ici, dans un seul pod.
 # - Accès public sur https://34-54-213-190.sslip.io/grafana/ par l'Ingress (k8s/ingress.yaml), avec
-#   page de connexion : compte "lecteur" en lecture seule (monitoring/create_viewer.sh) ; le compte
+#   page de connexion : compte "lecteur" en lecture seule (deploy/create_viewer.sh) ; le compte
 #   admin n'est jamais partagé. Accès administrateur possible aussi par
 #     kubectl port-forward svc/grafana 3000:3000   puis http://localhost:3000/grafana/
-# - Mot de passe admin dans le Secret grafana-admin (créé par monitoring/setup_gke.sh).
+# - Mot de passe admin dans le Secret grafana-admin (créé par deploy/monitoring.sh).
 # - Tableau de bord chargé depuis la ConfigMap grafana-dashboards (monitoring/grafana/dss-dashboard.json).
-# - La source de données "gmp" est créée par l'API Grafana (setup_gke.sh), puis tenue à jour par
+# - La source de données "gmp" est créée par l'API Grafana (deploy/monitoring.sh), puis tenue à jour par
 #   le CronJob datasource-syncer (plus bas) : il écrit l'URL de GMP et un jeton OAuth Google
 #   renouvelé toutes les 10 minutes. Grafana n'a donc aucun droit Google Cloud lui-même.
 apiVersion: v1
@@ -107,7 +107,7 @@ spec:
         - name: dashboards
           configMap:
             name: grafana-dashboards
-        - name: data              # base SQLite de Grafana ; perdue si le pod redémarre (relancer setup_gke.sh)
+        - name: data              # base SQLite de Grafana ; perdue si le pod redémarre (make grafana-reset)
           emptyDir: {}
 ---
 apiVersion: cloud.google.com/v1
@@ -139,7 +139,7 @@ spec:
       targetPort: 3000
 ---
 # Compte de service Kubernetes du synchroniseur. Par Workload Identity, il reçoit le seul rôle
-# roles/monitoring.viewer (lecture des métriques), donné par setup_gke.sh.
+# roles/monitoring.viewer (lecture des métriques), donné par deploy/monitoring.sh.
 apiVersion: v1
 kind: ServiceAccount
 metadata:

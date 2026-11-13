@@ -1,5 +1,5 @@
 # Regle d'alerte Cloud Monitoring, condition en PromQL sur les metriques collectees par GMP.
-# Creee par monitoring/setup_gke.sh (gcloud monitoring policies create --policy-from-file).
+# Creee par deploy/monitoring.sh (gcloud monitoring policies create --policy-from-file).
 displayName: "DSS - CPU > 90 % de la demande"
 combiner: OR
 severity: WARNING
@@ -20,4 +20,4 @@ conditions:
         max by (pod_name) (kubernetes_io:container_cpu_request_utilization{monitored_resource="k8s_container",namespace_name="default",container_name="api"}) > 0.9
 alertStrategy:
   autoClose: 1800s
-notificationChannels: []    # rempli par setup_gke.sh (canal email)
+notificationChannels: []    # rempli par deploy/monitoring.sh (canal email)

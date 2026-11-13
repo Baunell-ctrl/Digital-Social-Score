@@ -3,31 +3,23 @@
 # C'est ce compte, et jamais "admin", que l'on donne aux personnes qui utilisent le bouton
 # « Monitoring » de la page web. Son mot de passe est dans Secret Manager (grafana-viewer-password).
 #
-#   PROJECT=<id du projet> ./monitoring/create_viewer.sh
+#   bash deploy/create_viewer.sh
 #
-# Appelé par setup_gke.sh. À relancer seul après chaque redémarrage du pod Grafana : sa base
+# Appelé par deploy/monitoring.sh. À relancer seul après chaque redémarrage du pod Grafana : sa base
 # (SQLite sur emptyDir) est perdue au redémarrage, et le compte avec elle.
-set -euo pipefail
-cd "$(dirname "$0")/.."
-
-PROJECT=${PROJECT:?définir PROJECT}
-export CLOUDSDK_CORE_PROJECT=$PROJECT
-secret_value() {  # valeur d'un secret Secret Manager, créé avec 32 octets aléatoires s'il n'existe pas
-  if ! gcloud secrets describe "$1" >/dev/null 2>&1; then
-    python3 -c "import secrets; print(secrets.token_urlsafe(32), end='')" | gcloud secrets create "$1" --data-file=- >/dev/null
-  fi
-  gcloud secrets versions access latest --secret="$1"
-}
+source "$(dirname "$0")/lib.sh"
+need kubectl curl python3
+TMP=$(mktemp -d)
 ADMIN_PASSWORD=$(gcloud secrets versions access latest --secret=grafana-admin-password)
 VIEWER_PASSWORD=$(secret_value grafana-viewer-password)
 
 POD=$(kubectl get pods -l app=grafana -o jsonpath='{.items[0].metadata.name}')
-kubectl port-forward "pod/$POD" 3301:3000 >/tmp/dss-grafana-viewer-pf.log 2>&1 &
+kubectl port-forward "pod/$POD" 3301:3000 >"$TMP/pf.log" 2>&1 &
 PF=$!
-trap 'kill $PF 2>/dev/null || true' EXIT
+trap 'kill $PF 2>/dev/null || true; rm -rf "$TMP"' EXIT
 for i in $(seq 60); do
   curl -sf http://localhost:3301/grafana/api/health >/dev/null && break
-  [ "$i" -eq 60 ] && { echo "Grafana ne répond pas :"; cat /tmp/dss-grafana-viewer-pf.log; exit 1; }
+  [ "$i" -eq 60 ] && { echo "Grafana ne répond pas :"; cat "$TMP/pf.log"; exit 1; }
   sleep 1
 done
 g() { curl -sS --fail-with-body -u "admin:$ADMIN_PASSWORD" -H "Content-Type: application/json" "http://localhost:3301/grafana$@"; }

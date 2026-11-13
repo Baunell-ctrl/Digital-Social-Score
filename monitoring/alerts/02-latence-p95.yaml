@@ -1,5 +1,5 @@
 # Regle d'alerte Cloud Monitoring, condition en PromQL sur les metriques collectees par GMP.
-# Creee par monitoring/setup_gke.sh (gcloud monitoring policies create --policy-from-file).
+# Creee par deploy/monitoring.sh (gcloud monitoring policies create --policy-from-file).
 displayName: "DSS - Latence P95 > 500 ms"
 combiner: OR
 severity: WARNING
@@ -20,4 +20,4 @@ conditions:
         histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job="dss-api",handler="/score"}[5m]))) > 0.5
 alertStrategy:
   autoClose: 1800s
-notificationChannels: []    # rempli par setup_gke.sh (canal email)
+notificationChannels: []    # rempli par deploy/monitoring.sh (canal email)

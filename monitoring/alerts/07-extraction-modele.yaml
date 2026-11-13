@@ -1,5 +1,5 @@
 # Regle d'alerte Cloud Monitoring, condition en PromQL sur les metriques collectees par GMP.
-# Creee par monitoring/setup_gke.sh (gcloud monitoring policies create --policy-from-file).
+# Creee par deploy/monitoring.sh (gcloud monitoring policies create --policy-from-file).
 displayName: "DSS - Limite de requetes depassee (extraction du modele ?)"
 combiner: OR
 severity: WARNING
@@ -20,4 +20,4 @@ conditions:
         sum by (client) (increase(dss_rate_limited_total{job="dss-api"}[5m])) > 0
 alertStrategy:
   autoClose: 1800s
-notificationChannels: []    # rempli par setup_gke.sh (canal email)
+notificationChannels: []    # rempli par deploy/monitoring.sh (canal email)

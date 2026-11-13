@@ -11,3 +11,12 @@ models/
 
 # secrets locaux, jamais envoyés à Cloud Build
 .env
+
+# outils de déploiement et de test : inutiles dans l'image
+deploy/
+k8s/
+monitoring/
+loadtest/
+.vscode/
+.claude/
+Makefile

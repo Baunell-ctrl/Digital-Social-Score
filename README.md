@@ -72,6 +72,44 @@ Lire un secret (toujours préciser le projet, sinon gcloud cherche dans le proje
 
 Chaque connexion vers l'extérieur est authentifiée et chiffrée. Les seuls points en clair sont internes à Google (load balancer → pods, collecte des métriques), sur des pods sans adresse publique.
 
+## Arborescence du dépôt et commandes
+
+| Dossier / fichier | Contenu |
+| --- | --- |
+| `src/anonymization/`, `src/preprocessing/` | étape 1 et début de l'étape 2 : anonymisation (NER), nettoyage, construction des jeux de données |
+| `src/models/` | étape 2 : entraînement LSTM, BERT, LAYA et export du LSTM (`export_lstm.py`) |
+| `src/api/` | étape 3 : API FastAPI (`main.py`), chargement du modèle (`predictor.py`), page web (`static/`) |
+| `artifacts/` | les 3 fichiers du LSTM déployé (copiés dans l'image Docker) |
+| `data/`, `reports/` | jeux de données (brut, anonymisé, nettoyé) ; résultats, rapports de charge et d'attaque, images |
+| `tests/` | tests automatiques (`pytest`) |
+| `Dockerfile`, `requirements-api.txt` | image de l'API |
+| `k8s/` | manifestes Kubernetes : API, Service, Ingress, HTTPS, HPA, PDB ; `k8s/monitoring/` : collecte GMP et Grafana |
+| `monitoring/` | configuration de la supervision : tableau de bord Grafana (JSON) et 7 règles d'alerte (YAML) |
+| `deploy/` | **scripts de déploiement** sur Google Cloud, réglages dans `deploy/config.env` (aucun secret) |
+| `loadtest/` | tests de charge (Locust, `run_gke.sh`), simulation d'attaque (`attack.py`), graphes (`plot.py`) |
+| `Makefile` | point d'entrée : `make help` liste toutes les commandes |
+| `docs/` | sujets du TP et supports de cours |
+
+**Tout le cycle cloud en commandes.** À lancer dans Cloud Shell, où `make`, `gcloud` et `kubectl` sont installés. Sans `make`, par exemple sous Windows avec Git Bash, lancer directement le script indiqué (`bash deploy/status.sh`).
+
+| Commande | Script | Rôle | Détail dans le README |
+| --- | --- | --- | --- |
+| `make bootstrap` | `deploy/bootstrap.sh` | une fois par projet : APIs, secrets, Artifact Registry, clé KMS, IP fixe, politique TLS | étape 3, partie 4, étapes 3 à 5, 8 et 10 |
+| `make cluster` | `deploy/cluster.sh` | cluster GKE Autopilot, `kubectl`, chiffrement KMS des Secrets | étapes 7 et 8 |
+| `make build TAG=v7` | `deploy/build.sh` | image construite par Cloud Build et poussée dans Artifact Registry | étape 6 |
+| `make diff TAG=v7` | `deploy/deploy.sh` | ce que le déploiement changerait sur le cluster, sans rien appliquer | – |
+| `make deploy TAG=v7` | `deploy/deploy.sh` | premier déploiement ou mise à jour sans coupure | étapes 9, 11 et 13 |
+| `make rollback` | – | retour à la version précédente | étape 13 |
+| `make monitoring EMAIL=...` | `deploy/monitoring.sh` | collecte GMP, Grafana, alertes | étape 6, partie 2 |
+| `make grafana-reset` | `deploy/monitoring.sh` | après un redémarrage du pod Grafana | étape 6, partie 2 |
+| `make status` | `deploy/status.sh` | image, pods, HPA, Ingress, certificat, collecte (lecture seule) | – |
+| `make smoke` | `deploy/smoke.sh` | tests rapides et grille de sécurité contre le cluster | étape 3 (12) et étape 4 (7) |
+| `make attack` / `make loadtest` | `loadtest/` | attaque complète (5 min) / tests de charge (30 min) | étapes 6 et 5 |
+| `make destroy` | `deploy/destroy.sh` | supprime tout ce qui est facturé (confirmation demandée) | étape 15 |
+| `make test` / `make api` / `make docker` | – | tests, API en local, image en local | « Lancer le projet » |
+
+Sur un projet neuf : `make bootstrap cluster build deploy` puis `make monitoring EMAIL=<adresse> smoke`. Les scripts peuvent être relancés : ce qui existe déjà n'est pas recréé, et aucun secret n'est affiché ni écrit sur le disque.
+
 ## Étape 1 : exploration, analyse et anonymisation des données
 
 > **Énoncé du TP**
@@ -428,6 +466,8 @@ Client ──HTTPS (TLS 1.2+, IP fixe)──▶ Load balancer Google (Ingress)
 | `k8s/managed-cert.yaml`   | certificat HTTPS géré par Google pour `34-54-213-190.sslip.io` (étape 4, partie 8)                        |
 | `k8s/monitoring/`         | collecte des métriques et Grafana (étape 6)                                                                  |
 
+> **En une commande :** `make bootstrap cluster build deploy smoke` (scripts de `deploy/`). Les étapes ci-dessous détaillent et expliquent ce que font ces scripts.
+
 **1. Préparer le projet.** Sur [console.cloud.google.com](https://console.cloud.google.com), créer un projet, noter son ID et activer la facturation. Ouvrir Cloud Shell avec l'icône `>_` en haut à droite.
 
 **2. Récupérer le code.** Le dépôt contient le code, le `Dockerfile`, les fichiers `k8s/` et les 3 fichiers du modèle (`artifacts/`).
@@ -655,7 +695,7 @@ Tests faits depuis Cloud Shell avec `curl`, sur l'API déployée dans le cluster
 > 1. Configurer JWT ou clé API.
 > 2. Mettre en place HTTPS, IAM et registre RGPD.
 
-Code : `src/api/main.py` et `k8s/`. Tests automatiques : `tests/test_api.py` (16 tests, dont 3 pour les métriques de l'étape 6).
+Code : `src/api/main.py` et `k8s/`. Tests automatiques : `tests/test_api.py` (21 tests, dont 3 pour les métriques de l'étape 6).
 
 | Exigence du TP             | Mise en œuvre                                                                                                                                | Partie |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
@@ -842,9 +882,9 @@ L'API sert une page web sur **https://34-54-213-190.sslip.io/** : champ de texte
 - **Bouton « Monitoring »** : ouvre Grafana sur `/grafana/`. Grafana est exposé par le même Ingress, avec une **page de connexion**. On y entre avec le compte **`lecteur`** (rôle Viewer : voir les tableaux de bord, rien modifier), dont le mot de passe est donné avec la clé API : `gcloud secrets versions access latest --secret=grafana-viewer-password`. Le compte `admin` n'est jamais partagé. Le tableau de bord montre le trafic, la latence, les erreurs, les pods qui répondent et le CPU.
 - **Certificat HTTPS** : certificat **géré par Google** (`k8s/managed-cert.yaml`) pour le nom `34-54-213-190.sslip.io`, qui pointe vers l'IP fixe : plus d'avertissement du navigateur. Le certificat auto-signé reste présenté en secours tant que celui de Google n'est pas actif.
 - **Éteindre la page** sans toucher au code : `kubectl set env deployment/dss-api DEMO_ENABLED=0`. Couper l'accès à Grafana : `kubectl scale deployment/grafana --replicas=0`.
-- **Limites** : Grafana est joignable depuis internet : seuls la page de connexion, un mot de passe aléatoire et le blocage après échecs de connexion de Grafana le protègent (pas de limite globale de requêtes : Cloud Armor, voir partie 9). La base de Grafana est perdue à chaque redémarrage de son pod : relancer `monitoring/setup_gke.sh`, qui recrée la source de données et le compte lecteur. Le compteur de requêtes est par pod.
+- **Limites** : Grafana est joignable depuis internet : seuls la page de connexion, un mot de passe aléatoire et le blocage après échecs de connexion de Grafana le protègent (pas de limite globale de requêtes : Cloud Armor, voir partie 9). La base de Grafana est perdue à chaque redémarrage de son pod : relancer `deploy/monitoring.sh`, qui recrée la source de données et le compte lecteur. Le compteur de requêtes est par pod.
 
-Mise en ligne : reconstruire l'image (`gcloud builds submit`), mettre à jour le déploiement (étape 13 de la partie 4), puis `kubectl apply -f k8s/managed-cert.yaml -f k8s/ingress.yaml -f k8s/monitoring/grafana.yaml` et `monitoring/setup_gke.sh`.
+Mise en ligne : reconstruire l'image (`gcloud builds submit`), mettre à jour le déploiement (étape 13 de la partie 4), puis `kubectl apply -f k8s/managed-cert.yaml -f k8s/ingress.yaml -f k8s/monitoring/grafana.yaml` et `deploy/monitoring.sh`.
 
 ### 9. Limites et améliorations
 
@@ -952,7 +992,7 @@ Relancer le test (environ 30 minutes, jusqu'à 15 pods facturés) :
 ```bash
 pip install -r requirements-loadtest.txt
 gcloud container clusters get-credentials dss-cluster --region europe-west9
-PROJECT=<ID_DU_PROJET> ./loadtest/run_gke.sh       # remet la limite à 600 à la fin
+make loadtest                                      # = loadtest/run_gke.sh ; remet la limite à 600 à la fin
 python loadtest/plot.py                             # tableaux de résultats (et graphes Locust)
 ```
 
@@ -1162,7 +1202,7 @@ kubectl get nodes -L topology.kubernetes.io/zone   # zone de chaque nœud
 | Simuler panne ou attaque et évaluer la continuité | panne : 0 erreur pour 1 pod perdu, 13 s de coupure si tous tombent ; attaque : grille 10/10 et fuzzing sans plantage sur GKE                                                    | 4      |
 | Analyser les logs et les comportements anormaux     | journal d'audit pseudonymisé (`auth_failed`, `rate_limited`), requêtes `gcloud logging read`                                                                            | 5      |
 
-Code : `src/api/main.py` (métriques et logs), `k8s/monitoring/` (collecte et Grafana), `monitoring/` (tableau de bord, alertes, scripts d'installation), `loadtest/attack.py` (simulation d'attaque). Tests : `tests/test_api.py` (3 tests de métriques).
+Code : `src/api/main.py` (métriques et logs), `k8s/monitoring/` (collecte et Grafana), `monitoring/` (tableau de bord, alertes), `deploy/monitoring.sh` (installation), `loadtest/attack.py` (simulation d'attaque). Tests : `tests/test_api.py` (3 tests de métriques).
 
 ### 1. Technologies employées : pourquoi et comment
 
@@ -1193,9 +1233,9 @@ Cloud Logging               │                         │                     
 | Collecter et stocker                      | **GMP**                                                 | aucun serveur Prometheus à installer ni à sauvegarder ; déjà actif sur GKE Autopilot | `k8s/monitoring/podmonitoring.yaml`, `rbac.yaml`                       |
 | Alerter                                   | **Cloud Monitoring**                                    | lit directement les métriques GMP et envoie des emails, sans Alertmanager à héberger  | `monitoring/alerts/*.yaml`                                               |
 | Afficher                                  | **Grafana**                                             | demandé par le TP (« Prometheus/Grafana ») ; outil montré dans le cours (diapo 23)   | `k8s/monitoring/grafana.yaml`, `monitoring/grafana/dss-dashboard.json` |
-| Donner à Grafana l'accès aux métriques | **datasource-syncer** + **Workload Identity**     | outil officiel de Google ; aucun mot de passe ni clé Google stockés                    | `k8s/monitoring/grafana.yaml`, `monitoring/setup_gke.sh`               |
+| Donner à Grafana l'accès aux métriques | **datasource-syncer** + **Workload Identity**     | outil officiel de Google ; aucun mot de passe ni clé Google stockés                    | `k8s/monitoring/grafana.yaml`, `deploy/monitoring.sh`               |
 | Journaliser                               | **Cloud Logging**                                       | GKE y envoie déjà la sortie des pods, sans agent à installer                          | `src/api/main.py`                                                        |
-| Installer le tout                         | script **bash** idempotent                              | une commande, relançable sans risque                                                    | `monitoring/setup_gke.sh`, `monitoring/create_viewer.sh`               |
+| Installer le tout                         | script **bash** idempotent                              | une commande, relançable sans risque                                                    | `deploy/monitoring.sh`, `deploy/create_viewer.sh`               |
 | Simuler une attaque                       | **Python + `requests`**                               | même langage que le reste ; rapport JSON horodaté                                      | `loadtest/attack.py`                                                     |
 
 #### 1.1 Exposer les métriques : `prometheus-fastapi-instrumentator` et `prometheus_client`
@@ -1255,7 +1295,7 @@ spec:
 ```
 
 - **Découverte automatique** : le sélecteur `app: dss-api` vise les pods par leur étiquette. Quand le HPA passe de 3 à 15 pods, les nouveaux sont collectés sans rien changer.
-- **Clé dédiée au collecteur** : `monitoring/setup_gke.sh` (étape 1) crée la clé `dss-prometheus-key` dans Secret Manager, la copie dans le Secret Kubernetes `dss-prometheus-scrape`, et ajoute `prometheus:<clé>` à `API_KEYS`. Le collecteur apparaît donc sous le nom `prometheus` dans les logs, et on peut révoquer sa clé sans toucher aux clients.
+- **Clé dédiée au collecteur** : `deploy/monitoring.sh` (étape 1) crée la clé `dss-prometheus-key` dans Secret Manager, la copie dans le Secret Kubernetes `dss-prometheus-scrape`, et ajoute `prometheus:<clé>` à `API_KEYS`. Le collecteur apparaît donc sous le nom `prometheus` dans les logs, et on peut révoquer sa clé sans toucher aux clients.
 - **Moindre privilège** : `k8s/monitoring/rbac.yaml` donne au compte `collector` de GMP le droit de lire **un seul Secret** (`resourceNames: ["dss-prometheus-scrape"]`). Il ne voit ni les clés des clients, ni `LOG_SALT`, ni la clé privée TLS.
 - `scheme: http` : la collecte se fait à l'intérieur du cluster, de pod à pod ; le HTTPS s'arrête au load balancer.
 
@@ -1278,14 +1318,14 @@ conditions:
       evaluationInterval: 60s  # évaluée chaque minute
       query: |
         sum(rate(dss_auth_failures_total{job="dss-api"}[5m])) * 60 > 20
-notificationChannels: []       # rempli par setup_gke.sh
+notificationChannels: []       # rempli par deploy/monitoring.sh
 ```
 
-- `setup_gke.sh` (étape 4) crée le canal email, remplace `notificationChannels: []` par ce canal (`sed`), puis crée chaque règle avec `gcloud alpha monitoring policies create`. Une règle déjà créée est sautée : le script peut être relancé.
+- `deploy/monitoring.sh` (étape 4) crée le canal email, remplace `notificationChannels: []` par ce canal (`sed`), puis crée chaque règle avec `gcloud alpha monitoring policies create`. Une règle déjà créée est sautée : le script peut être relancé.
 - Chaque règle contient dans sa `documentation` **la commande à lancer pour enquêter** : elle arrive dans l'email.
 - L'alerte « Aucun pod ne répond » utilise `(sum(up{job="dss-api"}) or vector(0)) < 1`. Quand tous les pods ont disparu, la série `up` n'existe plus du tout et `sum(...)` ne renvoie rien ; sans `or vector(0)`, l'alerte ne se déclencherait jamais au moment où elle est la plus utile.
 - Le CPU vient des métriques système de Cloud Monitoring (`kubernetes_io:container_cpu_request_utilization`), lisibles en PromQL : pas besoin de collecter cAdvisor ou node-exporter nous-mêmes.
-- **Deuxième source pour les échecs d'authentification** : `setup_gke.sh` crée aussi la métrique basée sur les logs `dss_auth_failed` (filtre `jsonPayload.event="auth_failed"`). Elle compte les mêmes événements à partir des logs, indépendamment de `/metrics`, et reste visible dans Metrics Explorer même si la collecte tombe.
+- **Deuxième source pour les échecs d'authentification** : `deploy/monitoring.sh` crée aussi la métrique basée sur les logs `dss_auth_failed` (filtre `jsonPayload.event="auth_failed"`). Elle compte les mêmes événements à partir des logs, indépendamment de `/metrics`, et reste visible dans Metrics Explorer même si la collecte tombe.
 
 #### 1.4 Afficher : Grafana, datasource-syncer et Workload Identity
 
@@ -1301,18 +1341,18 @@ notificationChannels: []       # rempli par setup_gke.sh
 | `GF_SECURITY_COOKIE_SECURE=true`                                             | le cookie de session ne circule qu'en HTTPS                                                                              |
 | `GF_SECURITY_DISABLE_GRAVATAR`, `GF_ANALYTICS_*=false`                     | aucun appel à un service tiers, donc aucune IP de visiteur envoyée ailleurs (RGPD)                                     |
 | `runAsUser: 472`, `drop: ["ALL"]`, `automountServiceAccountToken: false` | mêmes règles que les pods de l'API : non root, aucun droit Kubernetes                                                  |
-| mot de passe `admin` lu dans le Secret `grafana-admin`                     | copié depuis Secret Manager (`grafana-admin-password`) par `setup_gke.sh`                                           |
+| mot de passe `admin` lu dans le Secret `grafana-admin`                     | copié depuis Secret Manager (`grafana-admin-password`) par `deploy/monitoring.sh`                                           |
 | `BackendConfig` avec health check sur `/grafana/api/health`                | le load balancer sait si Grafana est prêt                                                                               |
 
-- **Tableau de bord versionné dans Git** : `monitoring/grafana/dss-dashboard.json` est chargé dans la ConfigMap `grafana-dashboards`, que Grafana lit au démarrage (*provisioning*, `disableDeletion: true`). Modifier le tableau de bord, c'est modifier ce fichier et relancer `setup_gke.sh`.
-- **Source de données** : `setup_gke.sh` crée la source `gmp` par l'API HTTP de Grafana, avec l'adresse `https://monitoring.googleapis.com/v1/projects/$PROJECT/location/global/prometheus` (l'API compatible Prometheus de Cloud Monitoring).
-- **Compte en lecture seule** : `monitoring/create_viewer.sh` crée le compte `lecteur` (rôle Viewer, page d'accueil = le tableau de bord du projet). C'est lui qu'on partage, jamais `admin`.
+- **Tableau de bord versionné dans Git** : `monitoring/grafana/dss-dashboard.json` est chargé dans la ConfigMap `grafana-dashboards`, que Grafana lit au démarrage (*provisioning*, `disableDeletion: true`). Modifier le tableau de bord, c'est modifier ce fichier et relancer `deploy/monitoring.sh`.
+- **Source de données** : `deploy/monitoring.sh` crée la source `gmp` par l'API HTTP de Grafana, avec l'adresse `https://monitoring.googleapis.com/v1/projects/$PROJECT/location/global/prometheus` (l'API compatible Prometheus de Cloud Monitoring).
+- **Compte en lecture seule** : `deploy/create_viewer.sh` crée le compte `lecteur` (rôle Viewer, page d'accueil = le tableau de bord du projet). C'est lui qu'on partage, jamais `admin`.
 
 **Pourquoi le datasource-syncer.** L'API de Cloud Monitoring exige un jeton Google, qui expire après 1 heure. Grafana ne sait pas en obtenir un seul.
 
 **Comment.** Le CronJob `datasource-syncer` (image officielle de Google, `v0.17.2-gke.2`) tourne toutes les 10 minutes (`schedule: "*/10 * * * *"`) et écrit un jeton neuf dans la source `gmp` de Grafana.
 
-- Il obtient ce jeton par **Workload Identity** : `setup_gke.sh` donne au compte Kubernetes `datasource-syncer` le seul rôle `roles/monitoring.viewer`. Il lit les métriques et ne peut rien modifier. Aucune clé de compte de service Google n'est créée ni stockée.
+- Il obtient ce jeton par **Workload Identity** : `deploy/monitoring.sh` donne au compte Kubernetes `datasource-syncer` le seul rôle `roles/monitoring.viewer`. Il lit les métriques et ne peut rien modifier. Aucune clé de compte de service Google n'est créée ni stockée.
 - Pour écrire dans Grafana, il utilise un jeton de compte de service Grafana, rangé dans le Secret `grafana-syncer`. L'exemple de Google écrit ce jeton en clair dans le manifeste ; nous le lisons dans un Secret.
 - Grafana lui-même n'a **aucun droit Google Cloud**.
 
@@ -1363,7 +1403,7 @@ TAG=v4; IMAGE=$REGION-docker.pkg.dev/$PROJECT/dss/api:$TAG
 gcloud builds submit --tag $IMAGE .
 kubectl set image deployment/dss-api api=$IMAGE && kubectl rollout status deployment/dss-api
 
-PROJECT=$PROJECT EMAIL=<adresse des alertes> ./monitoring/setup_gke.sh
+EMAIL=<adresse des alertes> make monitoring     # sans make : EMAIL=... bash deploy/monitoring.sh
 ```
 
 | Étape du script    | Ce qui est créé                                                                                                                                                                                        |
@@ -1373,7 +1413,7 @@ PROJECT=$PROJECT EMAIL=<adresse des alertes> ./monitoring/setup_gke.sh
 | 3. Grafana          | pod Grafana, mot de passe dans Secret Manager (`grafana-admin-password`), tableau de bord, source de données `gmp`, compte `lecteur`, **datasource-syncer** et sa première synchronisation |
 | 4. Alertes          | métrique basée sur les logs `dss_auth_failed`, canal email, 7 règles d'alerte                                                                                                                       |
 
-Si le pod Grafana redémarre (sa base est perdue) : `PROJECT=$PROJECT ALERTS=0 ./monitoring/setup_gke.sh` refait seulement les étapes 1 à 3.
+Si le pod Grafana redémarre (sa base est perdue) : `make grafana-reset` (ou `ALERTS=0 bash deploy/monitoring.sh`) refait seulement les étapes 1 à 3.
 
 **Accès à Grafana :** en public sur https://34-54-213-190.sslip.io/grafana/ (bouton « Monitoring » de la page web), avec le compte `lecteur` ; en administrateur par un tunnel :
 
@@ -1503,7 +1543,7 @@ Le même `ip_id` sur des centaines de lignes `auth_failed` signe un brute force 
 
 - **5xx du load balancer** : quand tous les pods tombent, le load balancer répond 502 sans qu'aucun pod ne compte ces erreurs. L'alerte « Service indisponible » couvre une coupure longue. Pour une mesure complète, ajouter une alerte sur la métrique `loadbalancing.googleapis.com/https/request_count` (code de réponse 5xx), qui voit les erreurs côté load balancer.
 - **Attaques lentes** : un brute force à 10 essais par minute, ou une copie du modèle juste sous la limite, ne déclenchent aucune alerte (seuils par minute, pas de métrique de requêtes par client). Tests et pistes détaillés dans `docs/pistes-tests-et-etape7.md`.
-- **Grafana sans disque** : si son pod redémarre, la source de données, le compte lecteur et le jeton du synchroniseur sont perdus. Il suffit de relancer `setup_gke.sh` avec `ALERTS=0` ; le tableau de bord, lui, est rechargé automatiquement. En production : un disque persistant ou **Grafana Cloud** / Cloud Monitoring seul. Grafana lui-même n'est surveillé par aucune alerte.
+- **Grafana sans disque** : si son pod redémarre, la source de données, le compte lecteur et le jeton du synchroniseur sont perdus. Il suffit de relancer `make grafana-reset` ; le tableau de bord, lui, est rechargé automatiquement. En production : un disque persistant ou **Grafana Cloud** / Cloud Monitoring seul. Grafana lui-même n'est surveillé par aucune alerte.
 - **Documentation des alertes** : le texte de l'alerte CPU (`monitoring/alerts/04-cpu.yaml`) parle encore de 10 pods et 195 req/s ; le maximum est désormais de 15 pods.
 - **Coût** : GMP facture les échantillons ingérés. Avec 3 à 15 pods collectés toutes les 30 s, le volume reste très faible. Le pod Grafana (250 m de CPU) est facturé par Autopilot tant qu'il tourne : `kubectl scale deployment/grafana --replicas=0` en dehors des séances.
 - **Alertes par email seulement** : en production, ajouter un canal d'astreinte (PagerDuty, Slack) pour les alertes `critical`.
@@ -1524,9 +1564,11 @@ Le même `ip_id` sur des centaines de lignes `auth_failed` signe un brute force 
 
 ## Lancer le projet
 
+En local (entraînement et tests) :
+
 ```bash
 python -m venv .venv
-.venv\Scripts\activate            # Windows (Linux/Mac : source .venv/bin/activate)
+.venv\Scriptsctivate            # Windows (Linux/Mac : source .venv/bin/activate)
 pip install torch --index-url https://download.pytorch.org/whl/cu128
 pip install -r requirements.txt
 python -m spacy download en_core_web_sm
@@ -1535,22 +1577,24 @@ python -m src.preprocessing.build_clean_datasets
 python -m src.models.lstm_binary
 python -m src.models.bert_binary
 python -m src.models.laya_binary --train-rows 10000
-python -m pytest tests
+python -m src.models.export_lstm   # copie le LSTM dans artifacts/
+make test                          # ou : python -m pytest tests
 ```
 
 API en local (nécessite `artifacts/lstm.pt`, `artifacts/vocab.json` et `artifacts/config.json`) :
 
 ```bash
 pip install -r requirements-api.txt
-set API_KEY=test                  # Windows (Linux/Mac : export API_KEY=test)
-uvicorn src.api.main:app --reload # puis http://localhost:8000/docs
+make api                           # http://localhost:8000/docs, clé "test"
+make docker                        # même chose dans l'image Docker, sur http://localhost:8080
 ```
 
-API avec Docker :
+Sur Google Cloud (Cloud Shell, à la racine du dépôt) : voir « Arborescence du dépôt et commandes » en haut du README.
 
 ```bash
-docker build -t digital-social-score .
-docker run -p 8080:8080 -e API_KEY=test digital-social-score
+gcloud config set project <ID_DU_PROJET>
+make bootstrap cluster             # une seule fois
+make build deploy TAG=v7           # à chaque nouvelle version
+make monitoring EMAIL=<adresse>    # supervision et alertes
+make status smoke                  # vérifier
 ```
-
-Déploiement sur GKE : voir l'étape 3, partie 4.

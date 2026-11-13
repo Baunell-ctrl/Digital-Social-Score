@@ -1,0 +1,5 @@
+# Fins de ligne Unix pour les scripts : bash refuse le retour chariot de Windows (core.autocrlf=true)
+*.sh       text eol=lf
+*.env      text eol=lf
+Makefile   text eol=lf
+*.yaml     text eol=lf

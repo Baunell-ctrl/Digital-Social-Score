@@ -1,5 +1,5 @@
 # Regle d'alerte Cloud Monitoring, condition en PromQL sur les metriques collectees par GMP.
-# Creee par monitoring/setup_gke.sh (gcloud monitoring policies create --policy-from-file).
+# Creee par deploy/monitoring.sh (gcloud monitoring policies create --policy-from-file).
 displayName: "DSS - SLO latence viole"
 combiner: OR
 severity: WARNING
@@ -21,4 +21,4 @@ conditions:
         / sum(rate(http_request_duration_seconds_count{job="dss-api",handler="/score"}[5m])) < 0.95
 alertStrategy:
   autoClose: 1800s
-notificationChannels: []    # rempli par setup_gke.sh (canal email)
+notificationChannels: []    # rempli par deploy/monitoring.sh (canal email)
