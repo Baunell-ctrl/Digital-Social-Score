@@ -104,7 +104,7 @@ Chaque connexion vers l'extérieur est authentifiée et chiffrée. Les seuls poi
 | `make grafana-reset` | `deploy/monitoring.sh` | après un redémarrage du pod Grafana | étape 6, partie 2 |
 | `make status` | `deploy/status.sh` | image, pods, HPA, Ingress, certificat, collecte (lecture seule) | – |
 | `make smoke` | `deploy/smoke.sh` | tests rapides et grille de sécurité contre le cluster | étape 3 (12) et étape 4 (7) |
-| `make attack` / `make loadtest` | `loadtest/` | attaque complète (5 min) / tests de charge (30 min) | étapes 6 et 5 |
+| `make attack` / `make loadtest` | `deploy/attack.sh`, `loadtest/run_gke.sh` | attaque complète (5 min) / tests de charge (30 min) | étapes 6 et 5 |
 | `make destroy` | `deploy/destroy.sh` | supprime tout ce qui est facturé (confirmation demandée) | étape 15 |
 | `make test` / `make api` / `make docker` | – | tests, API en local, image en local | « Lancer le projet » |
 
