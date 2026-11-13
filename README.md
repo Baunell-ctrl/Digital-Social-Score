@@ -23,7 +23,7 @@ Chaque étape commence par l'**énoncé du TP** (objectifs pédagogiques et exer
 | Exemples de requêtes et réponses              | étape 3, parties 1 et 5                                                                                       |
 | Schéma d'architecture Cloud + texte explicatif | vue d'ensemble ci-dessous ; étape 7                                                                           |
 | Registre RGPD                                   | étape 1, partie 4 (jeu de données) ; étape 4, partie 6 (API)                                                |
-| Tableau de bord / captures supervision          | étape 6, partie 2                                                                                             |
+| Tableau de bord / captures supervision          | étape 6, parties 2 et 3 |
 | Rapport de simulation de charge                 | étape 5                                                                                                       |
 | Grille de tests sécurité / stress / failover  | sécurité : étape 4, partie 7 ; stress et failover : étape 5, parties 3 et 4 ; attaque : étape 6, partie 4 |
 
@@ -106,7 +106,7 @@ Chaque connexion vers l'extérieur est authentifiée et chiffrée. Les seuls poi
 | `make smoke` | `deploy/smoke.sh` | tests rapides et grille de sécurité contre le cluster | étape 3 (12) et étape 4 (7) |
 | `make attack` / `make loadtest` | `deploy/attack.sh`, `loadtest/run_gke.sh` | attaque complète (5 min) / tests de charge (30 min) | étapes 6 et 5 |
 | `make client NAME=...` | `deploy/add_client.sh` | nouveau client avec sa propre clé API, sans coupure | étape 4, partie 1 |
-| `make attack-temoins` | `deploy/attack_temoins.sh` | attaque avec utilisateurs témoins (12 min) | étape 6, partie 4.4 |
+| `make attack-temoins` | `deploy/attack_temoins.sh` | attaque avec utilisateurs témoins (12 min) | étape 6, partie 4 |
 | `make destroy` | `deploy/destroy.sh` | supprime tout ce qui est facturé (confirmation demandée) | étape 15 |
 | `make test` / `make api` / `make docker` | – | tests, API en local, image en local | « Lancer le projet » |
 
@@ -1192,470 +1192,171 @@ kubectl get nodes -L topology.kubernetes.io/zone   # zone de chaque nœud
 > *Objectifs pédagogiques :* observer la stabilité du système en cas de stress ; tester la supervision Prometheus/Grafana.
 >
 > *Exercice :*
->
 > 1. Analyser les logs et les comportements anormaux.
 > 2. Simuler panne ou attaque et évaluer la continuité du service.
 
-| Question du TP                                      | Réponse courte                                                                                                                                                                 | Partie |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| Quelles technologies, pourquoi, comment ?           | métriques Prometheus exposées par l'API, collectées par Managed Service for Prometheus, affichées dans Grafana, alertes dans Cloud Monitoring, logs JSON dans Cloud Logging | 1      |
-| Tester la supervision Prometheus/Grafana            | collecte de chaque pod toutes les 30 s, tableau de bord de 10 panneaux, 7 règles d'alerte                                                                                      | 2      |
-| Observer la stabilité du système en cas de stress | le service ralentit mais ne tombe pas (99,97 % de réussite à 300 utilisateurs) ; chaque symptôme a son panneau et son alerte                                                 | 3      |
-| Simuler panne ou attaque et évaluer la continuité | 12 mécanismes de sécurité challengés par 11 attaques et pannes : 7 tiennent, 2 tiennent avec une faiblesse, 1 validée en local seulement, 1 à jouer ; test avec utilisateurs témoins à venir | 4      |
-| Analyser les logs et les comportements anormaux     | journal d'audit pseudonymisé (`auth_failed`, `rate_limited`), requêtes `gcloud logging read`                                                                            | 5      |
+| Question du TP | Partie |
+| -------------- | ------ |
+| Tester la supervision Prometheus/Grafana | 1 et 2 |
+| Observer la stabilité du système en cas de stress | 3 |
+| Simuler panne ou attaque et évaluer la continuité du service | 4 |
+| Analyser les logs et les comportements anormaux | 5 |
 
-Code : `src/api/main.py` (métriques et logs), `k8s/monitoring/` (collecte et Grafana), `monitoring/` (tableau de bord, alertes), `deploy/monitoring.sh` (installation), `loadtest/attack.py` (simulation d'attaque). Tests : `tests/test_api.py` (3 tests de métriques).
-
-### 1. Technologies employées : pourquoi et comment
-
-Le cours n°3 distingue trois sources d'information (les trois piliers de l'observabilité). Chacune a son outil :
-
-| Pilier               | Ce qu'il dit                                        | Outil                                                                                                                                                                                   | Dans le projet                                          |
-| -------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| **Métriques** | des valeurs agrégées : combien, à quelle vitesse | **Prometheus** (format et langage PromQL), collecté par **Managed Service for Prometheus** (GMP), affiché dans **Grafana**, alertes dans **Cloud Monitoring** | `/metrics` de l'API, collecté toutes les 30 s        |
-| **Logs**       | des événements horodatés : qui, quoi, quand      | **Cloud Logging**                                                                                                                                                                 | une ligne JSON par requête, pseudonymisée (étape 4)  |
-| **Traces**     | le chemin d'une requête entre services             | Cloud Trace                                                                                                                                                                             | non mis en place : un seul service (voir la partie 1.7) |
-
-**Qui fait quoi.** GMP n'est **pas** une fusion de Prometheus et Grafana. Il remplace le **serveur Prometheus** : Google collecte les métriques des pods et les stocke à notre place, dans le projet. GMP parle le langage de Prometheus (PromQL), donc Grafana et Cloud Monitoring peuvent tous les deux le lire.
+### 1. Comment fonctionne la supervision
 
 ```
-src/api/main.py                    k8s/monitoring/podmonitoring.yaml         monitoring/alerts/*.yaml
-pods dss-api ──/metrics (Bearer)──▶ collecteurs GMP (gérés par Google, namespace gke-gmp-system)
-     │                                    │
-     │ stdout (JSON)                      ▼
-     ▼                     Monarch : base de métriques de Cloud Monitoring (dans le projet)
-Cloud Logging               │                         │                        │
-(gcloud logging read)  Grafana (PromQL)       Metrics Explorer (PromQL)   règles d'alerte (PromQL)
-                       k8s/monitoring/grafana.yaml   graphes rapides       ──▶ email
+pods de l'API ──▶ GMP (Google) ──▶ Cloud Monitoring ──▶ Grafana (tableau de bord)
+ comptent leurs     lit /metrics        stocke les          │
+ requêtes           toutes les 30 s     chiffres            └──▶ alertes par email
+     │
+     └── une ligne de log JSON par requête ──▶ Cloud Logging
 ```
 
-| Rôle                                     | Outil                                                         | Pourquoi ce choix                                                                        | Fichiers                                                                   |
-| ----------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Exposer les métriques                    | `prometheus-fastapi-instrumentator` + `prometheus_client` | les deux méthodes du cours (diapos 20 et 21), en Python, dans l'API                     | `src/api/main.py`                                                        |
-| Collecter et stocker                      | **GMP**                                                 | aucun serveur Prometheus à installer ni à sauvegarder ; déjà actif sur GKE Autopilot | `k8s/monitoring/podmonitoring.yaml`, `rbac.yaml`                       |
-| Alerter                                   | **Cloud Monitoring**                                    | lit directement les métriques GMP et envoie des emails, sans Alertmanager à héberger  | `monitoring/alerts/*.yaml`                                               |
-| Afficher                                  | **Grafana**                                             | demandé par le TP (« Prometheus/Grafana ») ; outil montré dans le cours (diapo 23)   | `k8s/monitoring/grafana.yaml`, `monitoring/grafana/dss-dashboard.json` |
-| Donner à Grafana l'accès aux métriques | **datasource-syncer** + **Workload Identity**     | outil officiel de Google ; aucun mot de passe ni clé Google stockés                    | `k8s/monitoring/grafana.yaml`, `deploy/monitoring.sh`               |
-| Journaliser                               | **Cloud Logging**                                       | GKE y envoie déjà la sortie des pods, sans agent à installer                          | `src/api/main.py`                                                        |
-| Installer le tout                         | script **bash** idempotent                              | une commande, relançable sans risque                                                    | `deploy/monitoring.sh`, `deploy/create_viewer.sh`               |
-| Simuler une attaque                       | **Python + `requests`**                               | même langage que le reste ; rapport JSON horodaté                                      | `loadtest/attack.py`                                                     |
-
-#### 1.1 Exposer les métriques : `prometheus-fastapi-instrumentator` et `prometheus_client`
-
-**Pourquoi.** Prometheus est le standard cité par le TP. L'application publie elle-même ses compteurs sous forme de texte sur `/metrics`, et n'importe quel outil compatible (GMP, Grafana, un Prometheus classique) peut les lire. Le cours présente deux méthodes ; nous utilisons les deux, car elles ne mesurent pas la même chose.
-
-**Méthode 1 : middleware prêt à l'emploi** (`prometheus-fastapi-instrumentator`). Trois lignes dans `src/api/main.py` mesurent toutes les routes HTTP :
-
-```python
-Instrumentator(excluded_handlers=["/health", "/metrics", "/fonts/.*"]).add(
-    instr_metrics.default(latency_lowr_buckets=LATENCY_BUCKETS)).instrument(app)
-```
-
-- Il produit `http_requests_total{handler, status}` (requêtes par route et par code `2xx`, `4xx`, `5xx`) et `http_request_duration_seconds{handler}` (latence par route).
-- `/health`, `/metrics` et les polices sont **exclus** : les sondes Kubernetes (toutes les 10 à 20 s) et la collecte (toutes les 30 s) fausseraient les taux.
-- `LATENCY_BUCKETS = (0.01, 0.025, 0.05, 0.1, 0.2, 0.3, 0.5, 1, 2.5, 5, 10)` : un histogramme Prometheus ne donne une réponse exacte qu'aux bornes de ses intervalles. Nous avons placé des bornes à **0,3 s** (SLO du cours) et **0,5 s** (alerte de latence), pour que « part des requêtes sous 300 ms » soit un compte exact (`le="0.3"`) et non une estimation.
-
-**Méthode 2 : instrumentation manuelle** (`prometheus_client`), pour ce que le middleware ne peut pas voir :
-
-| Métrique                                | Type                                         | Où elle est mise à jour dans `main.py`                              | À quoi elle sert                                                                                                                                                                                |
-| ---------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `dss_inference_latency_seconds{model}` | histogramme                                  | `score()` : `time.perf_counter()` autour de `predictor.predict()` | durée de l'**inférence seule** (anonymisation, nettoyage, LSTM). Comparée à la latence HTTP, elle dit si le temps est perdu dans le modèle ou dans la file d'attente d'un pod saturé |
-| `dss_toxicity_score`                   | histogramme (bornes 10, 25, 50, 75, 90, 100) | `score()` : `SCORE_HIST.observe(value)`                             | distribution des scores ; la part au-dessus de 50 sert d'indicateur de **dérive**                                                                                                         |
-| `dss_auth_failures_total{reason}`      | compteur                                     | `authenticate()`, avant de répondre 401                              | essais de clés (`absente` ou `invalide`) : brute force                                                                                                                                      |
-| `dss_rate_limited_total{client}`       | compteur                                     | `rate_limit()`, avant de répondre 429                                | client qui dépasse la limite : abus ou extraction du modèle                                                                                                                                    |
-
-Deux détails du code :
-
-- **Séries créées à 0 au démarrage** (`lifespan`) : `AUTH_FAILURES.labels(reason=...)`, `RATE_LIMITED.labels(client=...)` pour chaque client connu, `INFERENCE_LATENCY.labels(model="lstm")`. Sans cela, une métrique n'existe qu'après le premier 401 ou le premier 429, et Cloud Monitoring **refuse de créer** une règle d'alerte qui cite une métrique encore inconnue.
-- **Aucune donnée personnelle dans les étiquettes** : ni texte, ni IP, ni clé ; le seul libellé client est le **nom** du client (`default`, `prometheus`…). Cela limite aussi le nombre de séries : une étiquette par IP créerait une série par visiteur.
-
-**`/metrics` reste protégé.** La route appelle la même fonction `authenticate()` que `/score`, en acceptant la clé dans `X-API-Key` **ou** dans `Authorization: Bearer` (le format qu'envoie un collecteur Prometheus). Sans clé, elle répond 401 : l'activité du service n'est pas publique.
-
-#### 1.2 Collecter : Managed Service for Prometheus (GMP)
-
-**Pourquoi GMP plutôt qu'un Prometheus installé dans le cluster ?** Un Prometheus auto-hébergé demande un disque persistant, de la mémoire, des mises à jour et une sauvegarde. Il perd ses données si son pod tombe, et il faut le dimensionner quand le nombre de pods augmente. Avec GMP, la collecte est **déjà active** sur GKE Autopilot, Google stocke les données **24 mois**, et les requêtes restent en PromQL standard : on pourrait revenir à un Prometheus classique sans réécrire le tableau de bord ni les alertes.
-
-**Comment.** Un seul objet Kubernetes, `k8s/monitoring/podmonitoring.yaml`, dit à GMP quoi collecter :
-
-```yaml
-kind: PodMonitoring
-spec:
-  selector:
-    matchLabels:
-      app: dss-api          # tous les pods de l'API, y compris ceux ajoutés par le HPA
-  endpoints:
-    - port: 8080
-      path: /metrics
-      interval: 30s
-      timeout: 10s          # un pod saturé qui ne répond pas en 10 s est compté comme « down »
-      authorization:
-        type: Bearer
-        credentials:
-          secret:
-            name: dss-prometheus-scrape
-            key: token
-```
-
-- **Découverte automatique** : le sélecteur `app: dss-api` vise les pods par leur étiquette. Quand le HPA passe de 3 à 15 pods, les nouveaux sont collectés sans rien changer.
-- **Clé dédiée au collecteur** : `deploy/monitoring.sh` (étape 1) crée la clé `dss-prometheus-key` dans Secret Manager, la copie dans le Secret Kubernetes `dss-prometheus-scrape`, et ajoute `prometheus:<clé>` à `API_KEYS`. Le collecteur apparaît donc sous le nom `prometheus` dans les logs, et on peut révoquer sa clé sans toucher aux clients.
-- **Moindre privilège** : `k8s/monitoring/rbac.yaml` donne au compte `collector` de GMP le droit de lire **un seul Secret** (`resourceNames: ["dss-prometheus-scrape"]`). Il ne voit ni les clés des clients, ni `LOG_SALT`, ni la clé privée TLS.
-- `scheme: http` : la collecte se fait à l'intérieur du cluster, de pod à pod ; le HTTPS s'arrête au load balancer.
-
-#### 1.3 Alerter : Cloud Monitoring
-
-**Pourquoi.** Les métriques collectées par GMP sont stockées dans Monarch, la base de **Cloud Monitoring**. Ses règles d'alerte savent lire du PromQL et envoyer un email : il n'y a pas d'Alertmanager à héberger, et les alertes continuent de fonctionner même si Grafana est arrêté.
-
-**Comment.** Une règle par fichier dans `monitoring/alerts/`, au format de Cloud Monitoring :
-
-```yaml
-# monitoring/alerts/06-brute-force.yaml (extrait)
-displayName: "DSS - Essais de cles API (brute force)"
-severity: CRITICAL
-documentation:
-  content: |
-    A faire : gcloud logging read 'jsonPayload.event="auth_failed"' --freshness=15m ; regrouper par ip_id ...
-conditions:
-  - conditionPrometheusQueryLanguage:
-      duration: 60s            # la condition doit rester vraie 1 minute
-      evaluationInterval: 60s  # évaluée chaque minute
-      query: |
-        sum(rate(dss_auth_failures_total{job="dss-api"}[5m])) * 60 > 20
-notificationChannels: []       # rempli par deploy/monitoring.sh
-```
-
-- `deploy/monitoring.sh` (étape 4) crée le canal email, remplace `notificationChannels: []` par ce canal (`sed`), puis crée chaque règle avec `gcloud alpha monitoring policies create`. Une règle déjà créée est sautée : le script peut être relancé.
-- Chaque règle contient dans sa `documentation` **la commande à lancer pour enquêter** : elle arrive dans l'email.
-- L'alerte « Aucun pod ne répond » utilise `(sum(up{job="dss-api"}) or vector(0)) < 1`. Quand tous les pods ont disparu, la série `up` n'existe plus du tout et `sum(...)` ne renvoie rien ; sans `or vector(0)`, l'alerte ne se déclencherait jamais au moment où elle est la plus utile.
-- Le CPU vient des métriques système de Cloud Monitoring (`kubernetes_io:container_cpu_request_utilization`), lisibles en PromQL : pas besoin de collecter cAdvisor ou node-exporter nous-mêmes.
-- **Deuxième source pour les échecs d'authentification** : `deploy/monitoring.sh` crée aussi la métrique basée sur les logs `dss_auth_failed` (filtre `jsonPayload.event="auth_failed"`). Elle compte les mêmes événements à partir des logs, indépendamment de `/metrics`, et reste visible dans Metrics Explorer même si la collecte tombe.
-
-#### 1.4 Afficher : Grafana, datasource-syncer et Workload Identity
-
-**Pourquoi Grafana.** Le TP demande « Prometheus/Grafana ». GMP n'offre que Metrics Explorer, pratique pour un graphe rapide mais pas pour un tableau de bord permanent. Grafana tourne dans le cluster et passe par le même load balancer que l'API.
-
-**Comment, dans `k8s/monitoring/grafana.yaml`.**
-
-| Réglage                                                                       | Pourquoi                                                                                                                 |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| image `grafana/grafana:11.3.0` (version fixée), 1 pod, 250 m de CPU         | version reproductible ; Grafana n'a pas besoin de redondance pour un TP                                                  |
-| `GF_AUTH_ANONYMOUS_ENABLED=false`, `GF_USERS_ALLOW_SIGN_UP=false`          | connexion obligatoire, personne ne peut créer de compte                                                                 |
-| `GF_SERVER_ROOT_URL` et `GF_SERVER_SERVE_FROM_SUB_PATH=true`               | Grafana est servi sous `/grafana/`, derrière l'Ingress de l'API (règle `path: /grafana` dans `k8s/ingress.yaml`) |
-| `GF_SECURITY_COOKIE_SECURE=true`                                             | le cookie de session ne circule qu'en HTTPS                                                                              |
-| `GF_SECURITY_DISABLE_GRAVATAR`, `GF_ANALYTICS_*=false`                     | aucun appel à un service tiers, donc aucune IP de visiteur envoyée ailleurs (RGPD)                                     |
-| `runAsUser: 472`, `drop: ["ALL"]`, `automountServiceAccountToken: false` | mêmes règles que les pods de l'API : non root, aucun droit Kubernetes                                                  |
-| mot de passe `admin` lu dans le Secret `grafana-admin`                     | copié depuis Secret Manager (`grafana-admin-password`) par `deploy/monitoring.sh`                                           |
-| `BackendConfig` avec health check sur `/grafana/api/health`                | le load balancer sait si Grafana est prêt                                                                               |
-
-- **Tableau de bord versionné dans Git** : `monitoring/grafana/dss-dashboard.json` est chargé dans la ConfigMap `grafana-dashboards`, que Grafana lit au démarrage (*provisioning*, `disableDeletion: true`). Modifier le tableau de bord, c'est modifier ce fichier et relancer `deploy/monitoring.sh`.
-- **Source de données** : `deploy/monitoring.sh` crée la source `gmp` par l'API HTTP de Grafana, avec l'adresse `https://monitoring.googleapis.com/v1/projects/$PROJECT/location/global/prometheus` (l'API compatible Prometheus de Cloud Monitoring).
-- **Compte en lecture seule** : `deploy/create_viewer.sh` crée le compte `lecteur` (rôle Viewer, page d'accueil = le tableau de bord du projet). C'est lui qu'on partage, jamais `admin`.
-
-**Pourquoi le datasource-syncer.** L'API de Cloud Monitoring exige un jeton Google, qui expire après 1 heure. Grafana ne sait pas en obtenir un seul.
-
-**Comment.** Le CronJob `datasource-syncer` (image officielle de Google, `v0.17.2-gke.2`) tourne toutes les 10 minutes (`schedule: "*/10 * * * *"`) et écrit un jeton neuf dans la source `gmp` de Grafana.
-
-- Il obtient ce jeton par **Workload Identity** : `deploy/monitoring.sh` donne au compte Kubernetes `datasource-syncer` le seul rôle `roles/monitoring.viewer`. Il lit les métriques et ne peut rien modifier. Aucune clé de compte de service Google n'est créée ni stockée.
-- Pour écrire dans Grafana, il utilise un jeton de compte de service Grafana, rangé dans le Secret `grafana-syncer`. L'exemple de Google écrit ce jeton en clair dans le manifeste ; nous le lisons dans un Secret.
-- Grafana lui-même n'a **aucun droit Google Cloud**.
-
-#### 1.5 Journaliser : Cloud Logging
-
-**Pourquoi.** GKE envoie automatiquement la sortie standard de chaque pod à Cloud Logging : pas d'agent à installer, et les logs sont consultables par `gcloud logging read` ou dans la console.
-
-**Comment.** L'API écrit **une ligne JSON par événement** :
-
-```python
-logging.basicConfig(level=logging.INFO, format="%(message)s")
-...
-log.info(json.dumps({"event": "score", "client": client, "model": req.model,
-                     "text_id": pseudonym(req.text), "score": value, "latency_ms": round(latency, 2)}))
-```
-
-- Comme chaque ligne est un objet JSON, Cloud Logging la range dans `jsonPayload` : on peut filtrer sur un champ (`jsonPayload.event="auth_failed"`) au lieu de chercher du texte.
-- Événements écrits : `score` (chaque requête), `auth_failed` (dans `authenticate()`), `rate_limited` (dans `rate_limit()`), `weak_api_key` (au démarrage, si une clé fait moins de 16 caractères).
-- **Pseudonymisation** : `pseudonym()` calcule un HMAC-SHA256 avec la clé secrète `LOG_SALT`. Le texte et l'IP n'apparaissent jamais, seulement `text_id` et `ip_id` (étape 4, partie 4).
-- `ip_id` vient de `client_ip()`, qui prend l'IP ajoutée par le load balancer (`TRUSTED_PROXY_HOPS=2`) et ignore ce que le client écrit lui-même dans `X-Forwarded-For` : un attaquant ne peut pas brouiller le journal d'audit.
-
-#### 1.6 Simuler : `loadtest/attack.py` et Locust
-
-**Pourquoi un script à nous.** Il faut des attaques **reproductibles** et **horodatées**, pour retrouver chaque phase dans les logs et sur le tableau de bord. Python et `requests` suffisent ; Locust (étape 5) sert déjà pour la charge et la panne.
-
-**Comment.**
-
-- Une `requests.Session` qui vérifie le certificat du serveur (`--cacert tls.crt`), sauf si l'on demande explicitement `--insecure`.
-- Quatre phases, choisies par `--phases` : `phase_grille` (la grille de l'étape 4, une requête par cas), `phase_fuzzing` (11 entrées malformées), `phase_bruteforce` (clés aléatoires `secrets.token_urlsafe(24)` à débit régulier, 2 par seconde pendant 3 min), `phase_extraction` (`ThreadPoolExecutor` de 20 threads, une seule clé valide, 90 s sans pause).
-- L'extraction est jouée en dernier : après elle, la clé reste bloquée une minute par la limite.
-- Le rapport `reports/attack/attack_<date>.json` contient l'heure de début et de fin de chaque phase et les codes HTTP obtenus. Ni la clé API ni les clés essayées n'y sont écrites.
-
-#### 1.7 Ce que nous n'avons pas utilisé, et pourquoi
-
-| Outil                       | Pourquoi pas                                                                                                                                                           |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Prometheus auto-hébergé   | GMP fait le même travail sans serveur à maintenir (partie 1.2)                                                                                                       |
-| Alertmanager                | Cloud Monitoring envoie déjà les alertes                                                                                                                             |
-| Cloud Trace / OpenTelemetry | un seul service : la métrique `dss_inference_latency_seconds` suffit à savoir où passe le temps. Utile si l'API appelait une base de données ou un autre modèle |
-| PagerDuty, Slack            | email suffisant pour un TP (voir les limites, partie 6)                                                                                                                |
-
-### 2. Tester la supervision Prometheus/Grafana
-
-**Mise en place.** Dans Cloud Shell, à la racine du dépôt, une fois l'image reconstruite avec les métriques :
-
-```bash
-TAG=v4; IMAGE=$REGION-docker.pkg.dev/$PROJECT/dss/api:$TAG
-gcloud builds submit --tag $IMAGE .
-kubectl set image deployment/dss-api api=$IMAGE && kubectl rollout status deployment/dss-api
-
-EMAIL=<adresse des alertes> make monitoring     # sans make : EMAIL=... bash deploy/monitoring.sh
-```
-
-| Étape du script    | Ce qui est créé                                                                                                                                                                                        |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Clé de collecte | secret `dss-prometheus-key` (Secret Manager) → Secret Kubernetes `dss-prometheus-scrape` ; ajout de `prometheus:<clé>` à `API_KEYS`, puis redémarrage progressif des pods                    |
-| 2. Collecte GMP     | `PodMonitoring` et droit de lecture sur ce seul Secret                                                                                                                                                 |
-| 3. Grafana          | pod Grafana, mot de passe dans Secret Manager (`grafana-admin-password`), tableau de bord, source de données `gmp`, compte `lecteur`, **datasource-syncer** et sa première synchronisation |
-| 4. Alertes          | métrique basée sur les logs `dss_auth_failed`, canal email, 7 règles d'alerte                                                                                                                       |
-
-Si le pod Grafana redémarre (sa base est perdue) : `make grafana-reset` (ou `ALERTS=0 bash deploy/monitoring.sh`) refait seulement les étapes 1 à 3.
-
-**Accès à Grafana :** en public sur https://34-54-213-190.sslip.io/grafana/ (bouton « Monitoring » de la page web), avec le compte `lecteur` ; en administrateur par un tunnel :
-
-```bash
-kubectl port-forward svc/grafana 3000:3000                         # puis http://localhost:3000/grafana/
-gcloud secrets versions access latest --secret=grafana-admin-password   # utilisateur : admin
-```
-
-**Vérifier la collecte** dans la console, sous **Monitoring → Metrics Explorer → PromQL** : `up{job="dss-api"}` doit valoir 1 pour chaque pod, environ une minute après l'installation.
-
-**Tableau de bord Grafana.** Dix panneaux, en deux lignes : des **chiffres clés** lisibles d'un coup d'œil, puis quatre **courbes** qui montrent l'évolution pendant un test. Il se rafraîchit toutes les 30 s et affiche les 30 dernières minutes. Fichier : `monitoring/grafana/dss-dashboard.json`.
-
-*Ligne « Chiffres clés ».* Les latences et les erreurs changent de couleur selon les seuils des alertes : vert, orange, rouge.
-
-| Panneau | Ce qu'il dit | Seuils (orange / rouge) |
-| ------- | ------------ | ----------------------- |
-| Requêtes / seconde | la charge reçue par `/score` | – |
-| **Latence P95** | 95 % des requêtes vont plus vite que cette valeur | 300 ms (SLO) / 500 ms (alerte) |
-| **Latence P99** | 99 % des requêtes vont plus vite : les pires cas | 300 ms / 500 ms |
-| **Temps d'inférence (P95)** | durée du calcul seul : anonymisation, nettoyage et LSTM (pas le LSTM seul, qui prend environ 0,4 ms) | 50 ms / 100 ms |
-| Erreurs 5xx | part des réponses en erreur serveur | – / 1 % |
-| Pods qui répondent | nombre de pods collectés par Prometheus | – |
-
-*Ligne « Courbes ».*
-
-| Panneau | Ce qu'on y lit |
-| ------- | -------------- |
-| **Latence HTTP (P95, P99) et temps d'inférence** | trois courbes sur le même graphique. À vide, elles sont proches (20 à 30 ms). Sous charge, si la latence HTTP monte alors que l'inférence reste basse, le temps est perdu en **file d'attente** (pods saturés) et non dans le modèle |
-| Requêtes / seconde par code de réponse | la montée en charge ; les 429 (limite de requêtes) et les 5xx apparaissent comme des courbes à part |
-| **CPU par pod et nombre de pods** | le CPU de chaque pod (100 % = ce qu'il a demandé) et, sur l'axe de droite, le nombre de pods : on voit le CPU monter, puis le HPA ajouter des pods |
-| Sécurité : échecs d'authentification et refus 429 par minute | un brute force fait monter les échecs d'authentification ; une extraction du modèle fait monter les 429 d'un client |
-
-La part des textes toxiques (dérive du modèle, cours n°1) n'est plus affichée, pour garder un tableau de bord lisible. La métrique `dss_toxicity_score` est toujours exposée par l'API et reste interrogeable dans Metrics Explorer.
-
-*Pour charger le nouveau tableau de bord* (il vient d'une ConfigMap, lue au démarrage de Grafana) : `make grafana-reset` (ou `ALERTS=0 bash deploy/monitoring.sh`). Le script redémarre Grafana et recrée la source de données et le compte `lecteur`.
-
-**Stress test pour remplir le tableau de bord.** Le but est de produire des captures où l'on voit, dans l'ordre, la charge monter, le CPU saturer, l'autoscaling réagir et la latence se dégrader. On rejoue le scénario `stress` de l'étape 5 (20 → 60 → 120 → 200 → 300 utilisateurs, 6 minutes), cette fois avec les réglages de résilience (3 à 15 pods, seuil 50 %). Il sert aussi de **nouvelle mesure** à comparer à l'étape 5.
-
-```bash
-# 1. lever la limite de requêtes (sinon on ne verrait que des 429), attendre les pods
-kubectl set env deployment/dss-api RATE_LIMIT_PER_MINUTE=0
-kubectl rollout status deployment/dss-api
-
-# 2. lancer le stress test depuis Cloud Shell (6 minutes), Grafana ouvert à côté
-API_KEY=$(gcloud secrets versions access latest --secret=dss-api-key)
-SCENARIO=stress API_KEY=$API_KEY locust -f loadtest/locustfile.py --headless \
-  --host https://34-54-213-190.sslip.io --csv reports/loadtest/gke_stress_v2 \
-  --csv-full-history --html reports/loadtest/gke_stress_v2.html
-
-# 3. remettre la limite
-kubectl set env deployment/dss-api RATE_LIMIT_PER_MINUTE=600
-kubectl rollout status deployment/dss-api
-```
-
-| Moment du test | Ce qu'on doit voir sur le tableau de bord |
-| -------------- | ----------------------------------------- |
-| 0 à 1 min (20 utilisateurs) | requêtes/s faibles, latence basse, 3 pods |
-| 1 à 3 min (60 puis 120 utilisateurs) | requêtes/s qui montent, CPU au-dessus de 50 %, **le nombre de pods augmente** |
-| 3 à 5 min (200 puis 300 utilisateurs) | débit qui plafonne, CPU près de 100 %, **latence P95 et P99 qui montent alors que l'inférence reste basse** |
-| après le test | tout retombe ; les pods redescendent après quelques minutes (délai de stabilisation du HPA) |
-
-Ce sont des **attentes**, à confirmer par le test : la comparaison avec l'étape 5 (plafond de 195 req/s avec 10 pods, 673 ms de latence moyenne) dira si les réglages ont amélioré le service. Captures à prendre : une au pic du test (toutes les courbes visibles) et une de la fin. Pour la simulation d'attaque, une capture du panneau « Sécurité » pendant les phases `bruteforce` et `extraction` de `attack.py` (limite remise à 600).
-
-<!-- ![Tableau de bord pendant le stress test](reports/images/grafana_stress.png) -->
-
-*À compléter : capture `reports/images/grafana_stress.png` (stress test) et `reports/images/grafana_attaque.png` (attaque).*
-
-**Alertes.** Les règles reprennent les exemples du cours (diapos 24 et 25), évaluées par Cloud Monitoring chaque minute. Une notification part par email.
-
-| Alerte                | Condition                                          | Durée | Gravité | Origine                            |
-| --------------------- | -------------------------------------------------- | ------ | -------- | ---------------------------------- |
-| SLO latence           | moins de 95 % des requêtes `/score` sous 300 ms | 10 min | warning  | règle SLO du cours (diapo 25)     |
-| Latence P95           | P95 de `/score` > 500 ms                         | 5 min  | warning  | « latence > 500 ms » (diapo 24)  |
-| Erreurs 5xx           | plus de 1 % de réponses 5xx                       | 5 min  | critical | « erreurs 5xx > 1 % » (diapo 24) |
-| CPU                   | un pod au-dessus de 90 % du CPU demandé           | 5 min  | warning  | « CPU > 90 % » (diapo 24)        |
-| Service indisponible  | aucun pod ne répond à la collecte                | 2 min  | critical | test de failover (étape 5)        |
-| Brute force           | plus de 20 échecs d'authentification par minute   | 1 min  | critical | journal d'audit (étape 4)         |
-| Extraction du modèle | au moins une réponse 429 sur 5 min                | 1 min  | warning  | vol de modèle (cours n°1)        |
-
-**Seuils choisis d'après les mesures de l'étape 5.** À vide, l'API répond en 19 à 27 ms (étape 3). Le P95 ne dépasse 500 ms que lorsque le CPU sature : à partir de 50 utilisateurs en croissance progressive, quand les pods ajoutés n'étaient pas encore prêts, et de 120 utilisateurs au stress test. L'alerte signale donc une vraie saturation, pas un ralentissement passager. Le seuil CPU de 90 % est au-dessus de celui du HPA (50 %, 70 % au moment des tests) : l'alerte ne se déclenche que si l'autoscaling ne suit plus, par exemple au maximum de pods ou en attente de nœuds.
+1. **L'API compte ce qu'elle fait.** Chaque pod tient des compteurs : requêtes, temps de réponse, temps d'inférence, erreurs, clés refusées, requêtes bloquées par la limite. Il les publie sur sa page `/metrics`, protégée par une clé. Aucun texte, aucune IP, aucune clé dans ces chiffres.
+2. **GMP vient lire les compteurs.** Toutes les 30 s, les collecteurs de Google lisent `/metrics` sur chaque pod de l'API, y compris ceux que l'autoscaling ajoute. Ils rangent les chiffres, avec l'heure, dans Cloud Monitoring.
+3. **Grafana affiche.** Grafana ne stocke rien : chaque graphique demande les chiffres à Cloud Monitoring et les dessine. Pour avoir le droit de lire, Grafana reçoit un jeton Google en lecture seule, renouvelé toutes les 10 minutes par un petit programme de Google (`datasource-syncer`).
+4. **Cloud Monitoring alerte.** Il relit les mêmes chiffres chaque minute et envoie un email si un seuil est dépassé. Les alertes fonctionnent même si Grafana est arrêté.
+5. **Cloud Logging garde les logs.** GKE envoie automatiquement les lignes JSON écrites par l'API (`score`, `auth_failed`, `rate_limited`), pseudonymisées (étape 4, partie 4).
+
+**Pourquoi GMP (Managed Service for Prometheus) plutôt qu'un Prometheus installé par nous ?** GMP fait le même travail que Prometheus et parle le même langage (PromQL), mais c'est Google qui l'héberge : rien à installer, pas de disque à gérer, pas de données perdues si un pod tombe, et les données sont gardées 24 mois. Sur GKE Autopilot, la collecte est déjà active : un seul fichier suffit pour lui dire quoi lire.
+
+| Rôle | Outil | Fichiers |
+| ---- | ----- | -------- |
+| Compter dans l'API | `prometheus-fastapi-instrumentator` (requêtes, latence HTTP) et `prometheus_client` (inférence, scores, sécurité) | `src/api/main.py` |
+| Lire les compteurs | GMP | `k8s/monitoring/podmonitoring.yaml`, `k8s/monitoring/rbac.yaml` |
+| Afficher | Grafana, dans un pod du cluster | `k8s/monitoring/grafana.yaml`, `monitoring/grafana/dss-dashboard.json` |
+| Alerter | Cloud Monitoring | `monitoring/alerts/*.yaml` |
+| Tout installer | script relançable | `deploy/monitoring.sh` (`make monitoring EMAIL=...`) |
+
+### 2. Tableau de bord et alertes
+
+**Accès :** https://34-54-213-190.sslip.io/grafana/ (bouton « Monitoring » de la page web), compte `lecteur` en lecture seule. Mot de passe : `gcloud secrets versions access latest --secret=grafana-viewer-password`. Grafana tourne dans un pod du cluster ; sa base est perdue s'il redémarre : `make grafana-reset` recrée la source de données et le compte `lecteur`. Le tableau de bord, lui, est rechargé depuis `monitoring/grafana/dss-dashboard.json`.
+
+**Tableau de bord** : 10 panneaux.
+
+| Panneau | Ce qu'il montre |
+| ------- | --------------- |
+| Requêtes / seconde | charge reçue par `/score` |
+| Latence P95, Latence P99 | 95 % et 99 % des requêtes répondent plus vite que cette valeur ; orange au-delà de 300 ms (SLO), rouge au-delà de 500 ms |
+| Temps d'inférence (P95) | durée du calcul seul : anonymisation, nettoyage et LSTM |
+| Erreurs 5xx | part des réponses en erreur serveur |
+| Pods qui répondent | pods de l'API lus par GMP |
+| Latence HTTP (P95, P99) et temps d'inférence | les trois courbes ensemble, pour voir si le temps est passé dans le calcul ou ailleurs |
+| Requêtes / seconde par code de réponse | succès (2xx), refus (4xx), erreurs (5xx) |
+| CPU par pod et nombre de pods | CPU de chaque pod (100 % = ce qu'il a réservé) et nombre de pods sur l'axe de droite |
+| Sécurité | échecs d'authentification et refus 429 par minute |
+
+**Alertes** (évaluées chaque minute, envoyées par email) :
+
+| Alerte | Condition | Durée |
+| ------ | --------- | ----- |
+| SLO latence | moins de 95 % des requêtes `/score` sous 300 ms | 10 min |
+| Latence P95 | P95 de `/score` au-dessus de 500 ms | 5 min |
+| Erreurs 5xx | plus de 1 % de réponses 5xx | 5 min |
+| CPU | un pod au-dessus de 90 % du CPU réservé | 5 min |
+| Service indisponible | aucun pod ne répond à la collecte | 2 min |
+| Brute force | plus de 20 échecs d'authentification par minute | 1 min |
+| Extraction du modèle | au moins une réponse 429 sur 5 min | 1 min |
 
 ### 3. Observer la stabilité du système en cas de stress
 
-Pendant le stress test de l'étape 5, le service est resté **stable** : il a ralenti (P95 de 3,6 s à 300 utilisateurs) mais n'est pas tombé (99,97 % de réussite). Ces symptômes ont été mesurés par Locust, le relevé du HPA et Cloud Monitoring. Le tableau ci-dessous indique le panneau et l'alerte qui les montrent désormais :
+**Test :** montée en charge progressive sur le cluster, le 13/11/2026 entre 15 h 21 et 15 h 25, avec la configuration actuelle (3 à 15 pods, nouveaux pods demandés au-delà de 50 % de CPU).
 
-| Symptôme observé à l'étape 5                                             | Mesuré par              | Panneau Grafana                                                     | Alerte                                                                                                                                                   |
-| ---------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CPU saturé (99 à 123 % de la demande) au-delà de 120 utilisateurs         | relevé du HPA           | « CPU par pod et nombre de pods »                          | CPU > 90 %                                                                                                                                               |
-| P95 au-dessus de 500 ms, SLO de 300 ms non tenu                              | Locust                   | « Latence P95 », « Latence P99 », courbe de latence                             | Latence P95, SLO latence                                                                                                                                 |
-| Latence HTTP multipliée par 6, alors que le calcul ne prend que 19 à 27 ms | Locust                   | « Latence HTTP (P95, P99) et temps d'inférence » (les deux courbes comparées) | – : si l'inférence reste rapide pendant que la latence HTTP monte, le temps est perdu en **file d'attente** (pods saturés), pas dans le modèle |
-| Pods redémarrés par la sonde de vie (15 erreurs 502)                       | événements Kubernetes  | « Pods qui répondent »                                           | – (voir ci-dessous)                                                                                                                                     |
-| Plateau du débit à environ 195 req/s                                       | Locust, Cloud Monitoring | « Requêtes / seconde »                                           | –                                                                                                                                                       |
-| Rafale d'un seul client (5 566 réponses 429)                                | Locust                   | « Sécurité » (courbe des 429)                             | Extraction du modèle                                                                                                                                    |
+![Chiffres clés, latence et débit pendant la montée en charge](reports/images/grafana_montee_charge.png)
 
-**Ce que la supervision ne voit pas bien.**
+![CPU par pod et nombre de pods pendant la montée en charge](reports/images/grafana_montee_charge_cpu.png)
 
-- Les **502 renvoyés par le load balancer** (pod redémarré, aucun pod prêt) ne passent par aucun pod : `http_requests_total` ne les compte pas, et l'alerte « Erreurs 5xx » reste muette. Seuls Locust et les métriques du load balancer (`backend_request_count`, partie 3 de l'étape 5) les voient.
-- La **coupure de 13 s** du failover est plus courte que l'intervalle de collecte (30 s) et que la durée de l'alerte « Aucun pod ne répond » (2 min) : elle ne déclencherait pas d'alerte. C'est un choix : alerter pour chaque coupure de quelques secondes ferait trop de fausses alertes.
+**Ce qu'on observe.**
+
+| Heure | Débit | Latence P95 / P99 | Inférence P95 | CPU des pods actifs | Pods qui répondent |
+| ----- | ----- | ----------------- | ------------- | ------------------- | ------------------ |
+| 15 h 21 | moins de 5 req/s | 35 ms / 50 ms | 25 ms | 10 % | 6 (dont 3 en cours d'arrêt, voir plus bas) |
+| 15 h 22 | 15 req/s | 45 ms / 80 ms | 40 ms | 30 à 37 % | 6 |
+| 15 h 23 | 35 req/s | 60 ms / 150 ms | 50 ms | **53 à 60 %** (seuil de 50 % dépassé) | 7 |
+| 15 h 23 min 45 s | 60 req/s | **200 ms / 480 ms** | **170 ms** | 53 à 60 % | 6 |
+| 15 h 25 | 120 req/s | 200 ms / 445 ms | 170 ms | 53 à 60 % | **11** |
+
+Sur toute la durée : **0 % d'erreurs 5xx**.
+
+Relevé sur le cluster juste après le test (`kubectl get hpa`, `kubectl get events`) : le HPA a demandé **15 pods**, 11 ont démarré et **4 sont restés en attente**. Autopilot a tenté de créer de nouvelles machines, et la création a échoué : `Node scale up in zones europe-west9-b […] failed: GCE out of resources`. Aucun pod n'a été redémarré (0 redémarrage, aucun échec de sonde de vie).
+
+**Interprétation.**
+
+- **Le service est resté stable** : aucune erreur, et même au plus fort du test le P95 (200 ms) reste sous le SLO de 300 ms et le P99 (445 à 480 ms) sous le seuil d'alerte de 500 ms.
+- **La latence monte d'un coup vers 15 h 23**, quand le CPU des pods dépasse 50 % : un pod qui reçoit plus de requêtes à la fois partage son processeur entre elles, et chaque requête prend plus de temps.
+- **Le temps perdu est dans le calcul.** La courbe d'inférence suit la latence HTTP à environ 30 ms près : le surplus vient de l'anonymisation et du modèle eux-mêmes, ralentis par le partage du processeur, pas d'une attente avant le traitement.
+- **L'autoscaling a fonctionné.** Le seuil de 50 % est dépassé à 15 h 23, les nouveaux pods arrivent entre 15 h 24 et 15 h 25 (de 6 à 11). Ensuite, le débit double (60 → 120 req/s) mais la latence cesse de monter : les nouveaux pods absorbent la hausse.
+- **La limite vient de Google, pas de l'API.** Les 4 derniers pods n'ont pas pu démarrer parce que Google n'avait plus de machine disponible dans la zone `europe-west9-b`. Le message `in backoff after failed scale-up`, vu à l'étape 5 lors de l'attente de 4 minutes, est de nouveau apparu.
+
+**À savoir pour lire les captures.**
+
+- Au début, le panneau « Pods qui répondent » indique 6 : l'API venait d'être redéployée à 15 h 17, et les 3 pods de la version précédente apparaissent encore quelques minutes, à 0 % de CPU, le temps d'être arrêtés.
+- Le CPU évolue par paliers d'une minute : Cloud Monitoring mesure le CPU une fois par minute.
+- Le CPU des pods ajoutés après 15 h 24 n'apparaît pas encore sur la capture.
 
 ### 4. Simuler panne ou attaque et évaluer la continuité du service
 
-Cette partie fait le bilan en deux temps : **les mécanismes de sécurité mis en place** (étapes 3 à 6), puis **les attaques et pannes que nous avons lancées pour les mettre à l'épreuve**. Le principe : chaque défense est challengée par au moins une attaque, et chaque résultat est mesuré.
+#### 4.1 Dispositifs de sécurité en place
 
-#### 4.1 Les mécanismes de sécurité en place
+Une requête traverse ces barrières dans l'ordre ; si l'une la refuse, le modèle n'est jamais appelé.
 
-Une requête traverse plusieurs barrières, dans cet ordre. Si une barrière la refuse, les suivantes (et surtout le modèle, qui coûte du CPU) ne sont jamais atteintes.
+| Ordre | Dispositif | Réponse si refusé | Où |
+| ----- | ---------- | ----------------- | -- |
+| 1 | HTTPS uniquement, TLS 1.2 minimum, aucun port 80 | connexion refusée | `k8s/ingress.yaml`, `k8s/frontendconfig.yaml` |
+| 2 | taille de requête limitée à 32 Ko | 413 | `BodySizeLimitMiddleware`, `src/api/main.py` |
+| 3 | clé API par client, comparée en temps constant | 401 + log `auth_failed` | `authenticate()` |
+| 4 | 600 requêtes par minute et par client, sur chaque pod | 429 + log `rate_limited` | `rate_limit()` |
+| 5 | texte de 1 à 5 000 caractères, modèle `lstm` ou `laya` | 422 | `ScoreRequest` |
+| 6 | logs pseudonymes : HMAC du texte et de l'IP, jamais le texte, la clé ou l'IP | – | `pseudonym()`, `client_ip()` |
 
-```
-Client ──▶ 1. Load balancer : HTTPS seulement, TLS 1.2 minimum
-       ──▶ 2. Pod : taille de la requête (32 Ko max)                 → 413
-       ──▶ 3. Clé API valide ?                                       → 401 + log auth_failed
-       ──▶ 4. Limite de requêtes du client dépassée ?                → 429 + log rate_limited
-       ──▶ 5. Texte valide (1 à 5 000 caractères, modèle connu) ?    → 422
-       ──▶ 6. Anonymisation, puis modèle LSTM                        → 200 + score
-       ──▶ 7. Log pseudonyme (HMAC du texte, jamais le texte)
-```
+S'y ajoutent : en-têtes de sécurité HTTP, `/metrics` protégé par une clé, pods non root sans privilèges ni IP publique, secrets dans Secret Manager, redondance (3 à 15 pods, deux zones, `PodDisruptionBudget`), et les alertes de la partie 2.
 
-| Mécanisme | Ce qu'il empêche | Où |
-| --------- | ---------------- | -- |
-| **HTTPS uniquement**, TLS 1.2 minimum, aucun port 80 | écoute du trafic, vol de la clé API en clair | `k8s/ingress.yaml`, `k8s/frontendconfig.yaml` |
-| **Clé API par client**, comparée en temps constant | accès sans autorisation ; deviner la clé par mesure du temps de réponse | `authenticate()` dans `src/api/main.py` |
-| **Limite de 600 requêtes par minute et par client** (sur chaque pod) | flood d'un client, copie du modèle par requêtes massives | `rate_limit()` dans `src/api/main.py` |
-| **Validation des entrées** : texte de 1 à 5 000 caractères, modèle `lstm` ou `laya` | textes vides ou énormes, valeurs inattendues | `ScoreRequest` dans `src/api/main.py` |
-| **Taille de requête limitée** à 32 Ko, comptée sur les octets réellement reçus | saturation de la mémoire par une requête géante | `BodySizeLimitMiddleware` dans `src/api/main.py` |
-| **En-têtes de sécurité** (HSTS, `nosniff`, `X-Frame-Options`, CSP stricte sur la page) | détournement de la page web, cache des scores | `security_middleware` dans `src/api/main.py` |
-| **Logs pseudonymes** : HMAC du texte et de l'IP, jamais le texte, la clé ou l'IP en clair ; IP prise chez le load balancer, pas chez le client | fuite de données personnelles par les logs ; injection de fausses lignes ; falsification de l'IP | `pseudonym()` et `client_ip()` dans `src/api/main.py` |
-| **`/metrics` protégé** par une clé dédiée au collecteur | espionnage de l'activité du service | route `/metrics`, `k8s/monitoring/` |
-| **Pods durcis** : non root, aucune capacité Linux, aucun jeton Kubernetes, pas d'IP publique | prise de contrôle d'un pod, rebond vers le cluster | `k8s/deployment.yaml` |
-| **Secrets hors du code** (Secret Manager, puis Secrets Kubernetes) ; IAM au moindre privilège | fuite de clé dans Git ; droits excessifs | étape 4, parties 1 et 5 |
-| **Redondance** : 3 à 15 pods, répartis par zone, sondes de santé, `PodDisruptionBudget` | coupure du service quand un pod ou une machine tombe | `k8s/deployment.yaml`, `k8s/hpa.yaml`, `k8s/pdb.yaml` |
-| **Alertes** : brute force, extraction du modèle, service indisponible, erreurs 5xx, latence, CPU | attaque ou panne qui passerait inaperçue | `monitoring/alerts/` |
+#### 4.2 Attaques et pannes lancées
 
-#### 4.2 Les attaques et pannes lancées pour les challenger
+| Attaque ou panne | Pourquoi | Outil | Où, quand |
+| ---------------- | -------- | ----- | --------- |
+| Appels sans clé, avec une mauvaise clé, sur `/metrics` sans clé | vérifier l'authentification | `loadtest/attack.py`, phase `grille` | GKE, 12/11 |
+| Texte vide, texte trop long, modèle inconnu, requête de 40 Ko | vérifier la validation des entrées | `attack.py`, phase `grille` | GKE, 12/11 |
+| Connexion en HTTP, puis en TLS 1.1 | vérifier le chiffrement | `attack.py`, `openssl` | GKE, 12/11 |
+| Fuzzing : 11 entrées malformées, dont une fausse ligne de log dans le texte | vérifier que l'API ne plante pas et que les logs ne sont pas falsifiables | `attack.py`, phase `fuzzing` | GKE, 12/11 |
+| Flood d'un seul client : une clé, 20 utilisateurs sans pause | vérifier la limite de requêtes | Locust (étape 5) | GKE, 12/11 |
+| Suppression d'un pod, puis de tous les pods, sous 40 utilisateurs | vérifier la continuité en cas de panne | Locust + `kubectl delete pod` (étape 5) | GKE, 12/11 |
 
-Outils : `loadtest/attack.py` (attaques), Locust et `loadtest/run_gke.sh` (flood et pannes, étape 5).
+#### 4.3 Résultats observés
 
-```bash
-API_KEY=$(gcloud secrets versions access latest --secret=dss-api-key) \
-  python3 loadtest/attack.py --host https://$IP --cacert tls.crt     # phases : grille, fuzzing, bruteforce, extraction
-```
+| Attaque ou panne | Résultat |
+| ---------------- | -------- |
+| Accès sans clé ou avec une mauvaise clé | 401 dans les 3 cas |
+| Entrées invalides | 422 (texte vide, trop long, modèle inconnu), 413 (40 Ko) |
+| HTTP et TLS 1.1 | refusés |
+| Fuzzing | 422 ou 400, jamais de plantage ; le seul 5xx est un 503 attendu (LAYA n'est pas dans l'image). La fausse ligne de log n'apparaît pas dans les logs : le texte n'est jamais écrit (test automatique `test_audit_log_has_no_secret`) |
+| Flood d'un client | 5 566 réponses 429 ; environ 6 300 requêtes acceptées par minute au lieu de 600, car la limite est comptée sur chaque pod (10 pods × 600) |
+| Panne d'un pod | 0 erreur, pod remplacé en 16 s |
+| Panne de tous les pods | 13 s de coupure (751 erreurs 502), service complet après 40 s |
 
-| # | Attaque | Mécanisme challengé | Où, quand | Résultat | Verdict |
-| - | ------- | ------------------- | --------- | -------- | ------- |
-| 1 | Appel **sans clé**, avec une **mauvaise clé**, et sur `/metrics` sans clé | clé API | GKE, 12/11 | 401 dans les 3 cas | ✅ tient |
-| 2 | Texte **vide**, texte de **plus de 5 000 caractères**, **modèle inconnu** | validation des entrées | GKE, 12/11 | 422 dans les 3 cas | ✅ tient |
-| 3 | Requête **géante** (40 Ko) | taille de requête | GKE, 12/11 | 413 | ✅ tient |
-| 4 | Connexion en **HTTP** clair, puis en **TLS 1.1** | HTTPS, politique TLS | GKE, 12/11 | les deux refusées | ✅ tient |
-| 5 | **Fuzzing** : 11 entrées malformées (JSON invalide, mauvais types, octets non UTF-8, caractères de contrôle, emojis seuls…) | validation, robustesse de l'API | GKE, 12/11 | 422 ou 400, jamais de plantage ; le seul 5xx est un 503 voulu (LAYA absent de l'image) | ✅ tient |
-| 6 | **Injection de logs** : un texte qui contient une fausse ligne `{"event": "score", "client": "admin"}` | logs pseudonymes | GKE, 12/11 (requête acceptée, 200) ; texte absent des logs vérifié par le test automatique `test_audit_log_has_no_secret` | la fausse ligne n'apparaît jamais : le texte n'est pas journalisé, seul son HMAC l'est | ✅ tient |
-| 7 | **Flood d'un client** : une seule clé, 20 utilisateurs sans pause | limite de requêtes | GKE, 12/11 (étape 5) | 5 566 réponses 429 ; mais environ **6 300 requêtes acceptées par minute** au lieu de 600 | ⚠️ tient, avec une faille : la limite compte **par pod** (10 pods × 600) |
-| 8 | **Extraction** : rafale de 90 s, 20 requêtes en parallèle, une clé valide | limite de requêtes, alerte | local | 100 réponses 200, puis 4 019 réponses 429 | ✅ en local ; **à refaire sur GKE** |
-| 9 | **Brute force** : 3 min d'essais de clés au hasard, 2 par seconde | clé API, alerte, journal d'audit | – | – | **à faire sur GKE** |
-| 10 | **Panne d'un pod** sous 40 utilisateurs | redondance, load balancer | GKE, 12/11 (étape 5) | 0 erreur, pod remplacé en 16 s | ✅ tient |
-| 11 | **Panne de tous les pods** sous 40 utilisateurs | redondance | GKE, 12/11 (étape 5) | 13 s de coupure (751 erreurs 502), service complet après 40 s | ⚠️ coupure courte, non vue par les alertes (partie 3) |
-
-Rapport de l'attaque sur GKE : `reports/attack/attack_20261112_1505.json` (phases `grille` et `fuzzing`, 12/11/2026 à 15 h 05).
-
-#### 4.3 Bilan
-
-- **Ce qui tient** : toutes les attaques sur l'accès et sur les entrées sont bloquées **avant le modèle**, avec le bon code d'erreur, et aucune n'a fait planter l'API. La perte d'un pod est invisible pour les utilisateurs.
-- **Ce qui tient mal** : la limite de requêtes est comptée sur chaque pod. Un client obtient 600 requêtes par minute **multipliées par le nombre de pods**, et l'autoscaling lui en donne davantage quand la charge monte. Une limite globale demanderait **Cloud Armor** devant le load balancer (cours n°5).
-- **Ce qui n'est pas encore prouvé** : la continuité du service **pour les autres utilisateurs** pendant une attaque. Le code le permet (la limite est tenue par client), mais ce n'est pas mesuré. C'est l'objet du test suivant.
-
-#### 4.4 Test à venir : attaque avec des utilisateurs témoins
-
-**But.** Montrer, sur une seule capture, l'attaque **et** son absence d'effet (ou son effet) sur des utilisateurs normaux.
-
-**Deux populations en même temps**, chacune avec sa propre clé API (sinon la limite par client bloquerait aussi les témoins) :
-
-- **Témoins** : 10 utilisateurs qui envoient chacun un message toutes les 5 s (2 requêtes par seconde en tout), pendant tout le test.
-- **Attaquant** : `attack.py`.
-
-**Lancer le test** (Cloud Shell, limite de requêtes à 600, Grafana ouvert à côté) :
-
-```bash
-pip install -r requirements-loadtest.txt
-make client NAME=temoins     # une fois : clé dédiée aux témoins (Secret Manager -> API_KEYS), sans coupure
-make attack-temoins          # 12 min ; affiche l'heure de chaque phase pour cadrer les captures
-```
-
-Sans `make` : `bash deploy/add_client.sh temoins` puis `bash deploy/attack_temoins.sh`. Résultats des témoins : `reports/attack/temoins_<date>.html` et `_stats_history.csv` (latence minute par minute) ; attaquant : `reports/attack/attack_<date>.json`.
-
-| Période | Témoins | Attaquant |
-| ------- | ------- | --------- |
-| 0 à 3 min | oui | – (référence) |
-| 3 à 6 min | oui | brute force |
-| 6 à 8 min | oui | – (retour au calme) |
-| 8 à 10 min | oui | flood d'une clé (extraction) |
-| 10 à 12 min | oui | – |
-
-**Ce qui doit se passer, d'après le code.**
-
-*Brute force.* Chaque essai est refusé en 401 dès la vérification de la clé, sans appeler le modèle : il coûte quelques millisecondes de CPU. Le compteur d'échecs monte, une ligne `auth_failed` est écrite avec l'`ip_id`, et l'alerte « Brute force » part après environ une minute. **Effet attendu sur les témoins : aucun.**
-
-*Flood d'une clé.* Sur chaque pod, les 600 premières requêtes de la minute passent dans le modèle (200), les suivantes sont refusées tout de suite (429). L'attaquant peut donc occuper jusqu'à 10 requêtes par seconde de calcul par pod, alors qu'un pod en traite environ 20 : la moitié de sa capacité. Le CPU monte, le HPA ajoute des pods, et l'alerte « Extraction du modèle » se déclenche. **Effet attendu sur les témoins : une hausse passagère de la latence, le temps que les nouveaux pods arrivent, sans erreur.**
-
-**Ce qu'on mesure pour les témoins** : taux de succès, latence P95 et P99, à chaque période. **Critère de réussite** : 100 % de succès, et un P95 qui reste sous 300 ms (notre SLO).
-
-**À savoir pour lire les résultats** : les réponses 429 de l'attaquant sont très rapides et font **baisser** la latence globale. Il faut donc lire la latence **des témoins**, mesurée à part, et non la latence de tout le service.
-
-*Résultats et captures à compléter après le test.*
+Rapport : `reports/attack/attack_20261112_1505.json`. Le test d'attaque avec utilisateurs témoins (`make attack-temoins`) sera ajouté ici avec ses résultats.
 
 ### 5. Analyser les logs et les comportements anormaux
 
-**Requêtes d'analyse après une attaque :**
-
 ```bash
-# combien d'échecs, et depuis combien de sources différentes (ip_id = HMAC de l'IP, pas l'IP)
+# échecs d'authentification, regroupés par source (ip_id = HMAC de l'IP, pas l'IP)
 gcloud logging read 'resource.labels.container_name="api" AND jsonPayload.event="auth_failed"' \
   --freshness=30m --format="value(jsonPayload.ip_id)" | sort | uniq -c | sort -rn
-# quel client a été bloqué par la limite
+# clients bloqués par la limite de requêtes
 gcloud logging read 'jsonPayload.event="rate_limited"' --freshness=30m \
   --format="value(jsonPayload.client)" | sort | uniq -c
-# l'IP réelle, si une enquête l'exige : logs du load balancer (gardés 30 jours, voir étape 4)
-gcloud logging read 'resource.type="http_load_balancer" AND httpRequest.status=401' --freshness=30m --limit=5
-# pods redémarrés pendant un pic (sonde de vie)
-kubectl get events --sort-by=.lastTimestamp | grep -iE "probe|killing|backoff"
+# pods redémarrés ou en attente de machine
+kubectl get events --sort-by=.lastTimestamp | grep -iE "probe|killing|FailedScaleUp|FailedScheduling"
 ```
 
-**Comportements anormaux et leur signature :**
+| Comportement anormal | Ce qu'on voit dans les logs et les métriques | Réaction |
+| -------------------- | -------------------------------------------- | -------- |
+| Essais de clés (brute force) | beaucoup de lignes `auth_failed` avec le même `ip_id` ; panneau Sécurité ; alerte Brute force | aucune clé valide n'est en jeu ; la source est identifiable par son `ip_id` |
+| Un client qui envoie trop de requêtes | lignes `rate_limited` pour ce client ; réponses 429 ; alerte Extraction du modèle | révoquer sa clé en la retirant de `API_KEYS` (étape 4, partie 1) |
+| Fausse ligne de log glissée dans un texte | absente des logs : le texte n'est jamais écrit, seul son HMAC l'est | aucune |
+| Saturation ou manque de machines | latence en hausse, CPU au-dessus de 50 %, pods `Pending`, événements `FailedScaleUp` (partie 3) | vérifier le HPA (`kubectl get hpa dss-api`) |
 
-| Comportement anormal                                                                               | Signature dans les logs et les métriques                                                                         | Réaction                                                                                                     |
-| -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| **Brute force** (essais de clés)                                                            | des centaines de lignes `auth_failed` avec le **même `ip_id`** ; `dss_auth_failures_total` qui monte | alerte Brute force ; bloquer la source avec une règle **Cloud Armor**                                  |
-| **Extraction du modèle** (copie par requêtes massives)                                     | lignes `rate_limited` pour un même `client` ; réponses 429                                                  | alerte Extraction ; **révoquer la clé** du client en la retirant de `API_KEYS` (étape 4, partie 1) |
-| **Injection de logs** (fausse ligne `{"event": "score", "client": "admin"}` dans le texte) | **absente** des logs : le texte n'est jamais journalisé, seul son HMAC l'est                               | rien à faire : l'attaque échoue par construction                                                            |
-| **Saturation**                                                                               | `Liveness probe failed` dans les événements ; P95 et CPU en hausse                                            | vérifier le HPA (`kubectl get hpa dss-api`) ; relever `maxReplicas` si le maximum est atteint            |
-| **Dérive des données**                                                                     | part des textes toxiques qui change brutalement (métrique `dss_toxicity_score`, à interroger dans Metrics Explorer : plus affichée dans Grafana)                                                                   | regarder si c'est une campagne de spam ou un nouveau type de texte ; réentraîner si besoin                  |
-| **Spam** (même texte répété)                                                             | même `text_id` sur de nombreuses lignes `score`                                                              | limiter le client ; un cache (étape 5, partie 6) éviterait de recalculer                                    |
-
-Le même `ip_id` sur des centaines de lignes `auth_failed` signe un brute force depuis une seule source. Le texte et la clé essayée n'apparaissent jamais dans les logs.
-
-### 6. Limites et améliorations
-
-- **5xx du load balancer** : quand tous les pods tombent, le load balancer répond 502 sans qu'aucun pod ne compte ces erreurs. L'alerte « Service indisponible » couvre une coupure longue. Pour une mesure complète, ajouter une alerte sur la métrique `loadbalancing.googleapis.com/https/request_count` (code de réponse 5xx), qui voit les erreurs côté load balancer.
-- **Attaques lentes** : un brute force à 10 essais par minute, ou une copie du modèle juste sous la limite, ne déclenchent aucune alerte (seuils par minute, pas de métrique de requêtes par client). Tests et pistes détaillés dans `docs/pistes-tests-et-etape7.md`.
-- **Grafana sans disque** : si son pod redémarre, la source de données, le compte lecteur et le jeton du synchroniseur sont perdus. Il suffit de relancer `make grafana-reset` ; le tableau de bord, lui, est rechargé automatiquement. En production : un disque persistant ou **Grafana Cloud** / Cloud Monitoring seul. Grafana lui-même n'est surveillé par aucune alerte.
-- **Documentation des alertes** : le texte de l'alerte CPU (`monitoring/alerts/04-cpu.yaml`) parle encore de 10 pods et 195 req/s ; le maximum est désormais de 15 pods.
-- **Coût** : GMP facture les échantillons ingérés. Avec 3 à 15 pods collectés toutes les 30 s, le volume reste très faible. Le pod Grafana (250 m de CPU) est facturé par Autopilot tant qu'il tourne : `kubectl scale deployment/grafana --replicas=0` en dehors des séances.
-- **Alertes par email seulement** : en production, ajouter un canal d'astreinte (PagerDuty, Slack) pour les alertes `critical`.
+Ni le texte, ni la clé essayée, ni l'IP en clair n'apparaissent dans les logs de l'API.
 
 ## Étape 7 : modélisation de l'infrastructure Cloud
 
