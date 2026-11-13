@@ -138,7 +138,7 @@ fi
 
 step "Terminé"
 cat <<EOF
-Grafana   : https://$DOMAIN/grafana/  (compte "lecteur", mot de passe :
+Grafana   : https://$(api_host)/grafana/  (compte "lecteur", mot de passe :
             gcloud secrets versions access latest --secret=grafana-viewer-password)
             administrateur : kubectl port-forward svc/grafana 3000:3000   puis http://localhost:3000/grafana/
             utilisateur admin, mot de passe : gcloud secrets versions access latest --secret=grafana-admin-password

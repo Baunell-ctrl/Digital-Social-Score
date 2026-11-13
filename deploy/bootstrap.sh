@@ -6,8 +6,8 @@
 #
 #   1. APIs Google utilisées par le projet
 #   2. secrets dans Secret Manager : clé API (dss-api-key) et clé des logs (dss-log-salt)
-#   3. droits du compte de service de Cloud Build (construire et pousser l'image)
-#   4. dépôt Artifact Registry (images Docker privées)
+#   3. dépôt Artifact Registry (images Docker privées)
+#   4. droits de Cloud Build : écriture dans ce seul dépôt, lecture du code envoyé, journaux
 #   5. clé Cloud KMS qui chiffrera les Secrets du cluster (rotation 90 jours)
 #   6. IP fixe et politique TLS 1.2 minimum du load balancer
 source "$(dirname "$0")/lib.sh"
@@ -24,15 +24,20 @@ gcloud secrets describe dss-log-salt >/dev/null 2>&1 || \
   python3 -c "import secrets; print(secrets.token_hex(32), end='')" | gcloud secrets create dss-log-salt --data-file=-
 echo "clé API : gcloud secrets versions access latest --secret=dss-api-key"
 
-step "3. Droits de Cloud Build"
-for ROLE in roles/artifactregistry.writer roles/storage.objectViewer roles/logging.logWriter; do
-  gcloud projects add-iam-policy-binding "$PROJECT" --member="$SA" --role=$ROLE --condition=None -q >/dev/null
-done
-
-step "4. Artifact Registry"
+step "3. Artifact Registry"
 gcloud artifacts repositories describe "$REPO" --location="$REGION" >/dev/null 2>&1 || \
   gcloud artifacts repositories create "$REPO" --repository-format=docker --location="$REGION" \
     --description="Images de l'API Digital Social Score"
+
+step "4. Droits de Cloud Build (moindre privilège)"
+# Cloud Build utilise le compte de service par défaut de Compute Engine. Il peut écrire des images
+# dans le SEUL dépôt "$REPO" (droit sur le dépôt, pas sur le projet), lire l'archive du code envoyée
+# par gcloud builds submit et écrire ses journaux.
+gcloud artifacts repositories add-iam-policy-binding "$REPO" --location="$REGION" \
+  --member="$SA" --role=roles/artifactregistry.writer >/dev/null
+for ROLE in roles/storage.objectViewer roles/logging.logWriter; do
+  gcloud projects add-iam-policy-binding "$PROJECT" --member="$SA" --role=$ROLE --condition=None -q >/dev/null
+done
 
 step "5. Clé KMS des Secrets du cluster"
 gcloud kms keyrings describe dss-keyring --location "$REGION" >/dev/null 2>&1 || \

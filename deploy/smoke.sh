@@ -4,13 +4,13 @@
 #
 #   bash deploy/smoke.sh            (ou : make smoke)
 #
-# Le HTTPS est vérifié avec le nom du certificat Google ($DOMAIN) ; avec CACERT=tls.crt, on vérifie
+# Le HTTPS est vérifié avec le nom du certificat Google (<IP fixe>.sslip.io) ; avec CACERT=tls.crt, on vérifie
 # l'adresse IP avec le certificat auto-signé à la place.
 source "$(dirname "$0")/lib.sh"
 need curl kubectl
-IP=$(gcloud compute addresses describe dss-ip --global --format="value(address)")
+IP=$(api_ip)
 API_KEY=$(kubectl get secret dss-secrets -o jsonpath='{.data.API_KEY}' | base64 -d)
-if [ -n "${CACERT:-}" ]; then HOST=https://$IP; TLS=(--cacert "$CACERT"); else HOST=https://$DOMAIN; TLS=(); fi
+if [ -n "${CACERT:-}" ]; then HOST=https://$IP; TLS=(--cacert "$CACERT"); else HOST=https://$(api_host); TLS=(); fi
 PY=${PYTHON:-$(command -v python3 || command -v python)}
 
 FAIL=0

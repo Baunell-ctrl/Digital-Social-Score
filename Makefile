@@ -68,8 +68,7 @@ smoke: ## tests rapides de l'API déployée (santé, 401, 422, HTTP et TLS 1.1 r
 	bash deploy/smoke.sh
 
 attack: ## simulation d'attaque complète, environ 5 min (déclenche les alertes)
-	API_KEY=$$(kubectl get secret dss-secrets -o jsonpath='{.data.API_KEY}' | base64 -d) \
-	  $(PYTHON) loadtest/attack.py --host https://$$(sed -n 's/^DOMAIN=\$${DOMAIN:-\([^}]*\)}.*/\1/p' deploy/config.env)
+	PYTHON=$(PYTHON) bash deploy/attack.sh
 
 loadtest: ## tous les tests de charge de l'étape 5, environ 30 min
 	PROJECT=$${PROJECT:-$$(gcloud config get-value project)} bash loadtest/run_gke.sh
