@@ -23,7 +23,7 @@ Chaque étape commence par l'**énoncé du TP** (objectifs pédagogiques et exer
 | Exemples de requêtes et réponses              | étape 3, parties 1 et 5                                                                                       |
 | Schéma d'architecture Cloud + texte explicatif | vue d'ensemble ci-dessous ; étape 7                                                                           |
 | Registre RGPD                                   | étape 1, partie 4 (jeu de données) ; étape 4, partie 6 (API)                                                |
-| Tableau de bord / captures supervision          | étape 6, parties 2 et 3 |
+| Tableau de bord / captures supervision          | étape 6, parties 2 et 4 |
 | Rapport de simulation de charge                 | étape 5                                                                                                       |
 | Grille de tests sécurité / stress / failover  | sécurité : étape 4, partie 7 ; stress et failover : étape 5, parties 3 et 4 ; attaque : étape 6, partie 4 |
 
@@ -106,7 +106,7 @@ Chaque connexion vers l'extérieur est authentifiée et chiffrée. Les seuls poi
 | `make smoke` | `deploy/smoke.sh` | tests rapides et grille de sécurité contre le cluster | étape 3 (12) et étape 4 (7) |
 | `make attack` / `make loadtest` | `deploy/attack.sh`, `loadtest/run_gke.sh` | attaque complète (5 min) / tests de charge (30 min) | étapes 6 et 5 |
 | `make client NAME=...` | `deploy/add_client.sh` | nouveau client avec sa propre clé API, sans coupure | étape 4, partie 1 |
-| `make attack-temoins` | `deploy/attack_temoins.sh` | attaque avec utilisateurs témoins (12 min) | étape 6, partie 4 |
+| `make attack-temoins` | `deploy/attack_temoins.sh` | attaque avec utilisateurs témoins (12 min) | étape 6 |
 | `make destroy` | `deploy/destroy.sh` | supprime tout ce qui est facturé (confirmation demandée) | étape 15 |
 | `make test` / `make api` / `make docker` | – | tests, API en local, image en local | « Lancer le projet » |
 
@@ -1197,9 +1197,9 @@ kubectl get nodes -L topology.kubernetes.io/zone   # zone de chaque nœud
 
 | Question du TP | Partie |
 | -------------- | ------ |
-| Tester la supervision Prometheus/Grafana | 1 et 2 |
-| Observer la stabilité du système en cas de stress | 3 |
-| Simuler panne ou attaque et évaluer la continuité du service | 4 |
+| Tester la supervision Prometheus/Grafana | 1, 2 et 4 |
+| Observer la stabilité du système en cas de stress | 4 |
+| Simuler panne ou attaque et évaluer la continuité du service | 3 et 4 (stress test comme attaque par saturation) |
 | Analyser les logs et les comportements anormaux | 5 |
 
 ### 1. Comment fonctionne la supervision
@@ -1258,83 +1258,81 @@ pods de l'API ──▶ GMP (Google) ──▶ Cloud Monitoring ──▶ Grafan
 | Brute force | plus de 20 échecs d'authentification par minute | 1 min |
 | Extraction du modèle | au moins une réponse 429 sur 5 min | 1 min |
 
-### 3. Observer la stabilité du système en cas de stress
-
-**Test :** montée en charge progressive sur le cluster, le 13/11/2026 entre 15 h 21 et 15 h 25, avec la configuration actuelle (3 à 15 pods, nouveaux pods demandés au-delà de 50 % de CPU).
-
-![Chiffres clés, latence et débit pendant la montée en charge](reports/images/grafana_montee_charge.png)
-
-![CPU par pod et nombre de pods pendant la montée en charge](reports/images/grafana_montee_charge_cpu.png)
-
-**Ce qu'on observe.**
-
-| Heure | Débit | Latence P95 / P99 | Inférence P95 | CPU des pods actifs | Pods qui répondent |
-| ----- | ----- | ----------------- | ------------- | ------------------- | ------------------ |
-| 15 h 21 | moins de 5 req/s | 35 ms / 50 ms | 25 ms | 10 % | 6 (dont 3 en cours d'arrêt, voir plus bas) |
-| 15 h 22 | 15 req/s | 45 ms / 80 ms | 40 ms | 30 à 37 % | 6 |
-| 15 h 23 | 35 req/s | 60 ms / 150 ms | 50 ms | **53 à 60 %** (seuil de 50 % dépassé) | 7 |
-| 15 h 23 min 45 s | 60 req/s | **200 ms / 480 ms** | **170 ms** | 53 à 60 % | 6 |
-| 15 h 25 | 120 req/s | 200 ms / 445 ms | 170 ms | 53 à 60 % | **11** |
-
-Sur toute la durée : **0 % d'erreurs 5xx**.
-
-Relevé sur le cluster juste après le test (`kubectl get hpa`, `kubectl get events`) : le HPA a demandé **15 pods**, 11 ont démarré et **4 sont restés en attente**. Autopilot a tenté de créer de nouvelles machines, et la création a échoué : `Node scale up in zones europe-west9-b […] failed: GCE out of resources`. Aucun pod n'a été redémarré (0 redémarrage, aucun échec de sonde de vie).
-
-**Interprétation.**
-
-- **Le service est resté stable** : aucune erreur, et même au plus fort du test le P95 (200 ms) reste sous le SLO de 300 ms et le P99 (445 à 480 ms) sous le seuil d'alerte de 500 ms.
-- **La latence monte d'un coup vers 15 h 23**, quand le CPU des pods dépasse 50 % : un pod qui reçoit plus de requêtes à la fois partage son processeur entre elles, et chaque requête prend plus de temps.
-- **Le temps perdu est dans le calcul.** La courbe d'inférence suit la latence HTTP à environ 30 ms près : le surplus vient de l'anonymisation et du modèle eux-mêmes, ralentis par le partage du processeur, pas d'une attente avant le traitement.
-- **L'autoscaling a fonctionné.** Le seuil de 50 % est dépassé à 15 h 23, les nouveaux pods arrivent entre 15 h 24 et 15 h 25 (de 6 à 11). Ensuite, le débit double (60 → 120 req/s) mais la latence cesse de monter : les nouveaux pods absorbent la hausse.
-- **La limite vient de Google, pas de l'API.** Les 4 derniers pods n'ont pas pu démarrer parce que Google n'avait plus de machine disponible dans la zone `europe-west9-b`. Le message `in backoff after failed scale-up`, vu à l'étape 5 lors de l'attente de 4 minutes, est de nouveau apparu.
-
-**À savoir pour lire les captures.**
-
-- Au début, le panneau « Pods qui répondent » indique 6 : l'API venait d'être redéployée à 15 h 17, et les 3 pods de la version précédente apparaissent encore quelques minutes, à 0 % de CPU, le temps d'être arrêtés.
-- Le CPU évolue par paliers d'une minute : Cloud Monitoring mesure le CPU une fois par minute.
-- Le CPU des pods ajoutés après 15 h 24 n'apparaît pas encore sur la capture.
-
-### 4. Simuler panne ou attaque et évaluer la continuité du service
-
-#### 4.1 Dispositifs de sécurité en place
+### 3. Dispositifs de sécurité en place
 
 Une requête traverse ces barrières dans l'ordre ; si l'une la refuse, le modèle n'est jamais appelé.
 
-| Ordre | Dispositif | Réponse si refusé | Où |
-| ----- | ---------- | ----------------- | -- |
-| 1 | HTTPS uniquement, TLS 1.2 minimum, aucun port 80 | connexion refusée | `k8s/ingress.yaml`, `k8s/frontendconfig.yaml` |
-| 2 | taille de requête limitée à 32 Ko | 413 | `BodySizeLimitMiddleware`, `src/api/main.py` |
-| 3 | clé API par client, comparée en temps constant | 401 + log `auth_failed` | `authenticate()` |
-| 4 | 600 requêtes par minute et par client, sur chaque pod | 429 + log `rate_limited` | `rate_limit()` |
-| 5 | texte de 1 à 5 000 caractères, modèle `lstm` ou `laya` | 422 | `ScoreRequest` |
-| 6 | logs pseudonymes : HMAC du texte et de l'IP, jamais le texte, la clé ou l'IP | – | `pseudonym()`, `client_ip()` |
+| Ordre | Dispositif | Réponse si refusé |
+| ----- | ---------- | ----------------- |
+| 1 | HTTPS uniquement, TLS 1.2 minimum | connexion refusée |
+| 2 | taille de requête limitée à 32 Ko | 413 |
+| 3 | clé API par client | 401 + log `auth_failed` |
+| 4 | 600 requêtes par minute et par client, sur chaque pod | 429 + log `rate_limited` |
+| 5 | texte de 1 à 5 000 caractères | 422 |
+| 6 | logs pseudonymes (HMAC), jamais le texte, la clé ou l'IP | – |
 
-S'y ajoutent : en-têtes de sécurité HTTP, `/metrics` protégé par une clé, pods non root sans privilèges ni IP publique, secrets dans Secret Manager, redondance (3 à 15 pods, deux zones, `PodDisruptionBudget`), et les alertes de la partie 2.
+S'y ajoutent la redondance (3 à 15 pods sur deux zones, autoscaling) et les alertes de la partie 2. Détail : étape 4.
 
-#### 4.2 Attaques et pannes lancées
+### 4. Simuler une attaque et observer le service : stress test
 
-| Attaque ou panne | Pourquoi | Outil | Où, quand |
-| ---------------- | -------- | ----- | --------- |
-| Appels sans clé, avec une mauvaise clé, sur `/metrics` sans clé | vérifier l'authentification | `loadtest/attack.py`, phase `grille` | GKE, 12/11 |
-| Texte vide, texte trop long, modèle inconnu, requête de 40 Ko | vérifier la validation des entrées | `attack.py`, phase `grille` | GKE, 12/11 |
-| Connexion en HTTP, puis en TLS 1.1 | vérifier le chiffrement | `attack.py`, `openssl` | GKE, 12/11 |
-| Fuzzing : 11 entrées malformées, dont une fausse ligne de log dans le texte | vérifier que l'API ne plante pas et que les logs ne sont pas falsifiables | `attack.py`, phase `fuzzing` | GKE, 12/11 |
-| Flood d'un seul client : une clé, 20 utilisateurs sans pause | vérifier la limite de requêtes | Locust (étape 5) | GKE, 12/11 |
-| Suppression d'un pod, puis de tous les pods, sous 40 utilisateurs | vérifier la continuité en cas de panne | Locust + `kubectl delete pod` (étape 5) | GKE, 12/11 |
+**Pourquoi un stress test.** Envoyer beaucoup plus de requêtes que le service ne peut en traiter, c'est ce que fait une attaque par saturation (déni de service). Le but ici est de vérifier que **le monitoring montre ce qui se passe** : la charge, la latence, le CPU, l'autoscaling, les erreurs.
 
-#### 4.3 Résultats observés
+**Le test.** Les tests de charge de l'étape 5 (`loadtest/run_gke.sh`), rejoués le 13/11/2026 avec la configuration actuelle (3 à 15 pods, nouveaux pods demandés au-delà de 50 % de CPU). La limite de requêtes est levée pendant le test, pour mesurer la capacité réelle.
 
-| Attaque ou panne | Résultat |
-| ---------------- | -------- |
-| Accès sans clé ou avec une mauvaise clé | 401 dans les 3 cas |
-| Entrées invalides | 422 (texte vide, trop long, modèle inconnu), 413 (40 Ko) |
-| HTTP et TLS 1.1 | refusés |
-| Fuzzing | 422 ou 400, jamais de plantage ; le seul 5xx est un 503 attendu (LAYA n'est pas dans l'image). La fausse ligne de log n'apparaît pas dans les logs : le texte n'est jamais écrit (test automatique `test_audit_log_has_no_secret`) |
-| Flood d'un client | 5 566 réponses 429 ; environ 6 300 requêtes acceptées par minute au lieu de 600, car la limite est comptée sur chaque pod (10 pods × 600) |
-| Panne d'un pod | 0 erreur, pod remplacé en 16 s |
-| Panne de tous les pods | 13 s de coupure (751 erreurs 502), service complet après 40 s |
+| Phase | Heure | Charge envoyée |
+| ----- | ----- | -------------- |
+| 1. Montée progressive | 15 h 21 → 15 h 28 environ | 5 → 20 → 50 → 100 utilisateurs |
+| 2. Stress test | 15 h 28 → 15 h 35 environ | 20 → 60 → 120 → 200 → 300 utilisateurs |
 
-Rapport : `reports/attack/attack_20261112_1505.json`. Le test d'attaque avec utilisateurs témoins (`make attack-temoins`) sera ajouté ici avec ses résultats.
+#### 4.1 Phase 1 : montée progressive
+
+![Montée progressive : chiffres clés, latence et débit](reports/images/grafana_montee_charge.png)
+
+![Montée progressive : CPU par pod et nombre de pods](reports/images/grafana_montee_charge_cpu.png)
+
+**Ce qu'on observe** (15 h 21 → 15 h 25) :
+
+- Le débit monte régulièrement de 0 à 120 req/s, sans aucune erreur 5xx.
+- Jusqu'à 15 h 23, la latence reste basse : P95 de 35 à 60 ms, temps d'inférence de 25 à 50 ms.
+- Vers 15 h 23, le CPU des pods dépasse 50 % ; la latence monte alors à un P95 de 200 ms et un P99 de 480 ms, et le temps d'inférence à 170 ms.
+- Le nombre de pods passe de 6 à 11 entre 15 h 24 et 15 h 25. Ensuite, la latence cesse de monter alors que le débit continue d'augmenter.
+
+#### 4.2 Phase 2 : stress test
+
+![Stress test : chiffres clés, latence et débit sur 30 minutes](reports/images/grafana_stress.png)
+
+![Stress test : CPU par pod et nombre de pods sur 30 minutes](reports/images/grafana_stress_cpu.png)
+
+Les deux captures couvrent les deux phases : le premier pic de débit (vers 15 h 27) est la fin de la montée progressive, le second (vers 15 h 33) le stress test.
+
+**Ce qu'on observe :**
+
+| | Fin de la montée progressive (15 h 27) | Pic du stress test (15 h 33 – 15 h 34) |
+| - | -------------------------------------- | -------------------------------------- |
+| Débit | environ 210 req/s | **environ 335 req/s** |
+| Latence P95 | environ 200 ms | **environ 2 s** |
+| Latence P99 | environ 450 ms | **environ 3,4 s** |
+| Temps d'inférence (P95) | environ 200 ms | environ 850 ms |
+| CPU des pods | 55 à 115 % de la demande | 85 à 160 % de la demande |
+| Pods | 11 | **15** (le maximum) |
+| Erreurs 5xx | 0 % | **0 %** |
+
+Après le stress test (15 h 35), la latence retombe immédiatement à son niveau de départ (P95 d'environ 40 ms, P99 d'environ 50 ms, inférence d'environ 25 ms).
+
+#### 4.3 Ce que montre le monitoring
+
+- **Le monitoring fonctionne** : chaque phase du test est visible sur le tableau de bord, avec la charge, la latence, le CPU et le nombre de pods, à 30 secondes près.
+- **Le service a tenu la saturation** : aucune erreur 5xx pendant tout le test. Il a ralenti (P95 de 2 s au pic) mais a répondu à toutes les requêtes.
+- **L'autoscaling a réagi** : 3 pods au départ, 11 pendant la montée progressive, 15 (le maximum) pendant le stress test.
+- **La lenteur vient du calcul** : le temps d'inférence monte avec la latence HTTP. Quand un pod reçoit plus de requêtes qu'il n'a de processeur, chaque calcul (anonymisation et LSTM) prend plus de temps.
+- **Par rapport à l'étape 5** : le débit maximal passe d'environ 195 req/s (10 pods au maximum) à environ 335 req/s (15 pods au maximum), après les réglages de l'étape 5, partie 7.
+- **Machines Google** : relevé sur le cluster pendant le test, 4 des 15 pods demandés ont attendu une machine, la première création ayant échoué (`GCE out of resources` en zone `europe-west9-b`). Ils ont démarré vers 15 h 30.
+
+**À savoir pour lire les captures.**
+
+- Au début, le panneau « Pods qui répondent » indique 6 au lieu de 3 : l'API venait d'être redéployée à 15 h 17, et les 3 pods de la version précédente sont encore comptés quelques minutes, à 0 % de CPU.
+- Après 15 h 35, ce panneau dépasse 15 (jusqu'à 30), alors que le maximum est de 15 pods : il compte aussi, pendant quelques minutes, des pods qui viennent d'être arrêtés.
+- Le CPU évolue par paliers d'une minute : Cloud Monitoring mesure le CPU une fois par minute.
 
 ### 5. Analyser les logs et les comportements anormaux
 
@@ -1354,7 +1352,7 @@ kubectl get events --sort-by=.lastTimestamp | grep -iE "probe|killing|FailedScal
 | Essais de clés (brute force) | beaucoup de lignes `auth_failed` avec le même `ip_id` ; panneau Sécurité ; alerte Brute force | aucune clé valide n'est en jeu ; la source est identifiable par son `ip_id` |
 | Un client qui envoie trop de requêtes | lignes `rate_limited` pour ce client ; réponses 429 ; alerte Extraction du modèle | révoquer sa clé en la retirant de `API_KEYS` (étape 4, partie 1) |
 | Fausse ligne de log glissée dans un texte | absente des logs : le texte n'est jamais écrit, seul son HMAC l'est | aucune |
-| Saturation ou manque de machines | latence en hausse, CPU au-dessus de 50 %, pods `Pending`, événements `FailedScaleUp` (partie 3) | vérifier le HPA (`kubectl get hpa dss-api`) |
+| Saturation ou manque de machines | latence en hausse, CPU au-dessus de 50 %, pods `Pending`, événements `FailedScaleUp` (partie 4) | vérifier le HPA (`kubectl get hpa dss-api`) |
 
 Ni le texte, ni la clé essayée, ni l'IP en clair n'apparaissent dans les logs de l'API.
 
