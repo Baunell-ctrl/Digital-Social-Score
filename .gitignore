@@ -9,9 +9,9 @@ venv/
 # Poids des modèles entraînés (trop lourds pour git)
 /models/
 
-# Fichiers de déploiement locaux (non versionnés).
-# Le Dockerfile reste versionné : Cloud Build le lit pour construire l'image (déploiement GKE).
-deploy/
+# Réglages personnels d'éditeur
+.vscode/
+.idea/
 
 # Fichiers macOS
 .DS_Store

@@ -1,34 +1,24 @@
 #!/usr/bin/env bash
 # Étape 6 : supervision de l'API sur GKE avec Managed Service for Prometheus (GMP), Grafana et
-# Cloud Monitoring. À lancer dans Cloud Shell, à la racine du dépôt, avec kubectl déjà configuré
-# sur dss-cluster (étape 3, partie 4 du README).
+# Cloud Monitoring. À lancer après deploy/deploy.sh, avec kubectl configuré sur le cluster.
 #
-#   PROJECT=<id du projet> EMAIL=<adresse des alertes> ./monitoring/setup_gke.sh
+#   EMAIL=<adresse des alertes> bash deploy/monitoring.sh      (ou : make monitoring EMAIL=...)
 #
 # Après un redémarrage du pod Grafana (sa base est perdue), seules les étapes 1 à 3 sont utiles :
-#   PROJECT=<id du projet> ALERTS=0 ./monitoring/setup_gke.sh     (EMAIL n'est alors pas nécessaire)
+#   ALERTS=0 bash deploy/monitoring.sh                         (ou : make grafana-reset)
 #
+# Le projet est lu dans deploy/config.env (ou le projet actif de gcloud).
 # Le script peut être relancé : chaque étape vérifie ce qui existe déjà.
 #   1. clé de collecte "prometheus" (Secret Manager -> Secret Kubernetes, ajoutée à API_KEYS)
 #   2. collecte GMP : PodMonitoring + droit de lire ce seul Secret
-#   3. Grafana dans le cluster (sans accès public) + datasource-syncer (Workload Identity)
+#   3. Grafana dans le cluster + datasource-syncer (Workload Identity) + compte lecteur
 #   4. métrique basée sur les logs (auth_failed) + canal email + 7 règles d'alerte en PromQL
-set -euo pipefail
-cd "$(dirname "$0")/.."
-
-PROJECT=${PROJECT:?définir PROJECT}
-EMAIL=${EMAIL:-}
+source "$(dirname "$0")/lib.sh"
+need kubectl curl python3
 ALERTS=${ALERTS:-1}
-[ "$ALERTS" = 0 ] || : "${EMAIL:?définir EMAIL (adresse qui reçoit les alertes), ou ALERTS=0 pour passer les alertes}"
-export CLOUDSDK_CORE_PROJECT=$PROJECT
-NUM=$(gcloud projects describe "$PROJECT" --format="value(projectNumber)")
-step() { echo; echo "=== $1"; }
-secret_value() {  # secret_value <nom> : valeur d'un secret Secret Manager, créé avec 32 octets aléatoires s'il n'existe pas
-  if ! gcloud secrets describe "$1" >/dev/null 2>&1; then
-    python3 -c "import secrets; print(secrets.token_urlsafe(32), end='')" | gcloud secrets create "$1" --data-file=- >/dev/null
-  fi
-  gcloud secrets versions access latest --secret="$1"
-}
+[ "$ALERTS" = 0 ] || [ -n "$EMAIL" ] || die "définir EMAIL (adresse qui reçoit les alertes), ou ALERTS=0 pour passer les alertes"
+NUM=$(num)
+TMP=$(mktemp -d)
 
 # --------------------------------------------------------------------------------------------- 1
 step "1. Clé de collecte Prometheus"
@@ -80,12 +70,12 @@ POD=$(kubectl get pods -l app=grafana -o jsonpath='{.items[0].metadata.name}')
 kubectl wait --for=condition=ready "pod/$POD" --timeout=3m
 
 # Source de données "gmp" et jeton du synchroniseur, par l'API de Grafana (via un port-forward local).
-kubectl port-forward "pod/$POD" 3300:3000 >/tmp/dss-grafana-pf.log 2>&1 &
+kubectl port-forward "pod/$POD" 3300:3000 >"$TMP/pf.log" 2>&1 &
 PF=$!
-trap 'kill $PF 2>/dev/null || true' EXIT
+trap 'kill $PF 2>/dev/null || true; rm -rf "$TMP"' EXIT
 for i in $(seq 60); do
   curl -sf http://localhost:3300/grafana/api/health >/dev/null && break
-  [ "$i" -eq 60 ] && { echo "Grafana ne répond pas :"; cat /tmp/dss-grafana-pf.log; exit 1; }
+  [ "$i" -eq 60 ] && { echo "Grafana ne répond pas :"; cat "$TMP/pf.log"; exit 1; }
   sleep 1
 done
 # --fail-with-body : en cas d'erreur, Grafana explique pourquoi au lieu d'une réponse vide
@@ -107,7 +97,7 @@ kubectl create secret generic grafana-syncer --from-literal=token="$TOKEN" --fro
 
 # Compte "lecteur" (lecture seule) pour le bouton Monitoring de la page web ; la base de Grafana
 # est perdue à chaque redémarrage du pod, il faut donc le recréer ici (le script peut être relancé).
-./monitoring/create_viewer.sh
+bash deploy/create_viewer.sh
 
 # Première synchronisation tout de suite, sans attendre le CronJob.
 kubectl delete job datasource-syncer-now --ignore-not-found
@@ -134,8 +124,8 @@ for f in monitoring/alerts/*.yaml; do
   if [ -n "$(gcloud alpha monitoring policies list --filter="displayName=\"$NAME\"" --format="value(name)" 2>/dev/null)" ]; then
     echo "déjà créée : $NAME"; continue
   fi
-  sed "s|^notificationChannels: \[\].*|notificationChannels: [\"$CHANNEL\"]|" "$f" > /tmp/dss-policy.yaml
-  if gcloud alpha monitoring policies create --policy-from-file=/tmp/dss-policy.yaml >/dev/null; then
+  sed "s|^notificationChannels: \[\].*|notificationChannels: [\"$CHANNEL\"]|" "$f" > "$TMP/policy.yaml"
+  if gcloud alpha monitoring policies create --policy-from-file="$TMP/policy.yaml" >/dev/null; then
     echo "créée : $NAME"
   else
     FAILED+=("$NAME")
@@ -148,7 +138,7 @@ fi
 
 step "Terminé"
 cat <<EOF
-Grafana   : https://34-54-213-190.sslip.io/grafana/  (compte "lecteur", mot de passe :
+Grafana   : https://$DOMAIN/grafana/  (compte "lecteur", mot de passe :
             gcloud secrets versions access latest --secret=grafana-viewer-password)
             administrateur : kubectl port-forward svc/grafana 3000:3000   puis http://localhost:3000/grafana/
             utilisateur admin, mot de passe : gcloud secrets versions access latest --secret=grafana-admin-password

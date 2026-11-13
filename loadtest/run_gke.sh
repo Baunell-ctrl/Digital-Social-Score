@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Étape 5 : tous les tests de charge sur le cluster GKE, à la suite (environ 30 minutes).
 #
-#   PROJECT=<id du projet> ./loadtest/run_gke.sh
+#   PROJECT=<id du projet> ./loadtest/run_gke.sh      (ou : make loadtest)
 #
 # Prérequis : gcloud connecté, kubectl configuré sur dss-cluster, locust installé
 # (pip install -r requirements-loadtest.txt). Sorties : reports/loadtest/gke_*.
