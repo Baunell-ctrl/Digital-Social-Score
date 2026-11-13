@@ -12,7 +12,7 @@ export TAG EMAIL PROJECT
 
 .DEFAULT_GOAL := help
 .PHONY: help test api docker bootstrap cluster build deploy diff rollback monitoring grafana-reset \
-        grafana smoke attack loadtest status logs destroy
+        grafana smoke attack attack-temoins client loadtest status logs destroy
 
 help: ## liste des cibles
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'
@@ -69,6 +69,12 @@ smoke: ## tests rapides de l'API déployée (santé, 401, 422, HTTP et TLS 1.1 r
 
 attack: ## simulation d'attaque complète, environ 5 min (déclenche les alertes)
 	PYTHON=$(PYTHON) bash deploy/attack.sh
+
+attack-temoins: ## attaque avec 10 utilisateurs témoins, 12 min (étape 6, partie 4.4 ; après make client NAME=temoins)
+	PYTHON=$(PYTHON) bash deploy/attack_temoins.sh
+
+client: ## ajoute un client et sa clé API (NAME=...), redémarrage sans coupure
+	bash deploy/add_client.sh $(NAME)
 
 loadtest: ## tous les tests de charge de l'étape 5, environ 30 min
 	PROJECT=$${PROJECT:-$$(gcloud config get-value project)} bash loadtest/run_gke.sh

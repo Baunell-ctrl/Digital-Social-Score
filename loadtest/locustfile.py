@@ -8,6 +8,8 @@ Un seul fichier, plusieurs scénarios choisis avec la variable SCENARIO :
     constant   charge fixe (CONSTANT_USERS, 40 par défaut) : sert au test de panne (failover)
     ratelimit  une seule clé, RATELIMIT_USERS utilisateurs sans pause (5 par défaut) : au-delà de 600 requêtes/minute
                sur un pod, la limite doit répondre 429 (le compteur est par pod : prévoir plus d'utilisateurs avec 10 pods)
+    temoins    10 utilisateurs normaux, un message toutes les 5 s, pendant TEMOINS_S secondes (720 par défaut) :
+               mesurent l'effet d'une attaque sur les autres clients (étape 6, partie 4.4 ; clé API dédiée)
 
 Exemple (API lancée avec API_KEY=test) :
 
@@ -52,13 +54,15 @@ STAGES = {
     "stress": [(60, 20, 5), (120, 60, 5), (180, 120, 10), (240, 200, 10), (300, 300, 10), (360, 300, 10)],
     "constant": [(240, int(os.environ.get("CONSTANT_USERS", "40")), 5)],
     "ratelimit": [(90, int(os.environ.get("RATELIMIT_USERS", "5")), 20)],
+    "temoins": [(int(os.environ.get("TEMOINS_S", "720")), 10, 10)],
 }
 
 
 class ApiUser(HttpUser):
     # Un utilisateur réel lit le résultat avant d'envoyer le texte suivant.
     # Le test de limite (ratelimit) enchaîne en revanche les requêtes sans pause.
-    wait_time = constant(0.05) if SCENARIO == "ratelimit" else between(0.2, 0.6)
+    # Les témoins (temoins) envoient un message toutes les 5 s, comme une personne qui modère.
+    wait_time = {"ratelimit": constant(0.05), "temoins": constant(5)}.get(SCENARIO, between(0.2, 0.6))
 
     def on_start(self):
         self.client.verify = False  # certificat auto-signé du cluster

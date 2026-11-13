@@ -105,6 +105,8 @@ Chaque connexion vers l'extérieur est authentifiée et chiffrée. Les seuls poi
 | `make status` | `deploy/status.sh` | image, pods, HPA, Ingress, certificat, collecte (lecture seule) | – |
 | `make smoke` | `deploy/smoke.sh` | tests rapides et grille de sécurité contre le cluster | étape 3 (12) et étape 4 (7) |
 | `make attack` / `make loadtest` | `deploy/attack.sh`, `loadtest/run_gke.sh` | attaque complète (5 min) / tests de charge (30 min) | étapes 6 et 5 |
+| `make client NAME=...` | `deploy/add_client.sh` | nouveau client avec sa propre clé API, sans coupure | étape 4, partie 1 |
+| `make attack-temoins` | `deploy/attack_temoins.sh` | attaque avec utilisateurs témoins (12 min) | étape 6, partie 4.4 |
 | `make destroy` | `deploy/destroy.sh` | supprime tout ce qui est facturé (confirmation demandée) | étape 15 |
 | `make test` / `make api` / `make docker` | – | tests, API en local, image en local | « Lancer le projet » |
 
@@ -1448,7 +1450,7 @@ gcloud secrets versions access latest --secret=grafana-admin-password   # utilis
 
 La part des textes toxiques (dérive du modèle, cours n°1) n'est plus affichée, pour garder un tableau de bord lisible. La métrique `dss_toxicity_score` est toujours exposée par l'API et reste interrogeable dans Metrics Explorer.
 
-*Pour charger le nouveau tableau de bord* (il vient d'une ConfigMap, lue au démarrage de Grafana) : `PROJECT=$PROJECT ALERTS=0 ./monitoring/setup_gke.sh`. Le script redémarre Grafana et recrée la source de données et le compte `lecteur`.
+*Pour charger le nouveau tableau de bord* (il vient d'une ConfigMap, lue au démarrage de Grafana) : `make grafana-reset` (ou `ALERTS=0 bash deploy/monitoring.sh`). Le script redémarre Grafana et recrée la source de données et le compte `lecteur`.
 
 **Stress test pour remplir le tableau de bord.** Le but est de produire des captures où l'on voit, dans l'ordre, la charge monter, le CPU saturer, l'autoscaling réagir et la latence se dégrader. On rejoue le scénario `stress` de l'étape 5 (20 → 60 → 120 → 200 → 300 utilisateurs, 6 minutes), cette fois avec les réglages de résilience (3 à 15 pods, seuil 50 %). Il sert aussi de **nouvelle mesure** à comparer à l'étape 5.
 
@@ -1585,6 +1587,16 @@ Rapport de l'attaque sur GKE : `reports/attack/attack_20261112_1505.json` (phase
 
 - **Témoins** : 10 utilisateurs qui envoient chacun un message toutes les 5 s (2 requêtes par seconde en tout), pendant tout le test.
 - **Attaquant** : `attack.py`.
+
+**Lancer le test** (Cloud Shell, limite de requêtes à 600, Grafana ouvert à côté) :
+
+```bash
+pip install -r requirements-loadtest.txt
+make client NAME=temoins     # une fois : clé dédiée aux témoins (Secret Manager -> API_KEYS), sans coupure
+make attack-temoins          # 12 min ; affiche l'heure de chaque phase pour cadrer les captures
+```
+
+Sans `make` : `bash deploy/add_client.sh temoins` puis `bash deploy/attack_temoins.sh`. Résultats des témoins : `reports/attack/temoins_<date>.html` et `_stats_history.csv` (latence minute par minute) ; attaquant : `reports/attack/attack_<date>.json`.
 
 | Période | Témoins | Attaquant |
 | ------- | ------- | --------- |
