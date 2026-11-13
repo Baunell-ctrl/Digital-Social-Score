@@ -1568,7 +1568,7 @@ En local (entraînement et tests) :
 
 ```bash
 python -m venv .venv
-.venv\Scriptsctivate            # Windows (Linux/Mac : source .venv/bin/activate)
+.venv\Scripts\activate            # Windows (Linux/Mac : source .venv/bin/activate)
 pip install torch --index-url https://download.pytorch.org/whl/cu128
 pip install -r requirements.txt
 python -m spacy download en_core_web_sm
