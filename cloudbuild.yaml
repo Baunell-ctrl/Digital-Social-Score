@@ -1,0 +1,105 @@
+# Pipeline CI/CD DevSecOps : lancé par Cloud Build à chaque push sur main (README, TP2 étape 5).
+# Si une étape échoue, les suivantes ne sont pas exécutées : rien n'est publié ni déployé.
+#
+#   1. secrets       gitleaks : aucun mot de passe ni clé dans le code
+#   2. tests         pytest, dont la conformité IA Act (model_card.json, test de biais)
+#   3. securite-code bandit (failles dans le code Python) + pip-audit (failles connues des dépendances)
+#   4. build         image Docker, étiquetée avec les 7 premiers caractères du commit
+#   5. scan-image    Trivy : aucune faille CRITIQUE corrigeable dans l'image
+#   6. push          image envoyée dans Artifact Registry
+#   7. deploy        le Deployment dss-api pointe vers la nouvelle image ; Kubernetes remplace les pods un par un
+#   8. verification  smoke test sur l'API déployée ; s'il échoue, retour automatique à la version précédente
+#
+# Le premier déploiement (secrets, Ingress, HPA...) reste fait à la main avec « make deploy » :
+# ce pipeline ne change que l'image.
+
+substitutions:
+  _REGION: europe-west9
+  _CLUSTER: dss-cluster
+  _REPO: dss
+
+options:
+  logging: CLOUD_LOGGING_ONLY      # obligatoire quand le build tourne avec un compte de service choisi
+timeout: 2400s
+
+steps:
+  # ---------------------------------------------------------------- CI : code et conformité
+  - id: secrets
+    name: zricethezav/gitleaks:v8.21.2
+    args: [detect, --no-git, --source, ., --config, .gitleaks.toml, --redact, --verbose]
+
+  - id: tests
+    name: python:3.12
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        python -m venv /workspace/.ci-venv          # gardé dans /workspace pour l'étape suivante
+        . /workspace/.ci-venv/bin/activate
+        pip install -q --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+        pip install -q --no-cache-dir -r requirements-api.txt pandas scikit-learn pytest
+        python -m spacy download en_core_web_sm
+        python -m pytest tests -v
+
+  - id: securite-code
+    name: python:3.12
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        . /workspace/.ci-venv/bin/activate
+        pip install -q --no-cache-dir bandit pip-audit
+        echo "=== bandit : sévérité moyenne et plus"
+        bandit -r src attack -ll
+        echo "=== pip-audit : dépendances de l'image"
+        pip-audit -r requirements-api.txt --progress-spinner off
+
+  # ---------------------------------------------------------------- image
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        docker build -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA} .
+        docker save -o /workspace/image.tar ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}
+
+  - id: scan-image
+    name: aquasec/trivy:0.57.1
+    args: [image, --input, /workspace/image.tar, --scanners, vuln, --severity, CRITICAL,
+           --ignore-unfixed, --exit-code, '1', --no-progress]
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: [push, "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}"]
+
+  # ---------------------------------------------------------------- CD
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        gcloud container clusters get-credentials ${_CLUSTER} --region ${_REGION} --project ${PROJECT_ID}
+        kubectl set image deployment/dss-api api=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}
+        kubectl rollout status deployment/dss-api --timeout=10m
+
+  - id: verification
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        gcloud container clusters get-credentials ${_CLUSTER} --region ${_REGION} --project ${PROJECT_ID}
+        # GRID=0 : la grille de sécurité complète (loadtest/attack.py) demande le module Python « requests »
+        # et reste lancée à la main (make smoke).
+        if ! PROJECT=${PROJECT_ID} REGION=${_REGION} GRID=0 bash deploy/smoke.sh; then
+          echo "Smoke test en échec : retour à la version précédente"
+          kubectl rollout undo deployment/dss-api
+          kubectl rollout status deployment/dss-api --timeout=10m
+          exit 1
+        fi

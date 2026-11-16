@@ -1,7 +1,7 @@
 # Grafana dans le cluster, branché sur Managed Service for Prometheus (GMP).
 #
 # GMP stocke les métriques mais ne fournit pas Grafana : on l'héberge ici, dans un seul pod.
-# - Accès public sur https://34-54-213-190.sslip.io/grafana/ par l'Ingress (k8s/ingress.yaml), avec
+# - Accès public sur http://34-54-213-190/grafana/ par l'Ingress (k8s/ingress.yaml), avec
 #   page de connexion : compte "lecteur" en lecture seule (deploy/create_viewer.sh) ; le compte
 #   admin n'est jamais partagé. Accès administrateur possible aussi par
 #     kubectl port-forward svc/grafana 3000:3000   puis http://localhost:3000/grafana/
@@ -67,11 +67,11 @@ spec:
             - name: GF_USERS_ALLOW_SIGN_UP
               value: "false"
             - name: GF_SERVER_ROOT_URL                  # servi sous /grafana/ derrière l'Ingress
-              value: "https://34-54-213-190.sslip.io/grafana/"
+              value: "http://34-54-213-190/grafana/"
             - name: GF_SERVER_SERVE_FROM_SUB_PATH
               value: "true"
-            - name: GF_SECURITY_COOKIE_SECURE           # cookie de session envoyé en HTTPS seulement
-              value: "true"
+            - name: GF_SECURITY_COOKIE_SECURE           # pas de HTTPS dans ce TP : un cookie Secure ne serait jamais envoyé
+              value: "false"
             - name: GF_SECURITY_DISABLE_GRAVATAR        # pas d'appel à un service tiers
               value: "true"
             - name: GF_ANALYTICS_REPORTING_ENABLED     # pas d'envoi de statistiques à Grafana Labs

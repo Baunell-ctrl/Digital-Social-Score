@@ -17,3 +17,7 @@ loadtest/
 .vscode/
 .claude/
 Makefile
+
+# pipeline CI/CD (cloudbuild.yaml) : environnement Python et image exportée pour Trivy
+.ci-venv/
+image.tar

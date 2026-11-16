@@ -42,7 +42,7 @@ echo "timestamp,event" > "$OUT/gke_events.csv"
 
 run() {  # run <scénario>
   events "debut $1"
-  SCENARIO=$1 $LOCUST -f loadtest/locustfile.py --headless --host "https://$IP" \
+  SCENARIO=$1 $LOCUST -f loadtest/locustfile.py --headless --host "http://$IP" \
     --csv "$OUT/gke_$1" --csv-full-history --html "$OUT/gke_$1.html" --loglevel WARNING || true
   events "fin $1"
 }
@@ -60,7 +60,7 @@ run stress
 
 # --- failover : 40 utilisateurs constants pendant 4 minutes ---
 events "debut constant"
-SCENARIO=constant $LOCUST -f loadtest/locustfile.py --headless --host "https://$IP" \
+SCENARIO=constant $LOCUST -f loadtest/locustfile.py --headless --host "http://$IP" \
   --csv "$OUT/gke_failover" --csv-full-history --html "$OUT/gke_failover.html" --loglevel WARNING &
 LPID=$!
 sleep 60

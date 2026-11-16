@@ -10,7 +10,7 @@
 source "$(dirname "$0")/lib.sh"
 need kubectl
 
-echo "Projet $PROJECT : suppression du cluster $CLUSTER, de l'IP dss-ip, de la politique dss-tls12,"
+echo "Projet $PROJECT : suppression du cluster $CLUSTER, de l'IP dss-ip,"
 echo "des règles d'alerte DSS et des versions de la clé KMS dss-secrets-key."
 confirm "$CLUSTER" "Action irréversible."
 
@@ -22,9 +22,8 @@ if gcloud container clusters describe "$CLUSTER" --region "$REGION" >/dev/null 2
   gcloud container clusters delete "$CLUSTER" --region "$REGION" -q
 fi
 
-step "3. IP fixe et politique TLS"
+step "3. IP fixe"
 gcloud compute addresses delete dss-ip --global -q 2>/dev/null || true
-gcloud compute ssl-policies delete dss-tls12 -q 2>/dev/null || true
 
 step "4. Règles d'alerte"
 for f in monitoring/alerts/*.yaml; do

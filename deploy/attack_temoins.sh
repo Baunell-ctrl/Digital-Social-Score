@@ -19,7 +19,7 @@ need kubectl
 PY=${PYTHON:-python3}
 LOCUST=${LOCUST:-locust}
 command -v "$LOCUST" >/dev/null || die "locust introuvable : pip install -r requirements-loadtest.txt"
-HOST=https://$(api_host)
+HOST=http://$(api_ip)
 API_KEY=$(kubectl get secret dss-secrets -o jsonpath='{.data.API_KEY}' | base64 -d)
 gcloud secrets describe dss-client-temoins-key >/dev/null 2>&1 || die "client temoins absent : make client NAME=temoins"
 TEMOINS_KEY=$(gcloud secrets versions access latest --secret=dss-client-temoins-key)

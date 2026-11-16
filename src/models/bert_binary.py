@@ -43,8 +43,9 @@ def main():
     print(f"device={device} train={len(train)} dev={len(dev)} test propre={len(test)} test complet={len(test_full)}",
           flush=True)
 
-    tok = AutoTokenizer.from_pretrained(NAME)
-    model = AutoModelForSequenceClassification.from_pretrained(NAME, num_labels=1).to(device)
+    # Alerte bandit B615 acceptée : entraînement local uniquement, BERT n'est pas déployé.
+    tok = AutoTokenizer.from_pretrained(NAME)  # nosec B615
+    model = AutoModelForSequenceClassification.from_pretrained(NAME, num_labels=1).to(device)  # nosec B615
     opt = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=0.01)
     loss_fn = nn.BCEWithLogitsLoss()
     texts, labels = train["comment_text"].tolist(), train["label"].values.astype("float32")
@@ -82,7 +83,7 @@ def main():
         if device == "mps":
             torch.mps.empty_cache()
 
-    model.load_state_dict(torch.load(ckpt, map_location=device))
+    model.load_state_dict(torch.load(ckpt, map_location=device, weights_only=True))
     t = time.time()
     p_test = predict(model, tok, test["comment_text"].tolist(), device)
     ms = 1000 * (time.time() - t) / len(test)

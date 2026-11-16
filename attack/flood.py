@@ -4,8 +4,8 @@ Envoie des requêtes VALIDES mais coûteuses à traiter (voir attack/payloads.py
 parallèle, et mesure l'effet sur la disponibilité : débit, codes de réponse, latence, temps
 d'inférence serveur. Une vue se rafraîchit chaque seconde pour voir le profil de l'attaque en direct.
 
-    python attack/flood.py --ip 34.54.213.190 --key MA_CLE --workers 200 --duration 120 --insecure
-    python attack/flood.py --host https://34-54-213-190.sslip.io --key MA_CLE --workers 200 --duration 120
+    python attack/flood.py --host http://34.54.213.190 --key MA_CLE --workers 200 --duration 120
+    python attack/flood.py --ip 34.54.213.190 --key MA_CLE --workers 200 --duration 120 --insecure   # cible HTTPS à certificat non reconnu
 
 Cible : uniquement VOTRE propre déploiement, que vous êtes autorisé à tester. Le script affiche la
 cible et demande une confirmation avant de commencer (--yes pour la passer).
@@ -147,7 +147,7 @@ def main() -> None:
     ap.add_argument("--duration", type=int, default=120, help="duree en secondes (defaut 120)")
     ap.add_argument("--profile", default="mixed", choices=["names", "emoji", "mixed"], help="type de charge pire-cas")
     ap.add_argument("--timeout", type=float, default=30, help="delai max par requete en secondes (defaut 30)")
-    ap.add_argument("--insecure", action="store_true", help="accepte le certificat auto-signe (cible en https://<ip>)")
+    ap.add_argument("--insecure", action="store_true", help="ignore les erreurs de certificat (cible en https://<ip> dont le certificat n'est pas reconnu)")
     ap.add_argument("--quiet", action="store_true", help="pas de tableau en direct")
     ap.add_argument("--label", default="", help="etiquette ecrite dans le rapport (ex. sans-defense)")
     ap.add_argument("--yes", action="store_true", help="ne pas demander de confirmation")

@@ -1,0 +1,76 @@
+{
+  "model_name": "Digital Social Score v2",
+  "description": "Détection de propos toxiques dans un texte (anglais) : score de 0 à 100, probabilité que le texte soit inapproprié (injure, menace, obscénité, haine). Aide à la modération : le score ne doit pas déclencher seul une sanction contre une personne.",
+  "version": "2.1",
+  "last_update": "2026-11-16",
+  "risk_level": "minimal",
+  "risk_justification": "Règlement (UE) 2024/1689 (IA Act). Pas une pratique interdite (art. 5) : le score porte sur un texte, pas sur une personne, et n'est pas cumulé dans le temps pour noter les individus (notation sociale). Pas un système à haut risque : la modération de contenus ne figure pas à l'annexe III et le modèle n'est pas un composant de sécurité d'un produit (annexe I). Pas d'obligation de transparence de l'art. 50 (ni chatbot, ni contenu généré, ni reconnaissance d'émotions). Le niveau passerait à haut risque si le score servait à recruter, évaluer ou surveiller des salariés (annexe III, 4) ou des élèves (annexe III, 3), et deviendrait interdit s'il servait à noter des personnes (art. 5, 1, c).",
+  "intended_use": {
+    "usage_prevu": "Aide à la modération de commentaires en ligne, avec relecture humaine des contenus signalés.",
+    "usages_exclus": [
+      "décision automatique de sanction ou de bannissement sans relecture humaine",
+      "notation ou profilage de personnes à partir de l'historique de leurs messages",
+      "recrutement, évaluation de salariés ou d'élèves",
+      "textes dans une autre langue que l'anglais"
+    ],
+    "deployeur": "client qui intègre l'API à sa plateforme (clé API par client)"
+  },
+  "model": {
+    "type": "BiLSTM binaire (embedding 128, BiLSTM 2 x 128, max-pooling, sortie sigmoïde)",
+    "fichiers": ["artifacts/lstm.pt", "artifacts/vocab.json", "artifacts/config.json"],
+    "seuil_decision": 0.5,
+    "longueur_max_mots": 128,
+    "vocabulaire": 30000,
+    "poids_mo": 16,
+    "entrainement": "src/models/lstm_binary.py",
+    "date_poids": "2026-11-10"
+  },
+  "data_source": {
+    "jeu": "Jigsaw Toxic Comment Classification Challenge (Kaggle), commentaires de pages de discussion Wikipédia, en anglais",
+    "url": "https://www.kaggle.com/competitions/jigsaw-toxic-comment-classification-challenge",
+    "etiquette": "1 si au moins une des 6 colonnes (toxic, severe_toxic, obscene, threat, insult, identity_hate) vaut 1 (règle du OU), sinon 0",
+    "decoupage": {"train": 23364, "dev": 2596, "test": 1308},
+    "part_toxique": 0.50,
+    "preparation": "anonymisation (regex + spaCy en_core_web_sm), puis nettoyage (minuscules, ponctuation, emojis)"
+  },
+  "performance_test": {
+    "precision": 0.894,
+    "rappel": 0.911,
+    "f1": 0.902,
+    "faux_positifs": 69,
+    "commentaires_toxiques_oublies": 57,
+    "jeu": "test, 1 308 commentaires jamais vus à l'entraînement",
+    "source": "reports/results_lstm.json"
+  },
+  "privacy_measures": [
+    "anonymisation du texte avant le modèle (regex + NER spaCy : personnes, lieux, emails, URL, IP, téléphones, pseudos)",
+    "texte jamais stocké ni journalisé (en mémoire le temps de la requête)",
+    "logs pseudonymisés : identifiants HMAC-SHA256 du texte et de l'IP, jamais le texte, la clé ou l'IP en clair",
+    "logs chiffrés au repos par Google Cloud (chiffrement par défaut)",
+    "clés API et clé des logs dans Secret Manager, IAM au moindre privilège",
+    "hébergement en région europe-west9 (Paris)"
+  ],
+  "privacy_limits": [
+    "pas de TLS entre le client et l'API (HTTP simple, choix du TP) : le texte et la clé API circulent en clair",
+    "les nationalités, religions et groupes (NORP) ne sont pas masqués, pour garder le sens des propos haineux"
+  ],
+  "bias_detected": true,
+  "bias_evaluation": {
+    "date": "2026-11-16",
+    "methode": "phrases neutres à trous (Dixon et al., 2018) : 8 phrases, 21 termes d'identité, écart de score avec des termes de référence (tall, young, friendly, local) dans la même phrase",
+    "script": "src/models/bias_check.py",
+    "rapport": "reports/bias_check.json",
+    "groupes_biaises": ["orientation"],
+    "termes_les_plus_penalises": {"gay": 40.2, "homosexual": 39.4, "muslim": 26.1, "straight": 22.2, "black": 21.4},
+    "unite": "points de score ajoutés en moyenne par le seul terme d'identité",
+    "autre_constat": "4 des 8 phrases neutres sont jugées toxiques même avec un terme de référence : le modèle donne des scores élevés à des phrases courtes et neutres"
+  },
+  "limitations": [
+    "biais contre les termes liés à l'orientation sexuelle, et pour certains termes de religion et d'origine",
+    "scores élevés sur des phrases courtes et neutres (faux positifs)",
+    "anglais uniquement, vocabulaire de Wikipédia avant 2018 : dérive possible avec un vocabulaire nouveau",
+    "l'anonymisation peut laisser passer des noms rares"
+  ],
+  "human_oversight": "Le score est une aide à la décision. Le déployeur doit faire relire par un humain tout contenu avant sanction.",
+  "contact": "équipe projet Digital Social Score (TP)"
+}

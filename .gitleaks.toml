@@ -1,0 +1,11 @@
+# Configuration de gitleaks (étape « secrets » de cloudbuild.yaml, TP2 étape 5).
+# Règles par défaut de gitleaks, sauf pour les dossiers qui ne contiennent pas de code :
+# les jeux de données (commentaires Wikipédia) et les rapports produisent des faux positifs.
+title = "Digital Social Score"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "données, rapports, supports de cours, poids du modèle, environnement Python du pipeline"
+paths = ['''(^|/)(data|reports|docs|artifacts|\.ci-venv)/''']

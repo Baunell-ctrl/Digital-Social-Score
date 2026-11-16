@@ -1,5 +1,5 @@
 # Service interne au cluster (ClusterIP) : il n'a PAS d'adresse publique.
-# Le seul accès depuis Internet passe par l'Ingress HTTPS (k8s/ingress.yaml).
+# Le seul accès depuis Internet passe par l'Ingress (k8s/ingress.yaml).
 # - neg : le load balancer Google envoie le trafic directement aux pods (container-native)
 # - backend-config : health check du load balancer sur /health (k8s/backendconfig.yaml)
 apiVersion: v1

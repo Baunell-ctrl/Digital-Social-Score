@@ -120,7 +120,7 @@ def main():
             bad += 1
             if bad >= PATIENCE:
                 break
-    model.load_state_dict(torch.load(ckpt, map_location=device))
+    model.load_state_dict(torch.load(ckpt, map_location=device, weights_only=True))
     results = {"model": "lstm_binary", "label_rule": "OR of 6 columns", "seed": SEED,
                "dev": compute_metrics(dev["label"].values, predict(model, Xdv, device)),
                "test": compute_metrics(test["label"].values, predict(model, Xte, device)),

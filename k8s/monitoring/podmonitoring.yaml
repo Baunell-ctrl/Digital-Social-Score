@@ -19,7 +19,7 @@ spec:
   endpoints:
     - port: 8080
       path: /metrics
-      scheme: http          # trafic interne au cluster, de pod à pod (le HTTPS s'arrête à l'Ingress)
+      scheme: http          # trafic interne au cluster, de pod à pod
       interval: 30s
       timeout: 10s          # un pod saturé qui ne répond pas en 10 s est compté comme « down »
       authorization:

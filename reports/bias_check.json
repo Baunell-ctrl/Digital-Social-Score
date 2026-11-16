@@ -1,0 +1,182 @@
+{
+  "date": "2026-11-16",
+  "modele": "lstm (artifacts/lstm.pt), pipeline de l'API (anonymisation, nettoyage)",
+  "seuil": 50.0,
+  "methode": "phrases neutres a trous, un terme d'identite par phrase (Dixon et al., 2018) ; ecart = score avec le terme - score moyen des termes de reference dans la meme phrase",
+  "phrases": [
+    "I am a {} person.",
+    "My neighbor is {}.",
+    "I had lunch with a {} colleague today.",
+    "The {} community organized a charity event.",
+    "Being {} is perfectly normal.",
+    "She is a {} teacher at the local school.",
+    "We welcomed a {} family into our street.",
+    "He wrote an article about {} history."
+  ],
+  "phrases_toxiques_sans_terme_sensible": [
+    "I am a {} person.",
+    "My neighbor is {}.",
+    "The {} community organized a charity event.",
+    "Being {} is perfectly normal."
+  ],
+  "ecart_tolere_points": 10.0,
+  "groupes": {
+    "référence": {
+      "ecart_moyen": -0.0,
+      "bascules": 3,
+      "phrases": 16
+    },
+    "religion": {
+      "ecart_moyen": 4.9,
+      "bascules": 5,
+      "phrases": 16
+    },
+    "origine": {
+      "ecart_moyen": 1.1,
+      "bascules": 5,
+      "phrases": 20
+    },
+    "orientation": {
+      "ecart_moyen": 20.9,
+      "bascules": 13,
+      "phrases": 20
+    },
+    "genre": {
+      "ecart_moyen": -6.2,
+      "bascules": 2,
+      "phrases": 12
+    }
+  },
+  "termes": {
+    "tall": {
+      "groupe": "référence",
+      "score_moyen": 47.3,
+      "ecart_moyen": -10.6,
+      "bascules": 0
+    },
+    "young": {
+      "groupe": "référence",
+      "score_moyen": 59.4,
+      "ecart_moyen": 1.4,
+      "bascules": 1
+    },
+    "friendly": {
+      "groupe": "référence",
+      "score_moyen": 56.0,
+      "ecart_moyen": -2.0,
+      "bascules": 0
+    },
+    "local": {
+      "groupe": "référence",
+      "score_moyen": 69.2,
+      "ecart_moyen": 11.2,
+      "bascules": 2
+    },
+    "muslim": {
+      "groupe": "religion",
+      "score_moyen": 84.1,
+      "ecart_moyen": 26.1,
+      "bascules": 3
+    },
+    "christian": {
+      "groupe": "religion",
+      "score_moyen": 55.0,
+      "ecart_moyen": -3.0,
+      "bascules": 1
+    },
+    "jewish": {
+      "groupe": "religion",
+      "score_moyen": 53.8,
+      "ecart_moyen": -4.2,
+      "bascules": 0
+    },
+    "atheist": {
+      "groupe": "religion",
+      "score_moyen": 58.4,
+      "ecart_moyen": 0.5,
+      "bascules": 1
+    },
+    "black": {
+      "groupe": "origine",
+      "score_moyen": 79.4,
+      "ecart_moyen": 21.4,
+      "bascules": 3
+    },
+    "white": {
+      "groupe": "origine",
+      "score_moyen": 60.6,
+      "ecart_moyen": 2.7,
+      "bascules": 1
+    },
+    "asian": {
+      "groupe": "origine",
+      "score_moyen": 53.6,
+      "ecart_moyen": -4.4,
+      "bascules": 0
+    },
+    "african": {
+      "groupe": "origine",
+      "score_moyen": 41.8,
+      "ecart_moyen": -16.2,
+      "bascules": 0
+    },
+    "mexican": {
+      "groupe": "origine",
+      "score_moyen": 60.0,
+      "ecart_moyen": 2.0,
+      "bascules": 1
+    },
+    "gay": {
+      "groupe": "orientation",
+      "score_moyen": 98.1,
+      "ecart_moyen": 40.2,
+      "bascules": 4
+    },
+    "lesbian": {
+      "groupe": "orientation",
+      "score_moyen": 53.7,
+      "ecart_moyen": -4.3,
+      "bascules": 0
+    },
+    "straight": {
+      "groupe": "orientation",
+      "score_moyen": 80.2,
+      "ecart_moyen": 22.2,
+      "bascules": 3
+    },
+    "homosexual": {
+      "groupe": "orientation",
+      "score_moyen": 97.4,
+      "ecart_moyen": 39.4,
+      "bascules": 4
+    },
+    "heterosexual": {
+      "groupe": "orientation",
+      "score_moyen": 65.0,
+      "ecart_moyen": 7.0,
+      "bascules": 2
+    },
+    "female": {
+      "groupe": "genre",
+      "score_moyen": 49.7,
+      "ecart_moyen": -8.3,
+      "bascules": 0
+    },
+    "male": {
+      "groupe": "genre",
+      "score_moyen": 63.4,
+      "ecart_moyen": 5.4,
+      "bascules": 2
+    },
+    "transgender": {
+      "groupe": "genre",
+      "score_moyen": 42.2,
+      "ecart_moyen": -15.8,
+      "bascules": 0
+    }
+  },
+  "groupes_biaises": [
+    "orientation"
+  ],
+  "biais_detecte": true
+}

@@ -17,9 +17,9 @@ Exemple (API lancée avec API_KEY=test) :
         --host http://localhost:8000 --csv reports/loadtest/ramp --csv-full-history \\
         --html reports/loadtest/ramp.html
 
-Contre le cluster (certificat auto-signé accepté : on mesure la charge, pas le certificat) :
+Contre le cluster (servi en HTTP simple, pas de TLS dans ce TP) :
 
-    SCENARIO=ramp API_KEY=$API_KEY locust -f loadtest/locustfile.py --headless --host https://$IP ...
+    SCENARIO=ramp API_KEY=$API_KEY locust -f loadtest/locustfile.py --headless --host http://$IP ...
 
 La durée du test est fixée par le scénario (LoadTestShape) : pas besoin de --users ni --run-time.
 Toute réponse autre que 200 (401, 429, 5xx, délai dépassé) est comptée comme une erreur.
@@ -65,7 +65,6 @@ class ApiUser(HttpUser):
     wait_time = {"ratelimit": constant(0.05), "temoins": constant(5)}.get(SCENARIO, between(0.2, 0.6))
 
     def on_start(self):
-        self.client.verify = False  # certificat auto-signé du cluster
         self.headers = {"X-API-Key": API_KEY}
 
     @staticmethod

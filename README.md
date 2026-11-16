@@ -2,6 +2,8 @@
 
 Compte rendu du TP « API Digital Social Score : de l'analyse de texte à l'infrastructure Cloud sécurisée, scalable et conforme » (énoncé : `docs/TP1_Digital_Social_Score.pdf`).
 
+Le **TP2** (« de la menace à la défense » : attaque, défense, IA Act, DevSecOps) suit le TP1, dans la partie « TP2 : de la menace à la défense ».
+
 Chaque étape commence par l'**énoncé du TP** (objectifs pédagogiques et exercice), puis répond aux questions de l'exercice, dans l'ordre.
 
 ## Objectif global du TP et réponses
@@ -33,10 +35,10 @@ Chaque étape commence par l'**énoncé du TP** (objectifs pédagogiques et exer
 
 | Quoi                       | Adresse                                       | Identifiant                        |
 | -------------------------- | --------------------------------------------- | ---------------------------------- |
-| Page web (tester un texte) | https://34-54-213-190.sslip.io/               | clé API, à saisir dans la page   |
-| API                        | `POST https://34-54-213-190.sslip.io/score` | en-tête `X-API-Key`             |
-| Documentation de l'API     | https://34-54-213-190.sslip.io/docs           | –                                 |
-| Supervision (Grafana)      | https://34-54-213-190.sslip.io/grafana/       | compte `lecteur` (lecture seule) |
+| Page web (tester un texte) | http://34.54.213.190/               | clé API, à saisir dans la page   |
+| API                        | `POST http://34.54.213.190/score` | en-tête `X-API-Key`             |
+| Documentation de l'API     | http://34.54.213.190/docs           | –                                 |
+| Supervision (Grafana)      | http://34.54.213.190/grafana/       | compte `lecteur` (lecture seule) |
 
 Lire un secret (toujours préciser le projet, sinon gcloud cherche dans le projet par défaut) :
 `gcloud secrets versions access latest --secret=dss-api-key --project=project-1dc38f00-079d-4d45-996; echo`
@@ -44,7 +46,7 @@ Lire un secret (toujours préciser le projet, sinon gcloud cherche dans le proje
 
 ```
                            Internet
-  Navigateur, client ──HTTPS (certificat Google, TLS 1.2+)──▶ Load balancer Google (Ingress, IP fixe)
+  Navigateur, client ──HTTP (en clair, IP fixe, pas de TLS)──▶ Load balancer Google (Ingress, IP fixe)
                                                                  │ "/"                   │ "/grafana"
                                                                  ▼                       ▼
                                                    pods dss-api (API + page)      pod Grafana
@@ -60,17 +62,17 @@ Lire un secret (toujours préciser le projet, sinon gcloud cherche dans le proje
 
 | Connexion                               | Comment                                                                 | Qui s'authentifie, et avec quoi                                                                                                                 | Chiffrement                                                              |
 | --------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Client → load balancer                 | HTTPS sur l'IP fixe, nom `34-54-213-190.sslip.io`                     | la page et `/docs` sont publiques ; `/score` exige la **clé API**                                                                    | TLS 1.2+, certificat **géré par Google** ; port 80 fermé        |
+| Client → load balancer                 | HTTP sur l'IP fixe `34.54.213.190`                     | la page et `/docs` sont publiques ; `/score` exige la **clé API**                                                                    | **aucun** : HTTP en clair, choix assumé pour simplifier les tests de ce TP (voir étape 4, partie 2) — la clé API circule en clair sur le réseau |
 | Load balancer → pods de l'API          | HTTP sur le réseau privé de Google ; les pods n'ont pas d'IP publique | – (seul le load balancer peut les joindre)                                                                                                     | réseau privé Google                                                    |
-| Page web → `/score`                  | la page envoie le texte avec la clé saisie par l'utilisateur           | **clé API** (en-tête `X-API-Key`), gardée dans l'onglet du navigateur                                                                | HTTPS                                                                    |
-| Load balancer → Grafana                | même load balancer, chemin `/grafana`                                | **identifiant Grafana** (compte `lecteur` : voir, rien modifier)                                                                        | HTTPS jusqu'au load balancer                                             |
+| Page web → `/score`                  | la page envoie le texte avec la clé saisie par l'utilisateur           | **clé API** (en-tête `X-API-Key`), gardée dans l'onglet du navigateur                                                                | aucun (HTTP)                                                             |
+| Load balancer → Grafana                | même load balancer, chemin `/grafana`                                | **identifiant Grafana** (compte `lecteur` : voir, rien modifier)                                                                        | aucun (HTTP) jusqu'au load balancer                                      |
 | Prometheus géré (GMP) → `/metrics` | lecture toutes les 30 s, dans le cluster                                | clé API dédiée `prometheus`, lue dans un Secret que seul le collecteur peut lire                                                           | réseau du cluster                                                       |
 | Grafana → Cloud Monitoring             | requêtes PromQL vers l'API de Google                                   | jeton Google renouvelé toutes les 10 min par le `datasource-syncer` (**Workload Identity**, rôle lecture seule `monitoring.viewer`) | HTTPS                                                                    |
 | Pods → Cloud Logging                   | GKE collecte la sortie standard des pods                                | automatique (agent de GKE)                                                                                                                      | HTTPS                                                                    |
 | Secret Manager → pods                  | copie dans des Secrets Kubernetes à l'installation                     | votre compte Google (IAM)                                                                                                                       | Secrets chiffrés par Google (clé KMS du projet : à activer, étape 4) |
 | Cloud Build → Artifact Registry → GKE | construction puis téléchargement de l'image                           | comptes de service, rôles minimaux (IAM, étape 4)                                                                                             | HTTPS                                                                    |
 
-Chaque connexion vers l'extérieur est authentifiée et chiffrée. Les seuls points en clair sont internes à Google (load balancer → pods, collecte des métriques), sur des pods sans adresse publique.
+Les connexions internes à Google restent chiffrées. La connexion client → load balancer est volontairement en **HTTP, non chiffrée** : simplification assumée pour ce TP (les outils de test posaient trop de problèmes de certificats), voir étape 4 partie 2 pour l'analyse du compromis.
 
 ## Arborescence du dépôt et commandes
 
@@ -83,7 +85,10 @@ Chaque connexion vers l'extérieur est authentifiée et chiffrée. Les seuls poi
 | `data/`, `reports/` | jeux de données (brut, anonymisé, nettoyé) ; résultats, rapports de charge et d'attaque, images |
 | `tests/` | tests automatiques (`pytest`) |
 | `Dockerfile`, `requirements-api.txt` | image de l'API |
-| `k8s/` | manifestes Kubernetes : API, Service, Ingress, HTTPS, HPA, PDB ; `k8s/monitoring/` : collecte GMP et Grafana |
+| `cloudbuild.yaml`, `.gitleaks.toml` | pipeline CI/CD DevSecOps de Cloud Build (TP2, étape 5) |
+| `model_card.json` | model card IA Act (TP2, étape 4) ; test de biais : `src/models/bias_check.py` |
+| `attack/` | TP2 : attaque par coût asymétrique (`flood.py`, `payloads.py`) |
+| `k8s/` | manifestes Kubernetes : API, Service, Ingress, HPA, PDB ; `k8s/monitoring/` : collecte GMP et Grafana |
 | `monitoring/` | configuration de la supervision : tableau de bord Grafana (JSON) et 7 règles d'alerte (YAML) |
 | `deploy/` | **scripts de déploiement** sur Google Cloud, réglages dans `deploy/config.env` (aucun secret) |
 | `loadtest/` | tests de charge (Locust, `run_gke.sh`), simulation d'attaque (`attack.py`), graphes (`plot.py`) |
@@ -94,7 +99,7 @@ Chaque connexion vers l'extérieur est authentifiée et chiffrée. Les seuls poi
 
 | Commande | Script | Rôle | Détail dans le README |
 | --- | --- | --- | --- |
-| `make bootstrap` | `deploy/bootstrap.sh` | une fois par projet : APIs, secrets, Artifact Registry, clé KMS, IP fixe, politique TLS | étape 3, partie 4, étapes 3 à 5, 8 et 10 |
+| `make bootstrap` | `deploy/bootstrap.sh` | une fois par projet : APIs, secrets, Artifact Registry, clé KMS, IP fixe | étape 3, partie 4, étapes 3 à 5, 8 et 10 |
 | `make cluster` | `deploy/cluster.sh` | cluster GKE Autopilot, `kubectl`, chiffrement KMS des Secrets | étapes 7 et 8 |
 | `make build TAG=v7` | `deploy/build.sh` | image construite par Cloud Build et poussée dans Artifact Registry | étape 6 |
 | `make diff TAG=v7` | `deploy/deploy.sh` | ce que le déploiement changerait sur le cluster, sans rien appliquer | – |
@@ -102,7 +107,7 @@ Chaque connexion vers l'extérieur est authentifiée et chiffrée. Les seuls poi
 | `make rollback` | – | retour à la version précédente | étape 13 |
 | `make monitoring EMAIL=...` | `deploy/monitoring.sh` | collecte GMP, Grafana, alertes | étape 6, partie 2 |
 | `make grafana-reset` | `deploy/monitoring.sh` | après un redémarrage du pod Grafana | étape 6, partie 2 |
-| `make status` | `deploy/status.sh` | image, pods, HPA, Ingress, certificat, collecte (lecture seule) | – |
+| `make status` | `deploy/status.sh` | image, pods, HPA, Ingress, collecte (lecture seule) | – |
 | `make smoke` | `deploy/smoke.sh` | tests rapides et grille de sécurité contre le cluster | étape 3 (12) et étape 4 (7) |
 | `make attack` / `make loadtest` | `deploy/attack.sh`, `loadtest/run_gke.sh` | attaque complète (5 min) / tests de charge (30 min) | étapes 6 et 5 |
 | `make client NAME=...` | `deploy/add_client.sh` | nouveau client avec sa propre clé API, sans coupure | étape 4, partie 1 |
@@ -413,7 +418,7 @@ curl -X POST http://localhost:8000/score \
 - **Métriques protégées** : `/metrics` demande aussi la clé API, pour ne pas exposer l'activité du service.
 - **Anonymisation avant le modèle** : les données personnelles sont retirées du texte avant même d'arriver au modèle.
 - **Secrets hors du code** : la clé API et la clé des logs sont stockées dans Secret Manager, puis dans un secret Kubernetes.
-- **HTTPS uniquement** : sur GKE, le seul accès public est un Ingress en HTTPS (TLS 1.2 minimum, aucun port 80).
+- **HTTP uniquement (pas de TLS)** : simplification volontaire pour ce TP (les outils de test ont posé trop de problèmes de certificats) ; la clé API circule donc en clair sur le réseau — voir étape 4, partie 2, pour l'analyse du compromis.
 - **Conteneur non root** : l'image Docker et les pods tournent avec un utilisateur sans privilèges.
 
 Le détail des mesures de sécurité et de conformité est dans l'**étape 4**.
@@ -452,7 +457,7 @@ Le modèle est déployé sur **Kubernetes** (GKE, mode **Autopilot**), qui donne
 Les fichiers Kubernetes sont dans `k8s/` :
 
 ```
-Client ──HTTPS (TLS 1.2+, IP fixe)──▶ Load balancer Google (Ingress)
+Client ──HTTP (IP fixe, pas de TLS)──▶ Load balancer Google (Ingress)
        ──réseau privé Google──▶ Service interne (ClusterIP) ──▶ pods dss-api :8080
 ```
 
@@ -460,12 +465,10 @@ Client ──HTTPS (TLS 1.2+, IP fixe)──▶ Load balancer Google (Ingress)
 | --------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `k8s/deployment.yaml`     | pods de l'API, ressources CPU/mémoire, sondes `/health`, secrets, conteneur non root, répartition par zone |
 | `k8s/service.yaml`        | service **interne** au cluster (pas d'IP publique), qui répartit les requêtes entre les pods           |
-| `k8s/ingress.yaml`        | **seul point d'entrée public** : load balancer HTTPS, IP fixe, aucun accès HTTP                        |
-| `k8s/frontendconfig.yaml` | politique TLS du load balancer : TLS 1.2 minimum                                                               |
+| `k8s/ingress.yaml`        | **seul point d'entrée public** : load balancer HTTP, IP fixe (aucun TLS : simplification assumée, voir étape 4 partie 2) |
 | `k8s/backendconfig.yaml`  | health check du load balancer sur `/health`, logs du load balancer                                           |
 | `k8s/hpa.yaml`            | autoscaling : de 3 à 15 pods selon l'usage CPU (seuil 50 %) ; 2 à 10 pods à 70 % avant l'étape 5           |
 | `k8s/pdb.yaml`            | au moins 2 pods prêts pendant les maintenances de Google (ajouté après l'étape 5)                          |
-| `k8s/managed-cert.yaml`   | certificat HTTPS géré par Google pour `34-54-213-190.sslip.io` (étape 4, partie 8)                        |
 | `k8s/monitoring/`         | collecte des métriques et Grafana (étape 6)                                                                  |
 
 > **En une commande :** `make bootstrap cluster build deploy smoke` (scripts de `deploy/`). Les étapes ci-dessous détaillent et expliquent ce que font ces scripts.
@@ -543,7 +546,7 @@ gcloud artifacts repositories add-iam-policy-binding dss --location=$REGION \
   --member="serviceAccount:$NUM-compute@developer.gserviceaccount.com" --role=roles/artifactregistry.reader
 ```
 
-**8. Chiffrer les Secrets du cluster avec une clé Cloud KMS.** Par défaut, Google chiffre les données du cluster avec ses propres clés. Ici, les Secrets Kubernetes (clé API, clé des logs, clé privée TLS) sont **en plus** chiffrés avec une clé qui appartient au projet (*application-layer secrets encryption*) : on contrôle qui peut l'utiliser, on peut la désactiver, et chaque usage est tracé dans les logs d'audit. La clé change automatiquement tous les 90 jours.
+**8. Chiffrer les Secrets du cluster avec une clé Cloud KMS.** Par défaut, Google chiffre les données du cluster avec ses propres clés. Ici, les Secrets Kubernetes (clé API, clé des logs) sont **en plus** chiffrés avec une clé qui appartient au projet (*application-layer secrets encryption*) : on contrôle qui peut l'utiliser, on peut la désactiver, et chaque usage est tracé dans les logs d'audit. La clé change automatiquement tous les 90 jours.
 
 ```bash
 gcloud kms keyrings create dss-keyring --location $REGION
@@ -570,26 +573,18 @@ kubectl create secret generic dss-secrets \
   --from-literal=LOG_SALT="$(gcloud secrets versions access latest --secret=dss-log-salt)"
 ```
 
-**10. Préparer le HTTPS : IP fixe, politique TLS et certificat.** Le projet n'a pas de nom de domaine : on utilise un **certificat auto-signé** valable pour l'IP fixe. (Ce certificat sert de secours : le service présente en priorité le certificat Google du nom `34-54-213-190.sslip.io`, voir étape 4, partie 8.) Le trafic est chiffré exactement comme avec un certificat public ; la différence est que le navigateur ne le connaît pas et affiche un avertissement (voir étape 4, partie 8).
+**10. Réserver une IP fixe.** Le projet n'a pas de nom de domaine, et ce TP sert l'API en **HTTP simple, sans TLS** (choix assumé pour éviter les frictions de certificats rencontrées avec les outils de test — voir étape 4, partie 2). Seule une IP fixe est nécessaire.
 
 ```bash
 gcloud compute addresses create dss-ip --global
 IP=$(gcloud compute addresses describe dss-ip --global --format="value(address)")
-gcloud compute ssl-policies create dss-tls12 --profile MODERN --min-tls-version 1.2
-
-openssl req -x509 -newkey rsa:2048 -nodes -days 365 -keyout tls.key -out tls.crt \
-  -subj "/CN=dss-api" -addext "subjectAltName=IP:$IP"
-kubectl create secret tls dss-tls --cert=tls.crt --key=tls.key
-rm tls.key        # la clé privée ne reste que dans le Secret, chiffré par KMS
 ```
-
-`tls.crt` (le certificat public) est gardé : les clients l'utilisent pour vérifier qu'ils parlent bien au serveur. Les fichiers `*.key` et `tls.crt` sont dans le `.gitignore`.
 
 **11. Déployer.**
 
 ```bash
 sed "s|IMAGE|$IMAGE|" k8s/deployment.yaml | kubectl apply -f -
-kubectl apply -f k8s/backendconfig.yaml -f k8s/frontendconfig.yaml -f k8s/service.yaml \
+kubectl apply -f k8s/backendconfig.yaml -f k8s/service.yaml \
   -f k8s/ingress.yaml -f k8s/hpa.yaml -f k8s/pdb.yaml
 kubectl rollout status deployment/dss-api          # attend que les pods soient prêts
 kubectl get ingress dss-api --watch                # 5 à 10 minutes : l'adresse doit être $IP
@@ -605,20 +600,18 @@ kubectl get secrets -o json | kubectl replace -f -  # rechiffre les Secrets exis
 
 et appliquer les fichiers de l'étape 11. Pendant la création du load balancer (5 à 10 minutes), l'API n'est pas joignable depuis l'extérieur.
 
-**12. Tester.** `--cacert tls.crt` demande à `curl` de vérifier le certificat du serveur (plutôt que `-k`, qui désactive toute vérification).
+**12. Tester.** Aucun certificat à vérifier : l'API est en HTTP simple, `curl` fonctionne sans aucun flag.
 
 ```bash
 API_KEY=$(gcloud secrets versions access latest --secret=dss-api-key)
-curl --cacert tls.crt https://$IP/health
-curl --cacert tls.crt -X POST https://$IP/score -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+HOST=http://$IP
+curl $HOST/health
+curl -X POST $HOST/score -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
   -d '{"text": "You are a stupid idiot"}'
-curl --cacert tls.crt -X POST https://$IP/score -H "Content-Type: application/json" -d '{"text": "hello"}'   # sans clé : 401
-curl -v --cacert tls.crt https://$IP/health 2>&1 | grep -E "SSL connection|subject|issuer"   # détails TLS
-curl -m 5 http://$IP/health                                   # doit échouer : aucun accès HTTP
-openssl s_client -connect $IP:443 -tls1_1 </dev/null           # doit échouer : TLS 1.1 refusé
+curl -X POST $HOST/score -H "Content-Type: application/json" -d '{"text": "hello"}'   # sans clé : 401
 ```
 
-La documentation interactive est disponible sur `https://$IP/docs` (bouton **Authorize** pour saisir la clé). Par le nom `https://34-54-213-190.sslip.io/docs`, le navigateur n'affiche aucun avertissement (certificat Google) ; par l'adresse IP seule, il affiche « connexion non privée », attendue avec le certificat auto-signé.
+La documentation interactive est disponible sur `$HOST/docs` (bouton **Authorize** pour saisir la clé).
 
 **13. Mettre à jour sans coupure.** Construire une nouvelle image avec un nouveau tag, puis remplacer l'image du déploiement. Kubernetes démarre un nouveau pod, attend qu'il soit prêt, puis arrête l'ancien (*rolling update*).
 
@@ -645,10 +638,9 @@ Les logs et métriques sont aussi visibles dans la console : **Kubernetes Engine
 
 ```bash
 kubectl delete -f k8s/ingress.yaml -f k8s/hpa.yaml -f k8s/pdb.yaml -f k8s/service.yaml -f k8s/deployment.yaml \
-  -f k8s/frontendconfig.yaml -f k8s/backendconfig.yaml
+  -f k8s/backendconfig.yaml
 gcloud container clusters delete dss-cluster --region $REGION
 gcloud compute addresses delete dss-ip --global
-gcloud compute ssl-policies delete dss-tls12
 # une clé KMS ne peut pas être supprimée d'un coup : on détruit ses versions (effectif après 30 jours)
 gcloud kms keys versions list --key dss-secrets-key --keyring dss-keyring --location $REGION
 gcloud kms keys versions destroy 1 --key dss-secrets-key --keyring dss-keyring --location $REGION
@@ -656,7 +648,7 @@ gcloud kms keys versions destroy 1 --key dss-secrets-key --keyring dss-keyring -
 
 ### 5. Tester plusieurs exemples de requêtes : résultats sur le cloud (GKE)
 
-Tests faits depuis Cloud Shell avec `curl`, sur l'API déployée dans le cluster GKE (2 pods, modèle LSTM), avant le passage en HTTPS : les requêtes de la capture sont donc en `http://`.
+Tests faits depuis Cloud Shell avec `curl`, sur l'API déployée dans le cluster GKE (2 pods, modèle LSTM) ; l'API est servie en HTTP simple (voir étape 4, partie 2), d'où les requêtes en `http://` dans la capture.
 
 ![Requêtes de test sur l'API déployée dans GKE](reports/images/gke_tests_requetes.png)
 
@@ -697,12 +689,14 @@ Tests faits depuis Cloud Shell avec `curl`, sur l'API déployée dans le cluster
 > 1. Configurer JWT ou clé API.
 > 2. Mettre en place HTTPS, IAM et registre RGPD.
 
+**Écart assumé par rapport à l'énoncé** : ce TP sert finalement l'API en **HTTP simple, sans TLS** (voir partie 2 ci-dessous pour l'analyse du compromis) — les outils de test de ce projet multipliaient les problèmes de certificats (auto-signés, managés, hostname vs IP), et la simplicité a été préférée pour cet exercice. IAM et registre RGPD sont mis en place normalement (parties 5 et 6).
+
 Code : `src/api/main.py` et `k8s/`. Tests automatiques : `tests/test_api.py` (21 tests, dont 3 pour les métriques de l'étape 6).
 
 | Exigence du TP             | Mise en œuvre                                                                                                                                | Partie |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | JWT ou clé API            | clé API par client, stockée dans Secret Manager puis dans un Secret Kubernetes                                                              | 1      |
-| HTTPS et chiffrement       | HTTPS uniquement (TLS 1.2+) via l'Ingress GKE ; Secrets chiffrés par une clé Cloud KMS (prévu, **pas encore actif** : voir partie 2) | 2      |
+| HTTPS et chiffrement       | **HTTP uniquement (pas de TLS)** : choix assumé pour simplifier les tests de ce TP (conflits répétés d'outils de test avec les certificats) ; conséquence : la clé API circule en clair sur le réseau. Secrets chiffrés par une clé Cloud KMS (prévu, **pas encore actif** : voir partie 2) | 2      |
 | Validation des entrées    | taille du texte, taille de la requête, valeurs autorisées                                                                                   | 3      |
 | Logs pseudonymes           | HMAC-SHA256 du texte et de l'IP, jamais le texte, la clé ou l'IP en clair                                                                    | 4      |
 | IAM                        | chaque identité n'a que les rôles nécessaires ; les pods n'ont aucun droit Google Cloud                                                    | 5      |
@@ -732,17 +726,15 @@ kubectl rollout restart deployment/dss-api
 # 3. on retire l'ancienne clé de API_KEYS et on redémarre de nouveau
 ```
 
-### 2. Mettre en place HTTPS et le chiffrement
+### 2. Transport (HTTP) et chiffrement au repos
 
 | Où                        | Comment                                                                                                                                                                                                                                                                                                                                                                                               |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| En transit (client → API) | **HTTPS uniquement** via l'Ingress GKE : aucun port 80, **TLS 1.2 minimum** (politique `dss-tls12`, profil MODERN), certificat **géré par Google** pour `34-54-213-190.sslip.io` (l'auto-signé reste en secours)                                                                                                                                                             |
+| En transit (client → API) | **HTTP uniquement, pas de TLS** : choix assumé pour ce TP (les outils de test — `attack/flood.py`, `loadtest/attack.py`, `loadtest/locustfile.py`, `deploy/smoke.sh` — butaient sans arrêt sur des histoires de certificats auto-signés/managés). Conséquence assumée : **la clé API circule en clair** sur le réseau entre le client et le load balancer.                                                                                                                                                             |
 | En transit (dans Google)   | le load balancer joint les pods par le réseau privé de Google ; le Service des pods est interne (`ClusterIP`, pas d'IP publique)                                                                                                                                                                                                                                                                  |
-| Au repos : Secrets         | Secrets Kubernetes (clé API, clé des logs, clé privée TLS) chiffrés avec la clé Cloud KMS `dss-secrets-key` du projet, qui change tous les 90 jours **À activer** : vérifié le 12/11/2026, le cluster n'utilise pas encore cette clé (`databaseEncryption: DECRYPTED`, étape 8 de la partie 4 non appliquée). Les Secrets restent chiffrés par Google, avec ses propres clés. |
+| Au repos : Secrets         | Secrets Kubernetes (clé API, clé des logs) chiffrés avec la clé Cloud KMS `dss-secrets-key` du projet, qui change tous les 90 jours **À activer** : vérifié le 12/11/2026, le cluster n'utilise pas encore cette clé (`databaseEncryption: DECRYPTED`, étape 8 de la partie 4 non appliquée). Les Secrets restent chiffrés par Google, avec ses propres clés. |
 | Au repos : le reste        | images Docker, Secret Manager et logs chiffrés par défaut par Google Cloud (AES-256)                                                                                                                                                                                                                                                                                                                |
 | Données des utilisateurs  | **aucune donnée stockée** : le texte reste en mémoire le temps de la requête (quelques ms)                                                                                                                                                                                                                                                                                                  |
-
-L'API renvoie aussi l'en-tête `Strict-Transport-Security`, qui demande au navigateur de n'utiliser que HTTPS.
 
 ### 3. Validation des entrées et protection de l'API
 
@@ -831,7 +823,7 @@ Ce registre complète celui de l'étape 1 (préparation du jeu de données). Mod
 | **Durée de conservation**  | Texte : durée de la requête (quelques millisecondes, en mémoire). Logs : 30 jours. Secrets : jusqu'à leur rotation                                                                                                                                                                 |
 | **Destinataires**           | Équipe projet (accès aux logs par IAM). Le client reçoit uniquement le score de son texte                                                                                                                                                                                           |
 | **Transferts hors UE**      | Aucun transfert organisé : cluster, clé KMS et secrets en région `europe-west9` (Paris). Google Cloud reste une société américaine, couverte par ses clauses contractuelles (DPA)                                                                                              |
-| **Mesures de sécurité**   | HTTPS uniquement (TLS 1.2+), clé API par client, Secrets chiffrés par Cloud KMS, IAM au moindre privilège, limitation des requêtes, validation des entrées, pods non root, journal d'audit pseudonymisé                                                                          |
+| **Mesures de sécurité**   | HTTP (pas de chiffrement en transit ; choix assumé pour ce TP, voir étape 4 partie 2), clé API par client, Secrets chiffrés par Cloud KMS, IAM au moindre privilège, limitation des requêtes, validation des entrées, pods non root, journal d'audit pseudonymisé                                                                          |
 | **Droits des personnes**    | Accès, effacement, opposition : aucun texte n'étant conservé, il n'y a rien à communiquer ni à effacer. Les identifiants HMAC ne permettent pas de retrouver un texte                                                                                                             |
 | **Analyse d'impact (AIPD)** | À évaluer avant une mise en production : l'évaluation automatisée de contenus fait partie des critères de la CNIL. Ici, le score porte sur un texte et non sur une personne, et ne déclenche aucune décision automatique                                                        |
 | **Page web**                | La page `/` n'ajoute aucun traitement : elle appelle `/score` avec la clé que l'utilisateur saisit (gardée dans son onglet, jamais écrite dans la page ni dans les logs). Les polices sont servies par l'API : aucune adresse IP de visiteur n'est envoyée à un service tiers |
@@ -839,30 +831,29 @@ Ce registre complète celui de l'étape 1 (préparation du jeu de données). Mod
 
 ### 7. Grille de tests de sécurité (livrable)
 
-Les tests « auto » sont dans `tests/test_api.py` (`python -m pytest tests/test_api.py`). Les tests « cloud » se font avec `curl` sur le cluster GKE, depuis le dossier où se trouve `tls.crt`.
+Les tests « auto » sont dans `tests/test_api.py` (`python -m pytest tests/test_api.py`). Les tests « cloud » se font avec `curl` sur le cluster GKE, en HTTP simple (pas de TLS dans ce TP).
 
 | Test                                  | Commande / méthode                                                             | Attendu       | Auto | Cloud                                                                         |
 | ------------------------------------- | ------------------------------------------------------------------------------- | ------------- | ---- | ----------------------------------------------------------------------------- |
 | Sans clé API                         | requête sans `X-API-Key`                                                     | 401           | ✅   | ✅ (en HTTP, avant l'Ingress)                                                 |
 | Mauvaise clé                         | en-tête `X-API-Key: mauvaise-cle`                                            | 401           | ✅   | ✅ (rapport d'attaque, 12/11)                                                 |
-| `/metrics` sans clé                | `curl https://$IP/metrics`                                                    | 401           | ✅   | ✅ (rapport d'attaque, 12/11)                                                 |
+| `/metrics` sans clé                | `curl http://$IP/metrics`                                                    | 401           | ✅   | ✅ (rapport d'attaque, 12/11)                                                 |
 | Texte vide                            | `-d '{"text":""}'`                                                            | 422           | ✅   | ✅ (rapport d'attaque, 12/11)                                                 |
 | Texte de plus de 5 000 caractères    | texte généré                                                                 | 422           | ✅   | ✅ (rapport d'attaque, 12/11)                                                 |
 | Modèle inconnu                       | `-d '{"text":"hello","model":"gpt"}'`                                         | 422           | ✅   | ✅ (rapport d'attaque, 12/11)                                                 |
 | Requête de plus de 32 Ko             | corps de 40 Ko                                                                  | 413           | ✅   | ✅ (rapport d'attaque, 12/11)                                                 |
 | Trop de requêtes                     | plus de `RATE_LIMIT_PER_MINUTE` requêtes en une minute                       | 429           | ✅   | ✅ 5 566 réponses 429 (étape 5)                                             |
-| En-têtes de sécurité               | `curl -I https://$IP/health`                                                  | présents     | ✅   | ✅ (rapport d'attaque, 12/11)                                                 |
+| En-têtes de sécurité               | `curl -I http://$IP/health`                                                  | présents     | ✅   | ✅ (rapport d'attaque, 12/11)                                                 |
 | Pas de texte ni de clé dans les logs | lecture des logs après un appel                                                | absents       | ✅   | à compléter                                                                 |
-| HTTPS avec certificat vérifié       | `curl --cacert tls.crt https://$IP/health`                                    | 200           | –   | ✅ certificat Google vérifié sur `https://34-54-213-190.sslip.io` (12/11) |
-| HTTP refusé                          | `curl -m 5 http://$IP/health`                                                 | échec        | –   | ✅ (rapport d'attaque, 12/11)                                                 |
-| TLS 1.1 refusé                       | `openssl s_client -connect $IP:443 -tls1_1`                                   | échec        | –   | ✅ refusé (12/11)                                                            |
 | Secrets chiffrés par KMS             | `gcloud container clusters describe ... --format="value(databaseEncryption)"` | `ENCRYPTED` | –   | ❌ `DECRYPTED` (12/11) : étape 8 de la partie 4 à appliquer               |
 
-La phase `grille` de `loadtest/attack.py` (étape 6) remplit la colonne « Cloud » en une commande : `python3 loadtest/attack.py --host https://$IP --cacert tls.crt --phases grille`. Commandes équivalentes avec `curl` (afficher seulement le code HTTP) :
+Pas de test HTTPS/TLS dans cette grille : l'API est servie en HTTP simple, sans certificat (choix assumé, voir étape 4 partie 2).
+
+La phase `grille` de `loadtest/attack.py` (étape 6) remplit la colonne « Cloud » en une commande : `python3 loadtest/attack.py --host http://$IP --phases grille`. Commandes équivalentes avec `curl` (afficher seulement le code HTTP) :
 
 ```bash
-httpcode() { curl -s -o /dev/null -w "%{http_code}\n" --cacert tls.crt "$@"; }
-URL=https://$IP
+httpcode() { curl -s -o /dev/null -w "%{http_code}\n" "$@"; }
+URL=http://$IP
 httpcode -X POST $URL/score -H "Content-Type: application/json" -d '{"text":"hello"}'                                  # 401
 httpcode -X POST $URL/score -H "X-API-Key: mauvaise-cle" -H "Content-Type: application/json" -d '{"text":"hello"}'     # 401
 httpcode $URL/metrics                                                                                                  # 401
@@ -870,27 +861,26 @@ httpcode -X POST $URL/score -H "X-API-Key: $API_KEY" -H "Content-Type: applicati
 httpcode -X POST $URL/score -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" -d '{"text":"hello","model":"gpt"}'  # 422
 python3 -c "print('{\"text\":\"' + 'a'*40000 + '\"}')" > big.json
 httpcode -X POST $URL/score -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" --data-binary @big.json      # 413
-curl -sI --cacert tls.crt $URL/health | grep -iE "x-content-type|x-frame|strict-transport|cache-control"
+curl -sI $URL/health | grep -iE "x-content-type|x-frame|cache-control"
 gcloud logging read 'jsonPayload.event="auth_failed"' --limit 5 --format=json                                      # journal d'audit
 ```
 
 ### 8. Page web et accès à la supervision (lien à partager)
 
-L'API sert une page web sur **https://34-54-213-190.sslip.io/** : champ de texte, bouton « Analyser », score de 0 à 100 avec une jauge, thèmes clair et sombre. Une personne qui a **le lien et la clé API** peut l'utiliser sans rien installer.
+L'API sert une page web sur **http://34.54.213.190/** : champ de texte, bouton « Analyser », score de 0 à 100 avec une jauge, thèmes clair et sombre. Une personne qui a **le lien et la clé API** peut l'utiliser sans rien installer.
 
 - **Authentification** : la page demande la clé API et l'envoie en `X-API-Key` à `POST /score`, comme n'importe quel client. La clé reste dans l'onglet du navigateur (`sessionStorage`) et n'est écrite ni dans la page, ni dans le code, ni dans les logs. Sans clé valide, l'API répond 401 et la page affiche « Clé API invalide ». La limite de 600 requêtes par minute s'applique à cette clé.
 - **Pas d'accès libre** : une première version de la page appelait une route sans clé (`/demo/score`). Elle a été supprimée : tout passe par `/score`, protégé par la clé.
-- **Sécurité de la page** : HTTPS uniquement, `Content-Security-Policy` stricte (`default-src 'none'`, aucune ressource externe), en-têtes de sécurité. Les polices (Literata, Instrument Sans, licence OFL) sont **hébergées par l'API** (`/fonts/`) : charger Google Fonts aurait envoyé l'adresse IP de chaque visiteur à Google.
+- **Sécurité de la page** : `Content-Security-Policy` stricte (`default-src 'none'`, aucune ressource externe), en-têtes de sécurité (pas de HTTPS dans ce TP, voir étape 4 partie 2). Les polices (Literata, Instrument Sans, licence OFL) sont **hébergées par l'API** (`/fonts/`) : charger Google Fonts aurait envoyé l'adresse IP de chaque visiteur à Google.
 - **Bouton « Monitoring »** : ouvre Grafana sur `/grafana/`. Grafana est exposé par le même Ingress, avec une **page de connexion**. On y entre avec le compte **`lecteur`** (rôle Viewer : voir les tableaux de bord, rien modifier), dont le mot de passe est donné avec la clé API : `gcloud secrets versions access latest --secret=grafana-viewer-password`. Le compte `admin` n'est jamais partagé. Le tableau de bord montre le trafic, la latence, les erreurs, les pods qui répondent et le CPU.
-- **Certificat HTTPS** : certificat **géré par Google** (`k8s/managed-cert.yaml`) pour le nom `34-54-213-190.sslip.io`, qui pointe vers l'IP fixe : plus d'avertissement du navigateur. Le certificat auto-signé reste présenté en secours tant que celui de Google n'est pas actif.
 - **Éteindre la page** sans toucher au code : `kubectl set env deployment/dss-api DEMO_ENABLED=0`. Couper l'accès à Grafana : `kubectl scale deployment/grafana --replicas=0`.
 - **Limites** : Grafana est joignable depuis internet : seuls la page de connexion, un mot de passe aléatoire et le blocage après échecs de connexion de Grafana le protègent (pas de limite globale de requêtes : Cloud Armor, voir partie 9). La base de Grafana est perdue à chaque redémarrage de son pod : relancer `deploy/monitoring.sh`, qui recrée la source de données et le compte lecteur. Le compteur de requêtes est par pod.
 
-Mise en ligne : reconstruire l'image (`gcloud builds submit`), mettre à jour le déploiement (étape 13 de la partie 4), puis `kubectl apply -f k8s/managed-cert.yaml -f k8s/ingress.yaml -f k8s/monitoring/grafana.yaml` et `deploy/monitoring.sh`.
+Mise en ligne : reconstruire l'image (`gcloud builds submit`), mettre à jour le déploiement (étape 13 de la partie 4), puis `kubectl apply -f k8s/ingress.yaml -f k8s/monitoring/grafana.yaml` et `deploy/monitoring.sh`.
 
 ### 9. Limites et améliorations
 
-- **Nom de domaine de démonstration** : le certificat Google est émis pour `34-54-213-190.sslip.io`, un nom public gratuit qui pointe vers l'IP fixe. Pour un service durable, il faut un nom de domaine propre, car ce nom dépend du service sslip.io. Le certificat auto-signé du Secret `dss-tls` n'est plus qu'un secours (il expire après 1 an).
+- **Pas de chiffrement en transit** : ce TP sert l'API en HTTP simple (pas de nom de domaine, pas de certificat) pour éviter les frictions de test liées aux certificats. Pour un service réel, il faudrait un nom de domaine et HTTPS (Let's Encrypt ou certificat géré par Google) avant toute mise en production — la clé API ne devrait jamais circuler en clair en dehors d'un contexte pédagogique.
 - **Limite de requêtes par pod** : le compteur est en mémoire. Avec 10 pods, un client peut faire jusqu'à 10 × 600 requêtes par minute (mesuré à l'étape 5 : environ 6 300 requêtes acceptées par minute avec une seule clé). Pour une limite globale : **Cloud Armor** (WAF), branché sur l'Ingress par le `BackendConfig` (`securityPolicy`), qui ajoute aussi le filtrage d'IP et la protection contre le déni de service.
 - **Clés API sans expiration** : une rotation régulière (partie 1) est nécessaire. Pour des jetons à durée de vie courte, passer à OAuth2 / JWT.
 - **Attaques adverses** : un texte volontairement déformé (« id1ot », espaces entre les lettres) peut tromper le LSTM. Ce point sera traité avec les attaques sur l'IA (cours n°6).
@@ -935,7 +925,7 @@ Le **code** de l'API est le même dans les deux cas ; c'est l'**infrastructure**
 **Architecture testée.**
 
 ```
-Locust (Mac) ──HTTPS──▶ Load balancer Google (Ingress, IP fixe, TLS 1.2+)
+Locust (Mac) ──HTTP──▶ Load balancer Google (Ingress, IP fixe)
                               │ répartit les requêtes entre les pods prêts
                               ▼
                Service interne (ClusterIP) ──▶ pods dss-api (2 à 10, ajoutés par le HPA)
@@ -955,7 +945,7 @@ Configuration **au moment du test** (les valeurs modifiées depuis sont dans la 
 | **Mises à jour**      | une par une (`maxSurge: 1`, `maxUnavailable: 0`)                                                                                                                                                 | jamais moins de pods prêts pendant une mise à jour                                                                             |
 | **Protection**         | 600 requêtes par minute et par clé, **comptées sur chaque pod** ; levée pendant les tests de capacité, remise à la fin                                                                   | étape 4                                                                                                                         |
 
-**Requêtes de test** : `POST /score` en HTTPS avec la clé API, 10 textes toxiques ou neutres tirés au hasard ; chaque utilisateur simulé attend 0,2 à 0,6 s entre deux requêtes. Elles partent d'un Mac, par internet : les latences comprennent ce trajet, en plus des 19 à 27 ms de calcul de l'API (anonymisation spaCy puis LSTM).
+**Requêtes de test** : `POST /score` en HTTP avec la clé API, 10 textes toxiques ou neutres tirés au hasard ; chaque utilisateur simulé attend 0,2 à 0,6 s entre deux requêtes. Elles partent d'un Mac, par internet : les latences comprennent ce trajet, en plus des 19 à 27 ms de calcul de l'API (anonymisation spaCy puis LSTM).
 
 ### 2. Utiliser Apache Bench, Locust ou k6 : choix de Locust
 
@@ -1081,7 +1071,7 @@ Stress test palier par palier (médiane de chaque palier, hors 15 premières sec
 
 | Piste du TP             | Où en est le projet                                                                                                                                                                                                                                                                                                                                | Ce que nous proposons                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Load balancer** | **en place depuis l'étape 3** : le load balancer HTTPS de Google (Ingress) répartit les requêtes entre les pods par le Service interne. Il n'envoie du trafic qu'aux pods qui répondent à `/health` (sonde de disponibilité, et health check du `BackendConfig`) : c'est grâce à lui que la perte d'un pod n'a fait aucune erreur | ajouter **Cloud Armor** devant (limite de requêtes globale, filtrage d'IP), branché par le `BackendConfig`                                                                                                                                                                                                                                                                                                                                                                              |
+| **Load balancer** | **en place depuis l'étape 3** : le load balancer HTTP de Google (Ingress) répartit les requêtes entre les pods par le Service interne. Il n'envoie du trafic qu'aux pods qui répondent à `/health` (sonde de disponibilité, et health check du `BackendConfig`) : c'est grâce à lui que la perte d'un pod n'a fait aucune erreur | ajouter **Cloud Armor** devant (limite de requêtes globale, filtrage d'IP), branché par le `BackendConfig`                                                                                                                                                                                                                                                                                                                                                                              |
 | **Redondance**    | au moment du test : 2 pods, **sur le même nœud**                                                                                                                                                                                                                                                                                            | au moins 3 pods, répartis sur plusieurs zones, et protégés pendant les maintenances : **appliqué** (partie 7)                                                                                                                                                                                                                                                                                                                                                                           |
 | **Cache**         | aucun                                                                                                                                                                                                                                                                                                                                               | garder le score des textes déjà vus, indexé par l'identifiant HMAC du texte (déjà calculé pour les logs par `pseudonym()` dans `src/api/main.py`), **jamais le texte lui-même** ; durée courte. Utile contre le spam (même texte envoyé des milliers de fois). Un cache en mémoire suffit pour un pod ; Memorystore (Redis) pour un cache partagé entre pods. **Non mis en place** : nos tests utilisent des textes tous différents, le gain ne serait pas mesurable |
 
@@ -1230,7 +1220,7 @@ pods de l'API ──▶ GMP (Google) ──▶ Cloud Monitoring ──▶ Grafan
 
 ### 2. Tableau de bord et alertes
 
-**Accès :** https://34-54-213-190.sslip.io/grafana/ (bouton « Monitoring » de la page web), compte `lecteur` en lecture seule. Mot de passe : `gcloud secrets versions access latest --secret=grafana-viewer-password`. Grafana tourne dans un pod du cluster ; sa base est perdue s'il redémarre : `make grafana-reset` recrée la source de données et le compte `lecteur`. Le tableau de bord, lui, est rechargé depuis `monitoring/grafana/dss-dashboard.json`.
+**Accès :** http://34.54.213.190/grafana/ (bouton « Monitoring » de la page web), compte `lecteur` en lecture seule. Mot de passe : `gcloud secrets versions access latest --secret=grafana-viewer-password`. Grafana tourne dans un pod du cluster ; sa base est perdue s'il redémarre : `make grafana-reset` recrée la source de données et le compte `lecteur`. Le tableau de bord, lui, est rechargé depuis `monitoring/grafana/dss-dashboard.json`.
 
 **Tableau de bord** : 10 panneaux.
 
@@ -1264,7 +1254,7 @@ Une requête traverse ces barrières dans l'ordre ; si l'une la refuse, le modè
 
 | Ordre | Dispositif | Réponse si refusé |
 | ----- | ---------- | ----------------- |
-| 1 | HTTPS uniquement, TLS 1.2 minimum | connexion refusée |
+| 1 | (pas de TLS : API en HTTP simple, voir étape 4 partie 2) | – |
 | 2 | taille de requête limitée à 32 Ko | 413 |
 | 3 | clé API par client | 401 + log `auth_failed` |
 | 4 | 600 requêtes par minute et par client, sur chaque pod | 429 + log `rate_limited` |
@@ -1369,6 +1359,224 @@ Ni le texte, ni la clé essayée, ni l'IP en clair n'apparaissent dans les logs 
 > 3. Rédiger un texte explicatif et une légende du schéma.
 
 *En cours.* La base est la section « Vue d'ensemble : architecture et connexions » en tête de ce document (schéma, et tableau des connexions avec authentification et chiffrement). Le plan du schéma final et de l'analyse zero trust est dans `docs/pistes-tests-et-etape7.md`.
+
+# TP2 : de la menace à la défense
+
+Compte rendu du TP « API Digital Social Score : de la menace à la défense, renforcer une IA déployée dans le cloud » (énoncé : `docs/TP2_Digital_Social_Score.pdf`). Même principe que le TP1 : l'énoncé de chaque étape, puis nos réponses.
+
+| Livrable du TP2 | Où |
+| --------------- | -- |
+| Type d'attaque et démonstration | étapes 1 et 2 (à rédiger) |
+| Défense et preuve d'efficacité | étape 3 (à rédiger) |
+| Classification IA Act + model card | étape 4 ; `model_card.json` à la racine |
+| Pipeline sécurisé + logs d'exécution | étape 5 ; `cloudbuild.yaml` |
+| Analyse critique et recommandations | à rédiger |
+
+## TP2, étape 1 : choix et analyse d'une attaque
+
+> **Énoncé du TP**
+>
+> *Objectifs pédagogiques :* identifier la surface d'attaque de votre modèle IA et comprendre les menaces possibles sur une API exposée publiquement.
+>
+> *Exercice :* choisir une seule attaque à reproduire ; décrire ce que l'attaquant cherche à obtenir, le point d'entrée exploité, l'impact attendu (technique, éthique et RGPD). Livrable : une fiche « Attaque IA » (type d'attaque, cible, objectif de l'attaquant, impact attendu, risque IA Act).
+
+*À rédiger.* Attaque retenue dans le code : **attaque par coût asymétrique** (des requêtes valides mais coûteuses à traiter, qui saturent l'anonymisation spaCy), voir `attack/payloads.py`.
+
+## TP2, étape 2 : mise en œuvre de l'attaque
+
+> **Énoncé du TP**
+>
+> *Objectif pédagogique :* simuler concrètement une attaque IA et observer son impact mesurable.
+>
+> *Exercice :* créer un dossier `/attack`, y écrire un script d'attaque, lancer l'attaque, mesurer l'impact (précision du modèle, taux de faux positifs, latence). Livrables : graphique des métriques, interprétation des résultats.
+
+*À rédiger.* Script : `attack/flood.py` (charges dans `attack/payloads.py`). Rapports des lancements du 13/11/2026 : `reports/attack/flood_*.json`.
+
+## TP2, étape 3 : conception d'une défense
+
+> **Énoncé du TP**
+>
+> *Objectif pédagogique :* appliquer des contre-mesures concrètes et valider leur efficacité.
+>
+> *Exercice :* implémenter une défense adaptée à l'attaque choisie, réexécuter l'attaque, mesurer les performances avec et sans défense, comparer dans un tableau. Livrables : tableau des métriques avant/après, graphique de comparaison.
+
+*À rédiger.*
+
+## TP2, étape 4 : conformité IA Act
+
+> **Énoncé du TP**
+>
+> *Objectif pédagogique :* évaluer votre modèle au regard du cadre européen IA Act et formaliser votre conformité.
+>
+> *Exercice :*
+>
+> 1. Identifier et justifier la catégorie de risque de votre modèle de classification.
+> 2. Créer une « model card ».
+>
+> *Livrables :* une fiche IA Act (tableau de risque et justification) ; un fichier `model_card.json` à la racine du projet.
+
+### 1. Catégorie de risque : risque minimal
+
+Le règlement européen sur l'IA (règlement (UE) 2024/1689, « IA Act ») classe les systèmes en quatre niveaux. Nous examinons chaque niveau pour l'usage prévu : **aide à la modération de commentaires en ligne, avec relecture humaine**.
+
+| Niveau | Ce que dit l'IA Act | Notre système | Concerné ? |
+| ------ | ------------------- | ------------- | ---------- |
+| **Inacceptable** (interdit, art. 5) | notation sociale : évaluer ou classer des **personnes** d'après leur comportement social, avec un traitement défavorable ; manipulation ; reconnaissance des émotions au travail ou à l'école… | le score porte sur **un texte**, pas sur une personne. L'API ne garde aucun historique : elle ne peut pas cumuler les scores d'un même auteur | non |
+| **Haut risque** (art. 6, annexes I et III) | composant de sécurité d'un produit réglementé (annexe I) ; domaines de l'annexe III : biométrie, infrastructures critiques, éducation, emploi, services essentiels, police, migration, justice, élections | la modération de contenus n'est pas dans l'annexe III ; le modèle n'est pas un composant de sécurité d'un produit | non |
+| **Risque limité** (transparence, art. 50) | dialogue avec une IA (chatbot), contenus générés (texte, image, deepfake), reconnaissance des émotions, catégorisation biométrique | le modèle ne converse pas et ne génère rien : il renvoie un nombre | non |
+| **Risque minimal** | tout le reste ; codes de conduite volontaires (art. 95) | classification de texte pour aider à modérer | **oui** |
+
+**Conclusion : risque minimal.** Deux obligations s'appliquent tout de même à tous les systèmes : la **maîtrise de l'IA** (art. 4 : les personnes qui utilisent le système sont formées à ses limites) et le respect des **interdictions de l'art. 5** par les clients qui intègrent l'API.
+
+**Le nom « Digital Social Score » ne correspond pas à une notation sociale**, mais l'usage peut faire changer la catégorie :
+
+| Si un client utilise le score pour… | Catégorie | Pourquoi |
+| ----------------------------------- | --------- | -------- |
+| modérer des commentaires, avec relecture humaine | minimal | usage prévu |
+| trier des candidats, évaluer ou surveiller des salariés d'après leurs messages | **haut risque** | annexe III, point 4 (emploi) |
+| évaluer ou surveiller des élèves | **haut risque** | annexe III, point 3 (éducation) |
+| attribuer une note durable à une **personne** d'après l'ensemble de ses messages, avec des conséquences dans un autre contexte | **interdit** | art. 5, 1, c (notation sociale) |
+
+Ces usages sont exclus dans la model card (`intended_use.usages_exclus`) et doivent figurer dans les conditions d'utilisation de l'API.
+
+### 2. Model card : `model_card.json`
+
+Le fichier `model_card.json`, à la racine du dépôt, reprend les champs de l'énoncé et les complète :
+
+| Champ | Valeur (résumé) |
+| ----- | --------------- |
+| `model_name`, `version`, `last_update` | Digital Social Score v2, 2.1, 2026-11-16 |
+| `description` | détection de propos toxiques (anglais), score de 0 à 100, aide à la modération |
+| `risk_level` + `risk_justification` | `minimal`, avec la justification de la partie 1 |
+| `intended_use` | usage prévu et usages exclus (sanction automatique, profilage de personnes, emploi, éducation, autre langue) |
+| `model` | BiLSTM, seuil 0,5, 128 mots, 16 Mo, fichiers de `artifacts/` |
+| `data_source` | Jigsaw Toxic Comment Classification (Wikipédia, anglais), règle du OU, 23 364 / 2 596 / 1 308 commentaires |
+| `performance_test` | précision 0,894, rappel 0,911, F1 0,902 (TP1, étape 2) |
+| `privacy_measures` | anonymisation, texte jamais stocké, logs pseudonymisés (HMAC), logs chiffrés au repos par Google Cloud, Secret Manager, région Paris |
+| `privacy_limits` | pas de TLS (HTTP simple), groupes NORP non masqués |
+| `bias_detected` + `bias_evaluation` | **`true`** : résultat du test de la partie 3 |
+| `limitations`, `human_oversight` | biais, faux positifs sur les phrases courtes, anglais seulement, relecture humaine obligatoire |
+
+L'énoncé propose `"bias_detected": false`. Nous avons mesuré le biais avant de remplir ce champ (partie 3), et il est vrai.
+
+### 3. Test de biais
+
+Script : `python -m src.models.bias_check`. Résultat : `reports/bias_check.json` (16/11/2026).
+
+**Méthode** (Dixon et al., 2018, travaux réalisés sur ce même jeu Jigsaw). On prend 8 phrases neutres à trous, par exemple « I am a ___ person. » ou « My neighbor is ___. ». On y place 21 termes : 4 termes de référence sans rapport avec une identité (*tall, young, friendly, local*) et 17 termes d'identité. Aucune de ces phrases n'est toxique. Pour chaque phrase, on compare le score obtenu avec un terme d'identité au score moyen des termes de référence **dans la même phrase** : l'écart est l'effet du seul terme d'identité. Le texte passe par le même pipeline que l'API (anonymisation, nettoyage, LSTM).
+
+| Groupe | Termes | Écart moyen (points sur 100) | Bascules vers « toxique » |
+| ------ | ------ | ---------------------------- | ------------------------- |
+| référence | tall, young, friendly, local | 0,0 | 3 / 16 |
+| religion | muslim, christian, jewish, atheist | +4,9 | 5 / 16 |
+| origine | black, white, asian, african, mexican | +1,1 | 5 / 20 |
+| **orientation** | gay, lesbian, straight, homosexual, heterosexual | **+20,9** | **13 / 20** |
+| genre | female, male, transgender | −6,2 | 2 / 12 |
+
+*Bascule* : une phrase jugée acceptable avec les termes de référence (score moyen sous 50) devient « toxique » (50 ou plus) avec ce terme.
+
+**Termes les plus pénalisés** : *gay* +40,2 points, *homosexual* +39,4, *muslim* +26,1, *straight* +22,2, *black* +21,4.
+
+**Ce qu'on en conclut :**
+
+- **Biais confirmé sur l'orientation sexuelle** : un groupe est considéré comme biaisé si son écart moyen dépasse 10 points, et c'est le cas. Avec « gay », chacune des 8 phrases neutres dépasse 90.
+- **Biais sur certains termes** : « muslim » et « black » pèsent aussi plus de 20 points, mais la moyenne de leur groupe reste sous le seuil.
+- **Cause probable** : dans les commentaires Wikipédia, ces mots apparaissent surtout dans des insultes. Le LSTM a appris le mot, pas l'intention.
+- **Autre constat** : 4 des 8 phrases neutres sont jugées toxiques **quel que soit le terme** (par exemple « The ___ community organized a charity event. » : 99 sur 100). Le modèle donne des scores élevés à des phrases courtes et neutres. Le jeu d'entraînement contient 50 % de commentaires toxiques, bien plus qu'en réalité, ce qui pousse les scores vers le haut.
+- **Effet sur la conformité** : le niveau de risque reste minimal, mais ces résultats justifient la relecture humaine obligatoire (`human_oversight`) et doivent être communiqués aux clients. Le test est rejoué à chaque push par le pipeline (étape 5).
+
+## TP2, étape 5 : intégration DevSecOps
+
+> **Énoncé du TP**
+>
+> *Objectif pédagogique :* intégrer la sécurité et la conformité dans le pipeline CI/CD.
+>
+> *Exercice :* mettre à jour votre pipeline pour y intégrer une ou plusieurs étapes de sécurité.
+>
+> *Livrable :* pipeline sécurisé + logs d'exécution.
+
+**Avant :** tests, construction et déploiement se faisaient à la main (`make test`, `make build TAG=...`, `make deploy TAG=...`). Les tests étaient facultatifs, et aucun contrôle de sécurité n'était automatique.
+
+**Maintenant :** un pipeline Cloud Build (`cloudbuild.yaml`) se lance à chaque push sur `main`. Les contrôles de sécurité et de conformité passent **avant** que l'image soit construite et déployée.
+
+![Pipeline CI/CD DevSecOps](reports/images/cicd_pipeline.png)
+
+### 1. Les 8 étapes du pipeline
+
+Chaque étape tourne dans un conteneur jetable. Si une étape échoue, les suivantes ne sont pas exécutées : rien n'est publié ni déployé.
+
+| # | Étape (`id`) | Outil | Bloque le build si… | Pourquoi |
+| - | ------------ | ----- | ------------------- | -------- |
+| 1 | `secrets` | **gitleaks** | un mot de passe, une clé ou un jeton est écrit dans le code | une clé poussée sur GitHub est compromise. Règles par défaut ; `data/`, `reports/`, `docs/`, `artifacts/` exclus (`.gitleaks.toml`) |
+| 2 | `tests` | **pytest** | un test échoue, y compris les 3 tests de conformité IA Act (`tests/test_model_card.py`) | du code cassé n'est pas déployé. La model card doit être complète, et `bias_detected` doit correspondre au test de biais relancé sur le modèle actuel : un nouveau modèle ne passe pas sans fiche à jour |
+| 3 | `securite-code` | **bandit** + **pip-audit** | bandit trouve une faille de sévérité moyenne ou plus dans `src/` ou `attack/` ; pip-audit trouve une faille connue dans `requirements-api.txt` | failles dans notre code (chargement non sûr, injection…) et dans les bibliothèques |
+| 4 | `build` | Docker | l'image ne se construit pas | image étiquetée `api:<SHORT_SHA>` : chaque version renvoie à un commit |
+| 5 | `scan-image` | **Trivy** | l'image contient une faille **critique** pour laquelle un correctif existe | failles du système de base et des paquets de l'image ; les failles sans correctif sont affichées mais ne bloquent pas |
+| 6 | `push` | Artifact Registry | – | l'image n'est publiée que si elle a passé les contrôles |
+| 7 | `deploy` | GKE (`kubectl set image`) | les nouveaux pods ne deviennent pas prêts en 10 min | remplacement progressif (`maxUnavailable: 0`), les anciens pods servent tant que les nouveaux ne répondent pas |
+| 8 | `verification` | `deploy/smoke.sh` | santé, 401 ou 422 incorrects sur l'API réelle | en cas d'échec : `kubectl rollout undo`, retour automatique à la version précédente |
+
+Le pipeline ne change que l'image : secrets, Ingress, HPA et cluster restent créés à la main (`make bootstrap cluster deploy`). Les tests de charge et d'attaque (5 à 30 min, ils saturent l'API) restent manuels.
+
+### 2. Contrôles lancés en local avant de les ajouter au pipeline
+
+Le 16/11/2026, sur le poste de développement, pour vérifier qu'aucun contrôle ne bloque dès le premier push :
+
+| Contrôle | Résultat | Suite donnée |
+| -------- | -------- | ------------ |
+| pytest (`tests/`) | 45 tests passés | – |
+| pip-audit 2.10 (`requirements-api.txt`) | aucune faille connue | – |
+| bandit 1.9 (`src/`, `attack/`, sévérité moyenne et plus) | 4 alertes, toutes dans les scripts d'entraînement, aucune dans le code de l'API : 2 × B614 (`torch.load` non sûr, `lstm_binary.py` et `bert_binary.py`), 2 × B615 (téléchargement Hugging Face sans révision figée, `bert_binary.py`) | B614 **corrigées** (`weights_only=True`, comme dans `predictor.py`) ; B615 **acceptées** (`# nosec B615`) : BERT est entraîné en local et n'est pas déployé. Résultat : 0 alerte |
+| gitleaks, Trivy | non lancés en local | premier résultat attendu au premier build |
+
+### 3. Services Google Cloud impliqués
+
+| Service | Rôle |
+| ------- | ---- |
+| **Cloud Build** | connexion au dépôt GitHub, déclencheur sur `main`, exécution des 8 étapes |
+| **Artifact Registry** | dépôt `dss` des images (une par commit), source des pods |
+| **GKE Autopilot** | fait tourner l'image ; remplacement progressif et retour arrière |
+| **IAM** | droits du compte de service du build (partie 4) |
+| **Secret Manager** | jeton de la connexion GitHub ; clés de l'API (le pipeline n'y touche pas) |
+| **Cloud Logging** | journal de chaque build, étape par étape : ce sont les **logs d'exécution** demandés |
+| **Cloud Monitoring / Grafana** | latence et erreurs pendant le remplacement des pods (TP1, étape 6) |
+
+### 4. Mise en place
+
+**Connexion GitHub (fait le 16/11/2026, console).** Cloud Build → Dépôts → « Créer une connexion hôte » → GitHub, région `europe-west9`, nom `Digital-Social-Score`, compte `Baunell-ctrl` : état « Activé ».
+
+**Reste à faire :** associer le dépôt (Cloud Build → Dépôts → « Associer le dépôt »), donner les droits, créer le déclencheur :
+
+```bash
+PROJECT=$(gcloud config get-value project)
+NUM=$(gcloud projects describe $PROJECT --format="value(projectNumber)")
+SA=serviceAccount:$NUM-compute@developer.gserviceaccount.com     # compte utilisé par Cloud Build (voir bootstrap.sh)
+
+# déjà donnés par deploy/bootstrap.sh : artifactregistry.writer (sur le dépôt dss), storage.objectViewer, logging.logWriter
+gcloud projects add-iam-policy-binding $PROJECT --member=$SA --role=roles/container.developer --condition=None   # kubectl set image / rollout
+gcloud projects add-iam-policy-binding $PROJECT --member=$SA --role=roles/compute.viewer --condition=None        # smoke.sh lit l'IP fixe dss-ip
+
+gcloud builds triggers create github \
+  --name=dss-main --region=europe-west9 \
+  --repository=projects/$PROJECT/locations/europe-west9/connections/Digital-Social-Score/repositories/Baunell-ctrl-Digital-Social-Score \
+  --branch-pattern='^main$' --build-config=cloudbuild.yaml \
+  --ignored-files='README.md,docs/**,reports/**' \
+  --service-account=projects/$PROJECT/serviceAccounts/$NUM-compute@developer.gserviceaccount.com
+```
+
+`--ignored-files` : une modification limitée au README, aux sujets de TP ou aux rapports ne déclenche pas de build.
+
+### 5. Suivre un build (logs d'exécution)
+
+| Où | Ce qu'on y voit |
+| -- | --------------- |
+| Console : Cloud Build → Historique | une ligne par push, verte ou rouge ; en détail, les 8 étapes avec leur durée et leurs logs (sortie de gitleaks, pytest, bandit, pip-audit, Trivy) |
+| Console : Artifact Registry → `dss` → `api` | les images et leur tag (le commit) |
+| Console : GKE → Charges de travail → `dss-api` | les pods remplacés, l'image en cours |
+| GitHub, à côté du commit | coche verte ou croix rouge du build |
+| Terminal | `gcloud builds list --region=europe-west9`, `gcloud builds log <ID> --region=europe-west9` |
+
+**État au 16/11/2026 :** pipeline écrit, connexion GitHub active ; le déclencheur n'est pas encore créé, aucun build n'a tourné. Les logs d'exécution seront ajoutés ici après le premier build.
 
 ## Lancer le projet
 
