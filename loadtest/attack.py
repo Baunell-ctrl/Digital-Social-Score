@@ -1,11 +1,11 @@
 """Simulation d'attaque contre l'API déployée (étape 6 du TP) : de quoi déclencher les alertes et analyser les logs.
 
-    API_KEY=$API_KEY python loadtest/attack.py --host https://$IP --cacert tls.crt
-    API_KEY=$API_KEY python loadtest/attack.py --host https://$IP --cacert tls.crt --phases grille
+    API_KEY=$API_KEY python loadtest/attack.py --host http://$IP
+    API_KEY=$API_KEY python loadtest/attack.py --host http://$IP --phases grille
 
 Phases (dans cet ordre, choisies avec --phases) :
 
-    grille      grille de tests de sécurité de l'étape 4 (401, 422, 413, en-têtes, HTTP refusé) : une requête par cas
+    grille      grille de tests de sécurité de l'étape 4 (401, 422, 413, en-têtes) : une requête par cas
     fuzzing     entrées malformées ou piégées (JSON invalide, mauvais type, injection de logs…) -> 4xx, jamais 500
     bruteforce  essais de clés API au hasard pendant --bruteforce-s secondes        -> 401, alerte « brute force »
     extraction  rafale de requêtes valides avec UNE clé, --workers en parallèle     -> 429, alerte « extraction du modèle »
@@ -33,7 +33,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
-import urllib3
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "reports" / "attack"
@@ -50,15 +49,10 @@ def now() -> str:
 
 
 class Client:
-    def __init__(self, host: str, api_key: str, cacert: str | None, insecure: bool = False):
+    def __init__(self, host: str, api_key: str):
         self.host = host.rstrip("/")
         self.api_key = api_key
         self.s = requests.Session()
-        if cacert:  # cas normal : on vérifie le certificat auto-signé du cluster avec tls.crt
-            self.s.verify = cacert
-        elif insecure:  # seulement si demandé explicitement (--insecure)
-            self.s.verify = False
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     def post(self, path: str = "/score", key: str | None = "valid", timeout: float = 10, **kw) -> requests.Response:
         headers = kw.pop("headers", {})
@@ -100,19 +94,11 @@ def phase_grille(c: Client) -> list[dict]:
     try:
         h = c.s.get(c.host + "/health", timeout=10).headers
     except requests.RequestException as e:
-        raise SystemExit(f"API injoignable ({type(e).__name__}) : vérifier --host, ou le certificat passé à --cacert "
-                         "(il doit être celui du serveur ; sinon --insecure)") from e
-    wanted = ["X-Content-Type-Options", "X-Frame-Options", "Strict-Transport-Security", "Cache-Control"]
+        raise SystemExit(f"API injoignable ({type(e).__name__}) : vérifier --host") from e
+    wanted = ["X-Content-Type-Options", "X-Frame-Options", "Cache-Control"]
     rows.append({"test": "En-têtes de sécurité", "attendu": "présents",
                  "obtenu": "présents" if all(k in h for k in wanted) else f"manquants : {[k for k in wanted if k not in h]}"})
 
-    if c.host.startswith("https://"):
-        try:
-            requests.get("http://" + c.host.removeprefix("https://") + "/health", timeout=5)
-            got = "répond (problème)"
-        except requests.RequestException:
-            got = "échec"
-        rows.append({"test": "HTTP refusé", "attendu": "échec", "obtenu": got})
     for r in rows:
         r["ok"] = r["attendu"] == r["obtenu"]
     return rows
@@ -172,10 +158,7 @@ def phase_fuzzing(c: Client) -> list[dict]:
 # --------------------------------------------------------------------------------------------------
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--host", required=True, help="https://<IP de l'Ingress> ou http://localhost:8000")
-    ap.add_argument("--cacert", help="certificat du serveur (tls.crt) pour vérifier le HTTPS")
-    ap.add_argument("--insecure", action="store_true",
-                    help="ne pas vérifier le certificat (déconseillé ; préférer --cacert tls.crt)")
+    ap.add_argument("--host", required=True, help="http://<IP de l'Ingress> ou http://localhost:8000")
     ap.add_argument("--phases", default="grille,fuzzing,bruteforce,extraction")
     ap.add_argument("--bruteforce-s", type=float, default=180, help="durée des essais de clés (s)")
     ap.add_argument("--bruteforce-rps", type=float, default=2, help="essais par seconde")
@@ -185,7 +168,7 @@ def main() -> None:
 
     sys.stdout.reconfigure(encoding="utf-8")  # accents lisibles dans le terminal Windows
     api_key = os.environ.get("API_KEY") or ap.error("définir la variable d'environnement API_KEY")
-    c = Client(args.host, api_key, args.cacert, args.insecure)
+    c = Client(args.host, api_key)
     report: dict = {"host": args.host, "debut": now(), "phases": {}}
 
     for phase in args.phases.split(","):

@@ -11,9 +11,8 @@ step "Pods"
 kubectl get pods -l 'app in (dss-api, grafana)' -o wide
 step "Autoscaling (HPA) et budget de pannes (PDB)"
 kubectl get hpa,pdb
-step "Ingress et certificat Google"
+step "Ingress"
 kubectl get ingress dss-api
-kubectl get managedcertificate -o custom-columns=NOM:.metadata.name,DOMAINE:.spec.domains[0],ETAT:.status.certificateStatus 2>/dev/null || true
 step "Collecte des métriques (GMP) : up{job=\"dss-api\"} = 1 par pod"
 curl -s -G -H "Authorization: Bearer $(gcloud auth print-access-token)" \
   "https://monitoring.googleapis.com/v1/projects/$PROJECT/location/global/prometheus/api/v1/query" \

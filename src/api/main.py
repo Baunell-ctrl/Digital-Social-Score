@@ -9,7 +9,7 @@ Sécurité / RGPD (étape 4 du TP, détaillée dans le README) :
 - validation des entrées (texte de 1 à 5 000 caractères, corps de requête limité à 32 Ko) ;
 - le texte n'est jamais stocké ni journalisé : seul un identifiant HMAC (pseudonyme) est écrit ;
 - échecs d'authentification journalisés (journal d'audit), sans la clé ni l'adresse IP en clair ;
-- en-têtes de sécurité HTTP ; HTTPS fourni par l'Ingress GKE (TLS 1.2+) ;
+- en-têtes de sécurité HTTP ; pas de TLS dans ce TP (API servie en HTTP simple, voir README étape 4 partie 2) ;
 - page web (``/``) : l'utilisateur y saisit sa clé API, qui n'est jamais dans la page ni dans le code.
 
 Supervision (étape 6) : ``/metrics`` expose les métriques Prometheus, collectées sur GKE par
@@ -136,7 +136,6 @@ SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
     "Cache-Control": "no-store",  # les scores ne doivent pas rester dans un cache intermédiaire
-    "Strict-Transport-Security": "max-age=31536000",  # ignoré en HTTP, actif derrière HTTPS
 }
 
 

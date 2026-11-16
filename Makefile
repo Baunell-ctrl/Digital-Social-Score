@@ -64,7 +64,7 @@ logs: ## 50 dernières lignes de logs des pods de l'API
 	kubectl logs -l app=dss-api --tail=50 --prefix
 
 # ---------------------------------------------------------------------------------- tests du cloud
-smoke: ## tests rapides de l'API déployée (santé, 401, 422, HTTP et TLS 1.1 refusés, grille)
+smoke: ## tests rapides de l'API déployée (santé, 401, 422, grille)
 	bash deploy/smoke.sh
 
 attack: ## simulation d'attaque complète, environ 5 min (déclenche les alertes)

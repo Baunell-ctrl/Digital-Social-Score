@@ -9,7 +9,7 @@
 #   3. dépôt Artifact Registry (images Docker privées)
 #   4. droits de Cloud Build : écriture dans ce seul dépôt, lecture du code envoyé, journaux
 #   5. clé Cloud KMS qui chiffrera les Secrets du cluster (rotation 90 jours)
-#   6. IP fixe et politique TLS 1.2 minimum du load balancer
+#   6. IP fixe du load balancer
 source "$(dirname "$0")/lib.sh"
 NUM=$(num)
 SA="serviceAccount:$NUM-compute@developer.gserviceaccount.com"
@@ -50,10 +50,8 @@ gcloud kms keys add-iam-policy-binding dss-secrets-key --keyring dss-keyring --l
   --member="serviceAccount:service-$NUM@container-engine-robot.iam.gserviceaccount.com" \
   --role=roles/cloudkms.cryptoKeyEncrypterDecrypter >/dev/null
 
-step "6. IP fixe et politique TLS"
+step "6. IP fixe"
 gcloud compute addresses describe dss-ip --global >/dev/null 2>&1 || gcloud compute addresses create dss-ip --global
-gcloud compute ssl-policies describe dss-tls12 >/dev/null 2>&1 || \
-  gcloud compute ssl-policies create dss-tls12 --profile MODERN --min-tls-version 1.2
 echo "IP fixe : $(gcloud compute addresses describe dss-ip --global --format='value(address)')"
 
 step "Terminé. Suite : make cluster, puis make build et make deploy"

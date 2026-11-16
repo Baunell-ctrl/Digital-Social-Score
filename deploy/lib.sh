@@ -41,5 +41,4 @@ IMAGE=$REGISTRY/api:$TAG
 # Adresse de l'API, toujours déduite de l'IP fixe ACTUELLEMENT réservée par le projet (jamais écrite en dur) :
 # si l'IP était libérée puis réattribuée à quelqu'un d'autre, un nom figé enverrait la clé API à ce tiers.
 api_ip() { gcloud compute addresses describe dss-ip --global --format="value(address)"; }
-api_host() { local ip; ip=$(api_ip) && [ -n "$ip" ] || die "IP fixe dss-ip introuvable"; echo "${ip//./-}.sslip.io"; }
 num() { gcloud projects describe "$PROJECT" --format="value(projectNumber)"; }
