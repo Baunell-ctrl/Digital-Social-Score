@@ -76,8 +76,8 @@ steps:
         # La base de vulnérabilités vient de registres publics qui tombent parfois (BLOB_UNKNOWN sur
         # mirror.gcr.io) : on essaie trois sources. Une vraie faille CRITIQUE corrigeable échoue quand même.
         for DB in mirror.gcr.io/aquasec/trivy-db:2 ghcr.io/aquasecurity/trivy-db:2 public.ecr.aws/aquasecurity/trivy-db:2; do
-          echo "=== base de vulnérabilités : $DB"
-          trivy image --input /workspace/image.tar --db-repository "$DB" --scanners vuln \
+          echo "=== base de vulnérabilités : $$DB"
+          trivy image --input /workspace/image.tar --db-repository "$$DB" --scanners vuln \
             --severity CRITICAL --ignore-unfixed --exit-code 1 --no-progress && exit 0
         done
         exit 1
