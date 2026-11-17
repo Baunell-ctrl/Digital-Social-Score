@@ -68,7 +68,9 @@ spec:
                   key: LOG_SALT
           resources:
             requests:              # ce que le pod réserve (et ce qui est facturé en Autopilot)
-              cpu: "500m"
+              # 500m -> 1 : les attaques par coût asymétrique (TP2, étape 2-3) saturaient le pipeline
+              # NER + BiLSTM (CPU-bound) bien avant que l'autoscaling ait le temps de réagir.
+              cpu: "1"
               memory: "1536Mi"
             limits:
               memory: "2Gi"

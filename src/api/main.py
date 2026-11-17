@@ -144,14 +144,22 @@ SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
     "Cache-Control": "no-store",  # les scores ne doivent pas rester dans un cache intermédiaire
+    # Appliquée à TOUTES les réponses (pas seulement DEMO_CSP sur "/") : une API JSON n'a besoin
+    # d'exécuter ni charger aucune ressource, donc tout est refusé par défaut.
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
 }
 
 
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
-    """Ajoute les en-têtes de sécurité à toutes les réponses."""
+    """Ajoute les en-têtes de sécurité à toutes les réponses.
+
+    setdefault (pas update) : la page de démo pose sa propre Content-Security-Policy, plus permissive
+    (elle charge ses scripts/styles/polices), qui ne doit pas être écrasée par la CSP générique ici.
+    """
     response = await call_next(request)
-    response.headers.update(SECURITY_HEADERS)
+    for key, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(key, value)
     if request.url.path.startswith("/fonts/") and response.status_code == 200:
         response.headers["Cache-Control"] = "public, max-age=86400"  # polices : aucune donnée sensible
     return response

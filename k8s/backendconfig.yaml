@@ -7,6 +7,11 @@ kind: BackendConfig
 metadata:
   name: dss-api
 spec:
+  # Défaut implicite du load balancer Google : 30 s, ce qui coïncide avec le plafond de latence
+  # (P99 ~30 s) observé pendant l'attaque par coût asymétrique (TP2, étape 2). Avec le limiteur de
+  # concurrence actif (MAX_CONCURRENT_SCORING), une requête admise ne devrait plus en approcher :
+  # 15 s coupe plus tôt une requête anormalement bloquée et libère la connexion.
+  timeoutSec: 15
   healthCheck:
     type: HTTP
     requestPath: /health
