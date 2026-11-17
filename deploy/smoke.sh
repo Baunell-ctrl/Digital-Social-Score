@@ -10,7 +10,7 @@ need curl kubectl
 IP=$(api_ip)
 HOST=http://$IP
 API_KEY=$(kubectl get secret dss-secrets -o jsonpath='{.data.API_KEY}' | base64 -d)
-PY=${PYTHON:-$(command -v python3 || command -v python)}
+PY=${PYTHON:-$(command -v python3 || command -v python || true)}   # absent de l'image cloud-sdk du pipeline : ne doit pas arrêter le script
 
 FAIL=0
 check() {  # check <nom> <code attendu> <arguments curl...>
