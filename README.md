@@ -1373,7 +1373,7 @@ Compte rendu du TP « API Digital Social Score : de la menace à la défense, re
 | Le TP demande de… | Ce qui est fait | Où |
 | ----------------- | --------------- | -- |
 | simuler une attaque sur le modèle IA | attaque par **coût asymétrique** sur `POST /score` : des textes valides mais coûteux saturent l'anonymisation. Run du 16/11/2026 : 19 réponses 5xx, 44 timeouts, latence P99 de 30 s, aucun `429` | étapes 1 et 2 |
-| concevoir une défense | pistes de défense proposées à partir de l'analyse de l'attaque | étape 3 |
+| concevoir une défense | **limiteur de concurrence + CSP + dimensionnement CPU + timeout du load balancer**, déployés et mesurés : P99 de 30 s à 1,4 s, zéro timeout, zéro redémarrage de pod | étape 3 |
 | démontrer la conformité IA Act | **risque minimal** justifié, `model_card.json`, test de biais : biais mesuré sur l'orientation sexuelle | étape 4 |
 | mettre en œuvre un pipeline DevSecOps | Cloud Build à chaque push sur `main` : gitleaks, pytest et contrôle IA Act, bandit, pip-audit, Trivy, déploiement GKE, retour arrière automatique | étape 5 |
 
@@ -1383,7 +1383,7 @@ Compte rendu du TP « API Digital Social Score : de la menace à la défense, re
 | -------- | -- |
 | Fiche d'analyse « Attaque IA » | étape 1 |
 | Graphique des métriques et interprétation de l'attaque | étape 2 |
-| Pistes de défense | étape 3 |
+| Tableau des métriques avant/après et graphique de comparaison | étape 3 |
 | Fiche IA Act (tableau de risque et justification) et `model_card.json` | étape 4 |
 | Pipeline sécurisé (`cloudbuild.yaml`) | étape 5 |
 
@@ -1395,6 +1395,7 @@ Compte rendu du TP « API Digital Social Score : de la menace à la défense, re
 | 16/11/2026 | run d'attaque de référence (305,6 s) | `reports/attack/flood_20261116_110433/` (sur le poste d'Aurel), capture Grafana |
 | 16/11/2026 | rapport d'attaque lisible (`attack/report.py`, un dossier par run) | `attack/` |
 | 16/11/2026 | test de biais, `model_card.json`, pipeline `cloudbuild.yaml`, connexion GitHub ↔ Cloud Build | étapes 4 et 5 |
+| 17/11/2026 | défenses (sémaphore, CSP, CPU, timeout) déployées sur le cluster ; re-attaque avec défense active | `reports/attack/flood_defense_20261117_151011/`, `reports/images/attack_defense_comparaison.png` |
 
 ## TP2, étape 1 : choix et analyse d'une attaque
 
@@ -1531,18 +1532,55 @@ Latence P95, P99 et même le temps d'inférence affichent tous les trois un plat
 >
 > *Livrables :* un tableau des métriques avant/après ; un graphique de comparaison.
 
-### Pistes de défense proposées
+### 1. Défenses implémentées et déployées
 
-Chaque piste part d'un résultat de l'étape 2. Aucune n'est encore active sur le cluster.
+Mises en œuvre en réponse au run de l'étape 2 **et** à l'audit red team inter-équipes
+(`docs/RAPPORT-CONSOLIDE.md`, ligne « Aurel (ADISSN) » : DoS avec kill switch immédiat + en-têtes
+manquants — fichier non modifié, c'est le compte-rendu externe de l'audit) :
 
-| Piste | Ce qu'elle change | Résultat de l'étape 2 visé | Limite |
-| ----- | ----------------- | -------------------------- | ------ |
-| **Limiteur de concurrence par pod** : au-delà de N traitements `/score` simultanés, réponse `503` immédiate avec `Retry-After` | borne le travail en cours, quel que soit le débit : une requête de trop est refusée en quelques millisecondes au lieu d'attendre 30 s | timeouts, 5xx et latence de 30 s, alors que le débit reste sous la limite de requêtes (aucun `429`) | un client légitime peut recevoir un `503` pendant un pic. Un prototype existe dans `src/api/main.py` (`MAX_CONCURRENT_SCORING`, compteur `dss_overload_rejected_total`), désactivé par défaut |
-| **Budget de coût sur le pré-traitement** : plafonner le nombre de mots ou d'entités que spaCy traite par requête | réduit le coût de chaque requête au lieu de limiter leur nombre | temps d'inférence serveur de 4,66 s en moyenne | modifie le pré-traitement, partagé avec l'entraînement |
-| **Quota de calcul par client** : compter le temps de traitement consommé par chaque clé, plutôt que son nombre de requêtes | une défense « par coût », là où la limite actuelle est « par requête » | aucun `429` alors que le service est saturé | plus complexe que la limite actuelle ; un attaquant peut répartir l'attaque sur plusieurs clés |
-| **Autoscaling plus réactif** : seuil CPU plus bas, montée plus rapide, `minReplicas` plus haut | réduit la fenêtre pendant laquelle les nouveaux pods ne sont pas prêts | les 44 timeouts, tous dans les 75 premières secondes | coûte plus cher ; ne supprime pas la fenêtre (démarrer un pod prend un temps incompressible) |
-| **Réglage du serveur** : `/score` asynchrone, ou moins de threads par pod | réduit la contention sur le demi-cœur de CPU | la quarantaine de requêtes empilées par pod (partie 6 de l'étape 2) | ne borne pas la charge à elle seule |
-| **Détection** : bornes de latence au-delà de 10 s dans `LATENCY_BUCKETS`, alerte sur la surcharge | rend l'attaque visible dans Grafana et par email | Grafana plafonné à 10 s face à 30 s réels | ne protège pas : elle prévient |
+| Défense | Où | Répond à |
+| ------- | -- | -------- |
+| **Limiteur de concurrence par pod** : au-delà de `MAX_CONCURRENT_SCORING` (4) traitements `/score` simultanés, réponse `503` immédiate avec `Retry-After`, compteur `dss_overload_rejected_total` | `src/api/main.py` | timeouts et 5xx de l'étape 2, alors que le débit restait sous la limite de requêtes (aucun `429`) |
+| **CSP globale** (exception pour `/docs` et `/redoc`, qui en ont besoin pour s'afficher) | `src/api/main.py` | « en-têtes manquants » (red team) |
+| **CPU requis** `500m` → `1` | `k8s/deployment.yaml` | « kill switch immédiat » et dimensionnement (red team) : le pipeline NER + BiLSTM est CPU-bound, 500m était sous-dimensionné |
+| **`timeoutSec` du load balancer** explicite à `15` s (30 s par défaut, implicite) | `k8s/backendconfig.yaml` | coupe plus tôt une requête anormalement bloquée plutôt que d'attendre le défaut de 30 s, qui coïncidait avec le plafond P99 observé à l'étape 2 |
+
+**HSTS** (autre en-tête manquant du red team) n'est volontairement pas ajouté : il n'a aucun effet sans
+TLS, et ce TP sert l'API en HTTP simple par choix assumé (étape 4, partie 2).
+
+### 2. Résultat mesuré : avant / après
+
+Même commande rejouée à l'identique (`attack/flood.py --host http://34.54.213.190 --workers 200 --duration 300 --profile mixed`), une fois sans défense (étape 2), une fois avec (`--label defense`) :
+
+| Métrique | Sans défense (`flood_20261116_110433`) | Avec défense (`flood_defense_20261117_151011`) |
+| -------- | --------------------------------------- | ------------------------------------------------ |
+| Requêtes envoyées | 9 462 (31,0 req/s) | 115 696 (385,3 req/s) |
+| Codes de réponse | 9 395 × `200`, 19 × 5xx, 44 × timeout, 4 × erreur réseau | 3 958 × `200`, **93 308 × `429`**, 18 430 × `503`, **aucun timeout** |
+| Latence client | pic P50 11,9 s · pic P95 28,8 s · pic P99 30,0 s | P50 94 ms · P95 828 ms · P99 1 390 ms |
+| Temps d'inférence serveur | 4,66 s en moyenne | 477 ms en moyenne |
+| Pods / redémarrages | 3 → 15 | 3 → 15 (quelques pods `Pending`, limite de nœuds Autopilot) ; **0 redémarrage** (`kubectl get pods`, colonne `RESTARTS`) |
+
+![Latence côté client avant/après la défense](reports/images/attack_defense_comparaison.png)
+
+### 3. Interprétation
+
+- **La latence s'effondre.** P99 passe de 30,0 s à 1,39 s (×22), et le temps d'inférence moyen de 4,66 s à 477 ms. Les requêtes admises ne s'entassent plus derrière le pipeline coûteux : le sémaphore les traite une à la fois, dans la limite du CPU disponible, au lieu de les empiler indéfiniment.
+- **Le débit explose, et c'est le signe que la défense marche.** 200 workers qui n'attendent plus 11 à 30 s par requête peuvent en relancer une en quelques dizaines de millisecondes : le débit passe de 31 à 385 req/s. En franchissant ainsi le seuil de `RATE_LIMIT_PER_MINUTE` (600/min/pod), l'attaque déclenche enfin la limite de requêtes (93 308 × `429`), restée inactive à l'étape 2 (0 × 429) : les deux défenses se complètent, la seconde ne s'active qu'une fois la première en place pour débloquer le débit.
+- **18 430 × `503`, contre 19 × 5xx et 44 timeouts avant.** Beaucoup plus de refus en nombre, mais c'est voulu : chaque `503` coûte quelques millisecondes à l'API et prévient immédiatement le client, contre jusqu'à 30 s d'attente avant un timeout ou un 5xx « sauvage » (pod non réactif aux sondes). Une dégradation illimitée devient un refus rapide et prévisible.
+- **Zéro redémarrage de pod**, alors que le red team observait un DoS avec « kill switch immédiat » sur ce même service. Le CPU à `1` (au lieu de `500m`) donne de la marge réelle, et le sémaphore empêche l'empilement de requêtes qui causait la saturation.
+- **Limite assumée.** Un client légitime qui tombe pendant un pic peut recevoir un `503` ou un `429` plutôt qu'une réponse lente — un compromis délibéré (disponibilité du service plutôt que garantie individuelle), cohérent avec le choix déjà fait pour `RATE_LIMIT_PER_MINUTE`.
+
+### 4. Autres pistes, non retenues ici
+
+| Piste | Ce qu'elle changerait | Limite |
+| ----- | ---------------------- | ------ |
+| **Budget de coût sur le pré-traitement** : plafonner le nombre de mots ou d'entités que spaCy traite par requête | réduit le coût de chaque requête au lieu de limiter leur nombre | modifie le pré-traitement, partagé avec l'entraînement |
+| **Quota de calcul par client** : compter le temps de traitement consommé par chaque clé, plutôt que son nombre de requêtes | une défense « par coût », là où la limite actuelle est « par requête » | plus complexe que la limite actuelle ; un attaquant peut répartir l'attaque sur plusieurs clés |
+| **Autoscaling plus réactif** : seuil CPU plus bas, montée plus rapide, `minReplicas` plus haut | réduirait la fenêtre pendant laquelle les nouveaux pods ne sont pas prêts | ne supprime pas la fenêtre (démarrer un pod prend un temps incompressible) ; coûte plus cher |
+| **Réglage du serveur** : `/score` asynchrone, ou moins de threads par pod | réduirait la contention sur le CPU | ne borne pas la charge à elle seule, le sémaphore reste nécessaire |
+| **Détection** : bornes de latence au-delà de 10 s dans `LATENCY_BUCKETS`, alerte sur la surcharge | rendrait l'attaque visible dans Grafana et par email | ne protège pas : elle prévient |
+| **Cloud Armor / WAF en périphérie** : règle de débit par IP sur le load balancer | filtrerait une partie du trafic avant même d'atteindre GKE, en complément du sémaphore | nouvelle ressource GCP payante, décision budgétaire à part |
+| **Timeout de lecture du corps** (`BodySizeLimitMiddleware`) | protégerait contre un slow-POST/Slowloris (angle différent du coût asymétrique testé ici) | nécessiterait son propre test de charge pour être validé |
 
 ## TP2, étape 4 : conformité IA Act
 
