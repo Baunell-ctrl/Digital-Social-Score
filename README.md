@@ -1370,24 +1370,22 @@ Compte rendu du TP « API Digital Social Score : de la menace à la défense, re
 >
 > À partir de votre projet Digital Social Score (TP n°1), vous devez : simuler une attaque sur le modèle IA ; concevoir et prouver l'efficacité d'une défense adaptée ; mettre en œuvre un pipeline DevSecOps sécurisé ; démontrer la conformité de votre modèle au règlement IA Act.
 
-| Le TP demande de… | Notre réponse | Où |
-| ----------------- | ------------- | -- |
+| Le TP demande de… | Ce qui est fait | Où |
+| ----------------- | --------------- | -- |
 | simuler une attaque sur le modèle IA | attaque par **coût asymétrique** sur `POST /score` : des textes valides mais coûteux saturent l'anonymisation. Run du 16/11/2026 : 19 réponses 5xx, 44 timeouts, latence P99 de 30 s, aucun `429` | étapes 1 et 2 |
-| concevoir et prouver l'efficacité d'une défense | **limiteur de concurrence** par pod (`MAX_CONCURRENT_SCORING`, refus immédiat en `503`) : codé ; efficacité **pas encore mesurée** | étape 3 |
+| concevoir une défense | pistes de défense proposées à partir de l'analyse de l'attaque | étape 3 |
 | démontrer la conformité IA Act | **risque minimal** justifié, `model_card.json`, test de biais : biais mesuré sur l'orientation sexuelle | étape 4 |
 | mettre en œuvre un pipeline DevSecOps | Cloud Build à chaque push sur `main` : gitleaks, pytest et contrôle IA Act, bandit, pip-audit, Trivy, déploiement GKE, retour arrière automatique | étape 5 |
 
-**Livrables**
+**Livrables présents**
 
-| Livrable | Étape | État au 17/11/2026 |
-| -------- | ----- | ------------------ |
-| Fiche d'analyse « Attaque IA » | 1 | fait |
-| Graphique des métriques et interprétation de l'attaque | 2 | fait |
-| Tableau avant/après et graphique de comparaison de la défense | 3 | **à faire** : la défense n'a pas encore été déployée ni mesurée |
-| Fiche IA Act (tableau de risque et justification) et `model_card.json` | 4 | fait |
-| Pipeline sécurisé | 5 | fait (`cloudbuild.yaml`) |
-| Logs d'exécution du pipeline | 5 | **à faire** : aucun build observé |
-| Analyse critique et recommandations | fin du TP2 | fait |
+| Livrable | Où |
+| -------- | -- |
+| Fiche d'analyse « Attaque IA » | étape 1 |
+| Graphique des métriques et interprétation de l'attaque | étape 2 |
+| Pistes de défense | étape 3 |
+| Fiche IA Act (tableau de risque et justification) et `model_card.json` | étape 4 |
+| Pipeline sécurisé (`cloudbuild.yaml`) | étape 5 |
 
 **Chronologie**
 
@@ -1397,7 +1395,6 @@ Compte rendu du TP « API Digital Social Score : de la menace à la défense, re
 | 16/11/2026 | run d'attaque de référence (305,6 s) | `reports/attack/flood_20261116_110433/` (sur le poste d'Aurel), capture Grafana |
 | 16/11/2026 | rapport d'attaque lisible (`attack/report.py`, un dossier par run) | `attack/` |
 | 16/11/2026 | test de biais, `model_card.json`, pipeline `cloudbuild.yaml`, connexion GitHub ↔ Cloud Build | étapes 4 et 5 |
-| 17/11/2026 | défense par limiteur de concurrence codée, désactivée par défaut | `src/api/main.py` |
 
 ## TP2, étape 1 : choix et analyse d'une attaque
 
@@ -1513,7 +1510,11 @@ Latence P95, P99 et même le temps d'inférence affichent tous les trois un plat
 - **Latence : une dégradation réelle, pas seulement un ralentissement.** La médiane grimpe de 4,4 s à son pic de 11,9 s en moins de 20 secondes, pendant que le HPA démarre des pods (3 → 15). Après ce pic, la médiane redescend franchement (3,5 s en fin de run, grâce aux pods supplémentaires), mais **P95 et P99 restent hauts jusqu'à la fin** (20,9 s / 27,7 s) : les requêtes les plus pénalisées restent dégradées bien après que la médiane s'est rétablie.
 - **19 réponses 5xx et 44 timeouts : les deux ne suivent pas le même calendrier.** Les 44 timeouts surviennent tous dans les 75 premières secondes (pendant la montée en charge, avant que les nouveaux pods ne soient prêts), puis plus aucun jusqu'à la fin. Les 19 réponses 5xx s'étalent sur presque tout le run (le dernier vers la 5ᵉ minute) : signe probable de redémarrages de pods répétés sous charge soutenue, pas d'un seul épisode de montée en charge.
 - **Aucun `429` : l'attaque passe sous le radar d'une défense purement volumétrique.** `RATE_LIMIT_PER_MINUTE` (600/min/pod) compte le débit entrant, pas le coût de traitement. Même à 31 req/s, aucune requête ne déclenche cette limite, alors que le système est clairement saturé (5xx, timeouts, latence multipliée par 7). C'est tout l'intérêt du coût asymétrique pour un attaquant.
-- **L'autoscaling est un amortisseur, pas une défense.** Il réagit après coup (il faut qu'un pod soit déjà saturé pour que le HPA en demande d'autres, puis attendre leur démarrage) et ne fait rien contre les échecs pendant cette fenêtre. Aucune des défenses en place (clé API, `RATE_LIMIT_PER_MINUTE`, longueur maximale) ne s'est déclenchée : elles comptent des **requêtes**, jamais le **coût** d'une requête valide. C'est ce trou que l'étape 3 comble.
+- **L'autoscaling est un amortisseur, pas une défense.** Il réagit après coup (il faut qu'un pod soit déjà saturé pour que le HPA en demande d'autres, puis attendre leur démarrage) et ne fait rien contre les échecs pendant cette fenêtre. Aucune des défenses en place (clé API, `RATE_LIMIT_PER_MINUTE`, longueur maximale) ne s'est déclenchée : elles comptent des **requêtes**, jamais le **coût** d'une requête valide.
+
+### 6. Pourquoi le service sature : la cause dans le code
+
+`POST /score` ([src/api/main.py](src/api/main.py)) est un handler **synchrone** : Starlette l'exécute dans son threadpool interne (par défaut une quarantaine de threads par processus), et l'API tourne avec **un seul worker uvicorn** par pod ([Dockerfile](Dockerfile)) pour **500 m de CPU** demandé. Autrement dit, jusqu'à une quarantaine de requêtes peuvent s'empiler sur le pipeline coûteux (NER spaCy + BiLSTM, lié par le GIL) avec seulement un demi-cœur disponible, **sans aucune limite et sans échec rapide** : la requête attend, la latence grimpe sans plafond, jusqu'au timeout du client ou à un 5xx (pod non réactif aux sondes de vie). C'est ce que montre le run du 16/11.
 
 ## TP2, étape 3 : conception d'une défense
 
@@ -1530,50 +1531,18 @@ Latence P95, P99 et même le temps d'inférence affichent tous les trois un plat
 >
 > *Livrables :* un tableau des métriques avant/après ; un graphique de comparaison.
 
-### 1. Cause racine, identifiée dans le code
+### Pistes de défense proposées
 
-`POST /score` ([src/api/main.py](src/api/main.py)) est un handler **synchrone** : Starlette l'exécute dans son threadpool interne (par défaut une quarantaine de threads par processus), et l'API tourne avec **un seul worker uvicorn** par pod ([Dockerfile](Dockerfile)) pour **500 m de CPU** demandé. Autrement dit, jusqu'à une quarantaine de requêtes peuvent s'empiler sur le pipeline coûteux (NER spaCy + BiLSTM, lié par le GIL) avec seulement un demi-cœur disponible, **sans aucune limite et sans échec rapide** : la requête attend, la latence grimpe sans plafond, jusqu'au timeout du client ou à un 5xx (pod non réactif aux sondes de vie). C'est exactement ce qu'a montré le run de l'étape 2.
+Chaque piste part d'un résultat de l'étape 2. Aucune n'est encore active sur le cluster.
 
-### 2. Défense implémentée : limiteur de concurrence par pod, avec échec rapide (503)
-
-Contrairement à `RATE_LIMIT_PER_MINUTE` (qui compte des *requêtes* par minute), ce mécanisme borne le nombre de requêtes `/score` traitées **en même temps**, quel que soit le débit entrant : il agit donc même quand l'attaquant reste sous la limite de débit, comme ici. Au-delà du seuil, l'API répond 503 en quelques millisecondes au lieu de laisser la requête s'entasser jusqu'à 30 secondes : une dégradation silencieuse et illimitée devient un refus rapide et prévisible.
-
-Implémentation dans [src/api/main.py](src/api/main.py) :
-
-| Élément | Détail |
-| --- | --- |
-| Réglage | `MAX_CONCURRENT_SCORING` (variable d'environnement, défaut `0` = désactivé, même convention que `RATE_LIMIT_PER_MINUTE`) |
-| Mécanisme | `threading.Semaphore(MAX_CONCURRENT_SCORING)`, acquis en mode non bloquant **uniquement autour de l'appel à `predictor.predict(...)`** (jamais autour de l'authentification ou de la validation, qui restent bon marché) |
-| Refus | `503` + en-tête `Retry-After`, sans jamais exécuter l'anonymisation ni le modèle |
-| Visibilité | compteur Prometheus `dss_overload_rejected_total` et ligne de log `overload_rejected`, même patron que `dss_rate_limited_total` |
-| Activation | `kubectl set env deployment/dss-api MAX_CONCURRENT_SCORING=4` (pas de changement du manifeste, comme pour `RATE_LIMIT_PER_MINUTE`) |
-
-### 3. Mesure avec et sans défense (livrables : tableau avant/après, graphique)
-
-**État au 17/11/2026 : pas encore mesuré.** Le code de la défense est sur `main`, désactivé par défaut ; il n'a pas encore été déployé ni activé, et l'attaque n'a pas été rejouée.
-
-| Métrique | Sans défense (16/11/2026) | Avec défense (`MAX_CONCURRENT_SCORING=4`) |
-| -------- | ------------------------- | ----------------------------------------- |
-| Requêtes envoyées | 9 462 (31,0 req/s) | à mesurer |
-| `200` / `503` / 5xx / timeouts | 9 395 / 0 / 19 / 44 | à mesurer |
-| Latence client : pic P50 / P95 / P99 | 11,9 s / 28,8 s / 30,0 s | à mesurer |
-| Pods (HPA) | 3 → 15 | à mesurer |
-
-**Pour compléter :**
-
-1. déployer l'image qui contient la défense (pipeline de l'étape 5, ou `make build deploy TAG=...`) ;
-2. activer la défense : `kubectl set env deployment/dss-api MAX_CONCURRENT_SCORING=4` ;
-3. rejouer exactement la même attaque : `python attack/flood.py --host http://<IP> --key <clé> --workers 200 --duration 300 --label defense` ;
-4. remplir le tableau ci-dessus à partir de `reports/attack/flood_defense_<date>/` ;
-5. tracer le graphique de comparaison (`attack/plot_compare.py`, à écrire sur le modèle de `loadtest/plot.py`) dans `reports/images/attack_defense_comparaison.png`.
-
-Limite connue de la défense : un client légitime peut recevoir un `503` pendant un pic, un compromis comparable aux `429` déjà acceptés ailleurs dans ce projet.
-
-### 4. Autres pistes, non retenues
-
-- **HPA plus réactif** (seuil CPU sous 50 %, fenêtre de montée plus courte, ou `minReplicas` plus haut) : réduirait la durée de la fenêtre de montée en charge, mais ne l'éliminerait pas (démarrer un pod, et parfois un nœud Autopilot, prend un temps incompressible), et ce n'est pas une défense applicative isolable.
-- **Passer `/score` en asynchrone ou ajuster le nombre de workers et threads uvicorn** : la quarantaine de threads par défaut pour un demi-cœur de calcul est un réglage grossier ; l'ajuster réduirait la contention, mais sans remplacer le besoin d'une limite explicite.
-- **Budget de coût sur le pré-traitement** (plafonner le nombre d'entités ou de mots que spaCy traite par requête, indépendamment des 5 000 caractères déjà acceptés) : réduirait le coût de chaque requête plutôt que son admission. Complémentaire de la défense retenue, mais plus intrusif sur le pipeline partagé avec l'entraînement.
+| Piste | Ce qu'elle change | Résultat de l'étape 2 visé | Limite |
+| ----- | ----------------- | -------------------------- | ------ |
+| **Limiteur de concurrence par pod** : au-delà de N traitements `/score` simultanés, réponse `503` immédiate avec `Retry-After` | borne le travail en cours, quel que soit le débit : une requête de trop est refusée en quelques millisecondes au lieu d'attendre 30 s | timeouts, 5xx et latence de 30 s, alors que le débit reste sous la limite de requêtes (aucun `429`) | un client légitime peut recevoir un `503` pendant un pic. Un prototype existe dans `src/api/main.py` (`MAX_CONCURRENT_SCORING`, compteur `dss_overload_rejected_total`), désactivé par défaut |
+| **Budget de coût sur le pré-traitement** : plafonner le nombre de mots ou d'entités que spaCy traite par requête | réduit le coût de chaque requête au lieu de limiter leur nombre | temps d'inférence serveur de 4,66 s en moyenne | modifie le pré-traitement, partagé avec l'entraînement |
+| **Quota de calcul par client** : compter le temps de traitement consommé par chaque clé, plutôt que son nombre de requêtes | une défense « par coût », là où la limite actuelle est « par requête » | aucun `429` alors que le service est saturé | plus complexe que la limite actuelle ; un attaquant peut répartir l'attaque sur plusieurs clés |
+| **Autoscaling plus réactif** : seuil CPU plus bas, montée plus rapide, `minReplicas` plus haut | réduit la fenêtre pendant laquelle les nouveaux pods ne sont pas prêts | les 44 timeouts, tous dans les 75 premières secondes | coûte plus cher ; ne supprime pas la fenêtre (démarrer un pod prend un temps incompressible) |
+| **Réglage du serveur** : `/score` asynchrone, ou moins de threads par pod | réduit la contention sur le demi-cœur de CPU | la quarantaine de requêtes empilées par pod (partie 6 de l'étape 2) | ne borne pas la charge à elle seule |
+| **Détection** : bornes de latence au-delà de 10 s dans `LATENCY_BUCKETS`, alerte sur la surcharge | rend l'attaque visible dans Grafana et par email | Grafana plafonné à 10 s face à 30 s réels | ne protège pas : elle prévient |
 
 ## TP2, étape 4 : conformité IA Act
 
@@ -1599,7 +1568,7 @@ Le règlement européen sur l'IA (règlement (UE) 2024/1689, « IA Act ») class
 | **Risque limité** (transparence, art. 50) | dialogue avec une IA (chatbot), contenus générés (texte, image, deepfake), reconnaissance des émotions, catégorisation biométrique | le modèle ne converse pas et ne génère rien : il renvoie un nombre | non |
 | **Risque minimal** | tout le reste ; codes de conduite volontaires (art. 95) | classification de texte pour aider à modérer | **oui** |
 
-**Conclusion : risque minimal.** Deux obligations s'appliquent tout de même à tous les systèmes : la **maîtrise de l'IA** (art. 4 : les personnes qui utilisent le système sont formées à ses limites) et le respect des **interdictions de l'art. 5** par les clients qui intègrent l'API. Les exigences de robustesse et de cybersécurité de l'art. 15, que l'attaque des étapes 1 à 3 met à l'épreuve, ne s'imposent qu'aux systèmes à haut risque : nous les appliquons comme bonne pratique.
+**Conclusion : risque minimal.** Deux obligations s'appliquent tout de même à tous les systèmes : la **maîtrise de l'IA** (art. 4 : les personnes qui utilisent le système sont formées à ses limites) et le respect des **interdictions de l'art. 5** par les clients qui intègrent l'API. Les exigences de robustesse et de cybersécurité de l'art. 15, que l'attaque des étapes 1 et 2 met à l'épreuve, ne s'imposent qu'aux systèmes à haut risque : nous les appliquons comme bonne pratique.
 
 **Le nom « Digital Social Score » ne correspond pas à une notation sociale**, mais l'usage peut faire changer la catégorie :
 
@@ -1700,9 +1669,9 @@ Le 16/11/2026, sur le poste de développement, pour vérifier qu'aucun contrôle
 | pytest (`tests/`) | 45 tests passés | – |
 | pip-audit 2.10 (`requirements-api.txt`) | aucune faille connue | – |
 | bandit 1.9 (`src/`, `attack/`, sévérité moyenne et plus) | 4 alertes, toutes dans les scripts d'entraînement, aucune dans le code de l'API : 2 × B614 (`torch.load` non sûr, `lstm_binary.py` et `bert_binary.py`), 2 × B615 (téléchargement Hugging Face sans révision figée, `bert_binary.py`) | B614 **corrigées** (`weights_only=True`, comme dans `predictor.py`) ; B615 **acceptées** (`# nosec B615`) : BERT est entraîné en local et n'est pas déployé. Résultat : 0 alerte |
-| gitleaks, Trivy | non lancés en local | premier résultat attendu au premier build |
+| gitleaks, Trivy | non lancés en local | – |
 
-Relancés le 17/11/2026 après la fusion du code d'Aurel (défense de l'étape 3) : 45 tests passés, 0 alerte bandit.
+Relancés le 17/11/2026 après la fusion du code d'Aurel : 45 tests passés, 0 alerte bandit.
 
 ### 3. Services Google Cloud impliqués
 
@@ -1751,30 +1720,7 @@ gcloud builds triggers create github \
 | GitHub, à côté du commit | coche verte ou croix rouge du build |
 | Terminal | `gcloud builds list --region=europe-west9`, `gcloud builds log <ID> --region=europe-west9` |
 
-**État au 17/11/2026 :** pipeline écrit, connexion GitHub active (16/11). Aucun build n'a encore été observé : les logs d'exécution seront ajoutés ici après le premier build.
-
-## TP2 : analyse critique et recommandations
-
-> **Énoncé du TP** (livrables globaux) : analyse critique et recommandations.
-
-### 1. Ce qui fonctionne
-
-- **L'attaque est reproductible et mesurée** : un script, un rapport par run, une chronologie seconde par seconde. Elle montre un vrai trou : aucune défense en place ne s'est déclenchée (aucun `429`) alors que le service renvoyait des 5xx et des timeouts.
-- **La conformité est vérifiée automatiquement** : `tests/test_model_card.py` relance le test de biais à chaque push. Un modèle modifié sans mise à jour de la model card fait échouer le pipeline.
-- **Le pipeline contrôle avant de livrer** : secrets, tests, failles du code, des dépendances et de l'image passent avant toute publication ; un déploiement qui casse l'API est annulé automatiquement.
-
-### 2. Limites constatées et recommandations
-
-| Constat | Preuve | Recommandation |
-| ------- | ------ | -------------- |
-| La défense n'est pas encore prouvée | étape 3, partie 3 | déployer, activer `MAX_CONCURRENT_SCORING=4`, rejouer la même attaque et remplir le tableau avant/après |
-| Les 44 timeouts tombent tous pendant la montée en charge du HPA (75 premières secondes) | étape 2, partie 5 | compter sur la défense plutôt que sur l'autoscaling ; éventuellement `minReplicas` plus haut pendant les périodes à risque |
-| Grafana plafonne à 10 s alors que la latence réelle atteint 30 s | étape 2, partie 4 | ajouter des bornes à 15, 30 et 60 s dans `LATENCY_BUCKETS` ; ajouter une alerte sur `dss_overload_rejected_total` |
-| Biais sur l'orientation sexuelle : « gay » ajoute 40 points en moyenne | étape 4, partie 3 | ajouter au jeu d'entraînement des phrases non toxiques contenant ces termes (méthode de Dixon et al., 2018), puis rejouer le test de biais |
-| Scores élevés sur des phrases courtes et neutres | étape 4, partie 3 | réentraîner ou recalibrer sur une proportion réaliste de commentaires toxiques (le jeu actuel en contient 50 %) |
-| Pas de chiffrement entre le client et l'API (HTTP simple) | TP1, étape 4, partie 2 | TLS avec un nom de domaine avant tout usage réel |
-| Le pipeline n'a pas encore tourné ; gitleaks et Trivy n'ont pas été testés | étape 5, partie 2 | observer le premier build et joindre ses logs à l'étape 5 |
-| Le rapport du run de référence n'est pas dans le dépôt | étape 2, partie 3 | ajouter `reports/attack/flood_20261116_110433/` |
+**État au 17/11/2026 :** pipeline écrit, connexion GitHub active (16/11). Aucun build n'a encore été observé.
 
 ## Lancer le projet
 

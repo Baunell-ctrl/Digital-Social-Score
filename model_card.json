@@ -86,7 +86,7 @@
     "scores élevés sur des phrases courtes et neutres (faux positifs)",
     "anglais uniquement, vocabulaire de Wikipédia avant 2018 : dérive possible avec un vocabulaire nouveau",
     "l'anonymisation peut laisser passer des noms rares",
-    "pré-traitement (anonymisation spaCy) vulnérable à une attaque par coût asymétrique : 19 réponses 5xx et 44 timeouts le 16/11/2026 (TP2, étapes 1 à 3) ; défense MAX_CONCURRENT_SCORING disponible, efficacité pas encore mesurée"
+    "pré-traitement (anonymisation spaCy) vulnérable à une attaque par coût asymétrique : 19 réponses 5xx et 44 timeouts le 16/11/2026 (TP2, étapes 1 et 2)"
   ],
   "human_oversight": "Le score est une aide à la décision. Le déployeur doit faire relire par un humain tout contenu avant sanction.",
   "contact": "équipe projet Digital Social Score (TP)"
