@@ -1,0 +1,81 @@
+{
+  "capital_initial": 20,
+  "sanctions": {
+    "S0": {
+      "niveau": "N0",
+      "intitule": "Classement sans suite",
+      "description": "Aucune infraction retenue. L'auteur n'est pas notifié.",
+      "points": 0,
+      "duree": null,
+      "reversible": true,
+      "controle_humain": false
+    },
+    "S1": {
+      "niveau": "N1",
+      "intitule": "Rappel courtois à la Charte",
+      "description": "Message de rappel citant l'article concerné, accompagné d'une invitation à relire la Charte.",
+      "points": -1,
+      "duree": null,
+      "reversible": true,
+      "controle_humain": false
+    },
+    "S2": {
+      "niveau": "N2",
+      "intitule": "Avertissement solennel et devoir de reformulation",
+      "description": "Avertissement inscrit au casier. L'auteur doit reformuler poliment son message, qui reste dépublié jusqu'à reformulation.",
+      "points": -3,
+      "duree": null,
+      "reversible": true,
+      "controle_humain": false
+    },
+    "S3": {
+      "niveau": "N3",
+      "intitule": "Mode escargot",
+      "description": "L'auteur ne peut publier qu'un message toutes les 10 minutes pendant 48 heures.",
+      "points": -5,
+      "duree": "48 h",
+      "reversible": true,
+      "controle_humain": false
+    },
+    "S4": {
+      "niveau": "N4",
+      "intitule": "Suspension temporaire",
+      "description": "Suspension du droit de publier pendant 7 jours.",
+      "points": -10,
+      "duree": "7 j",
+      "reversible": true,
+      "controle_humain": true
+    },
+    "S5": {
+      "niveau": "N5",
+      "intitule": "Bannissement définitif",
+      "description": "Exclusion définitive de Cancanpédia. Le solde de points est ramené à zéro.",
+      "points": "solde ramené à 0",
+      "duree": "définitive",
+      "reversible": false,
+      "controle_humain": true
+    }
+  },
+  "mesures": {
+    "M1": {
+      "intitule": "Masquage du message",
+      "description": "Le message reste archivé pour le Tribunal mais n'est plus visible du public.",
+      "condition": "niveau retenu ≥ N3, ou subornation (art. 15)"
+    },
+    "M2": {
+      "intitule": "Caviardage des données personnelles",
+      "description": "Les adresses IP, noms réels et coordonnées sont remplacés par [CAVIARDÉ].",
+      "condition": "présence d'une donnée personnelle (art. 11)"
+    },
+    "M3": {
+      "intitule": "Clavier verrouillé en minuscules",
+      "description": "Pendant 72 heures, tous les messages de l'auteur sont convertis en minuscules à la publication.",
+      "condition": "vocifération (A3, art. 9)"
+    },
+    "M4": {
+      "intitule": "Information du Gardien visé",
+      "description": "Le Gardien concerné reçoit une copie de la décision.",
+      "condition": "Gardien visé (A2, art. 8)"
+    }
+  }
+}

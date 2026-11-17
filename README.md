@@ -4,7 +4,7 @@ Compte rendu du TP « API Digital Social Score : de l'analyse de texte à l'infr
 
 Le **TP2** (« de la menace à la défense » : attaque, défense, IA Act, DevSecOps) suit le TP1, dans la partie « TP2 : de la menace à la défense ».
 
-> **Comptes rendus (livrables) : [README_TP1.md](README_TP1.md) et [README_TP2.md](README_TP2.md).** Ce fichier est le journal de travail détaillé : toutes les mesures, commandes et étapes de mise en place.
+> **Comptes rendus (livrables) : [README_TP1.md](README_TP1.md), [README_TP2.md](README_TP2.md) et [README_TP3.md](README_TP3.md) (Tribunal de la Bienséance, agents Google ADK).** Ce fichier est le journal de travail détaillé : toutes les mesures, commandes et étapes de mise en place.
 
 Chaque étape commence par l'**énoncé du TP** (objectifs pédagogiques et exercice), puis répond aux questions de l'exercice, dans l'ordre.
 

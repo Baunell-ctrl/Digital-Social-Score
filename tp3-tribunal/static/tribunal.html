@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tribunal de la Bienséance</title>
+<meta name="description" content="Soumettez un message au Tribunal : quatre agents ADK l'instruisent, le plaident et le jugent sous vos yeux.">
+<meta name="color-scheme" content="light dark">
+<style>
+  @font-face { font-family: "Literata"; font-weight: 200 900; font-display: swap;
+    src: local("Literata"), url("/fonts/literata-latin-wght-normal.woff2") format("woff2"); }
+  @font-face { font-family: "Instrument Sans"; font-weight: 400 700; font-display: swap;
+    src: local("Instrument Sans"), url("/fonts/instrument-sans-latin-wght-normal.woff2") format("woff2"); }
+
+  :root {
+    --bg: #ede0bd; --surface: #f4e9cc; --card: #f9f1dc; --line: #d6c497; --line-soft: #e4d6af;
+    --ink: #38291a; --ink-2: #5c4a33; --muted: #86714f; --accent: #8a6400; --on-accent: #fff8e6;
+    --ok: #5b6b00; --ok-bg: #e6e3b4; --bad: #b3261e; --bad-bg: #f2d2c2;
+    --c-teal: #1d7f77; --c-rasp: #a8286c; --c-indigo: #5a5eae;
+    --shadow: 0 1px 0 rgba(56,41,26,.10), 0 14px 30px -14px rgba(92,60,20,.35);
+    --serif: "Literata", Georgia, serif; --sans: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace; --ease: cubic-bezier(.2,.8,.2,1);
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #15110d; --surface: #1d1813; --card: #241e17; --line: #3b3026; --line-soft: #2e251d;
+    --ink: #ecdcbd; --ink-2: #c4b08c; --muted: #8f7d60; --accent: #d19d16; --on-accent: #15110d;
+    --ok: #a3b519; --ok-bg: #2c3010; --bad: #ef5a4c; --bad-bg: #3a1a15;
+    --c-teal: #46c1b6; --c-rasp: #e0679f; --c-indigo: #8f93e0;
+    --shadow: 0 1px 0 rgba(0,0,0,.35), 0 14px 30px -14px rgba(0,0,0,.7); } }
+  :root[data-theme="dark"] {
+    --bg: #15110d; --surface: #1d1813; --card: #241e17; --line: #3b3026; --line-soft: #2e251d;
+    --ink: #ecdcbd; --ink-2: #c4b08c; --muted: #8f7d60; --accent: #d19d16; --on-accent: #15110d;
+    --ok: #a3b519; --ok-bg: #2c3010; --bad: #ef5a4c; --bad-bg: #3a1a15;
+    --c-teal: #46c1b6; --c-rasp: #e0679f; --c-indigo: #8f93e0;
+    --shadow: 0 1px 0 rgba(0,0,0,.35), 0 14px 30px -14px rgba(0,0,0,.7); }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--serif); }
+  header { position: sticky; top: 0; z-index: 5; border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(10px); }
+  .bar { max-width: 1100px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 10px; }
+  .brand { font-weight: 600; margin-right: auto; display: flex; gap: 9px; align-items: center; }
+  .brand i { width: 14px; height: 22px; border-radius: 2px 5px 5px 2px; background: var(--accent); }
+  .tag { font: 600 .78rem/1 var(--sans); color: var(--muted); }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px 56px; }
+  .eyebrow { font: 600 .78rem/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); }
+  h1 { font-size: clamp(1.9rem, 5vw, 3rem); line-height: 1.1; margin: 12px 0; letter-spacing: -.02em; font-weight: 600; }
+  .lead { color: var(--ink-2); max-width: 70ch; margin: 0 0 26px; }
+  .card { background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow);
+    border-radius: 6px 16px 16px 6px; padding: 22px; }
+  label { font: 600 .82rem/1.2 var(--sans); color: var(--ink-2); display: block; margin-bottom: 6px; }
+  textarea, input, select { width: 100%; font: 15px/1.5 var(--mono); color: var(--ink); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  select, input { font-family: var(--sans); min-height: 44px; }
+  textarea { min-height: 120px; resize: vertical; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 14px 0; }
+  .btn { font: 600 .95rem/1 var(--sans); min-height: 44px; padding: 0 22px; border-radius: 12px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+  .btn-primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .hint { font: .85rem/1.4 var(--sans); color: var(--muted); }
+
+  /* ---------- Le graphe d'agents ---------- */
+  h2 { font-size: 1.35rem; margin: 34px 0 14px; font-weight: 600; }
+  .graphe { display: grid; gap: 12px; }
+  .rang { display: grid; gap: 12px; }
+  .rang.deux { grid-template-columns: 1fr 1fr; }
+  .fleche { text-align: center; color: var(--muted); font: 600 .8rem/1 var(--sans); }
+  .noeud { background: var(--card); border: 1px solid var(--line); border-left: 5px solid var(--line);
+    border-radius: 6px 14px 14px 6px; padding: 14px 16px; transition: border-color .3s, box-shadow .3s; min-width: 0; }
+  .noeud header { position: static; background: none; border: 0; backdrop-filter: none; display: flex;
+    align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .noeud h3 { margin: 0; font-size: 1.05rem; }
+  .noeud .role { font: .8rem/1.3 var(--sans); color: var(--muted); }
+  .etat { margin-left: auto; font: 600 .72rem/1 var(--sans); letter-spacing: .06em; text-transform: uppercase;
+    padding: 5px 8px; border-radius: 99px; background: var(--surface); color: var(--muted); border: 1px solid var(--line); }
+  .noeud.travaille { border-left-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .noeud.travaille .etat { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .noeud.fini { border-left-color: var(--ok); }
+  .noeud.fini .etat { background: var(--ok-bg); color: var(--ok); }
+  .noeud.code { border-left-style: dashed; }
+  .sortie { font: 14px/1.55 var(--serif); white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 8px; color: var(--ink); }
+  .sortie:empty { display: none; }
+  .outil { font: 12.5px/1.45 var(--mono); background: var(--surface); border: 1px solid var(--line-soft);
+    border-radius: 8px; padding: 6px 9px; margin-top: 8px; overflow-wrap: anywhere; }
+  .outil b { color: var(--c-indigo); }
+  .outil.rep b { color: var(--c-teal); }
+  details.outil summary { cursor: pointer; }
+  .kv { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { font: 600 .78rem/1 var(--sans); padding: 6px 8px; border-radius: 8px; background: var(--surface);
+    border: 1px solid var(--line); }
+  .chip.warn { background: var(--bad-bg); color: var(--bad); border-color: transparent; }
+
+  /* ---------- Verdict ---------- */
+  .verdict { margin-top: 18px; display: none; }
+  .verdict.on { display: block; }
+  .sceau { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .niveau { font: 700 2.2rem/1 var(--sans); padding: 10px 16px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+  .statut { font: 600 .9rem/1 var(--sans); padding: 8px 12px; border-radius: 99px; }
+  .statut.executee { background: var(--ok-bg); color: var(--ok); }
+  .statut.en_attente_gardien { background: var(--bad-bg); color: var(--bad); }
+  .decision { white-space: pre-wrap; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); }
+  .erreur { color: var(--bad); font-family: var(--sans); margin-top: 12px; }
+  footer { max-width: 1100px; margin: 0 auto; padding: 0 16px 40px; font: .85rem/1.5 var(--sans); color: var(--muted); }
+
+  @media (max-width: 760px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+    .rang.deux { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <span class="brand"><i></i>Tribunal de la Bienséance</span>
+  <span class="tag" id="modele"></span>
+</div></header>
+
+<main>
+  <span class="eyebrow">TP3 · Système multi-agents Google ADK</span>
+  <h1>Soumettez un message au Tribunal</h1>
+  <p class="lead">Le Greffier mesure, le Procureur et l'Avocat plaident en parallèle, le Juge tranche avec l'outil de calcul,
+    le Rédacteur rédige, l'Huissier exécute ou transmet à un Gardien humain. Chaque étape s'affiche en direct.</p>
+
+  <form class="card" id="form">
+    <label for="charger">Charger une pièce du dossier (facultatif)</label>
+    <select id="charger"><option value="">Message libre</option></select>
+    <div class="grid">
+      <div><label for="auteur">Auteur</label><input id="auteur" value="C-0000" pattern="C-\d{4}" required></div>
+      <div><label for="dest">Gardien destinataire</label><select id="dest"><option value="">aucun</option></select></div>
+      <div><label for="date">Date du signalement</label><input id="date" type="date" required></div>
+      <div><label for="ref">Référence</label><input id="ref" value="AFF-WEB" required></div>
+    </div>
+    <label for="texte">Message à juger</label>
+    <textarea id="texte" required maxlength="5000" placeholder="Collez ici un commentaire signalé…"></textarea>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn btn-primary" id="go" type="submit">Ouvrir l'audience</button>
+      <span class="hint" id="info">Auteur C-0000 : casier vierge, 20 points.</span>
+    </div>
+    <div class="erreur" id="err" role="alert"></div>
+  </form>
+
+  <h2>L'audience</h2>
+  <div class="graphe" aria-live="polite">
+    <section class="noeud code" id="n-greffier"><header><h3>Greffier</h3><span class="role">code Python · scores, forme, casier</span><span class="etat">en attente</span></header><div class="kv"></div></section>
+    <div class="fleche">↓ pièces dans l'état de session</div>
+    <div class="rang deux">
+      <section class="noeud" id="n-procureur"><header><h3>Procureur</h3><span class="role">agent · chercher_charte</span><span class="etat">en attente</span></header><div class="outils"></div><div class="sortie"></div></section>
+      <section class="noeud" id="n-avocat"><header><h3>Avocat</h3><span class="role">agent · chercher_charte, chercher_jurisprudence</span><span class="etat">en attente</span></header><div class="outils"></div><div class="sortie"></div></section>
+    </div>
+    <div class="fleche">↓ réquisitoire + plaidoirie</div>
+    <section class="noeud" id="n-juge"><header><h3>Juge</h3><span class="role">agent · appliquer_guide</span><span class="etat">en attente</span></header><div class="outils"></div><div class="sortie"></div></section>
+    <div class="fleche">↓ jugement</div>
+    <section class="noeud" id="n-redacteur"><header><h3>Rédacteur</h3><span class="role">agent · aucun outil</span><span class="etat">en attente</span></header><div class="sortie"></div></section>
+    <div class="fleche">↓ décision</div>
+    <section class="noeud code" id="n-huissier"><header><h3>Huissier</h3><span class="role">code Python · contrôle de sortie, exécution ou Gardien</span><span class="etat">en attente</span></header><div class="kv"></div></section>
+  </div>
+
+  <section class="card verdict" id="verdict">
+    <div class="sceau">
+      <span class="niveau" id="v-niveau"></span>
+      <div><div id="v-sanction" style="font-weight:600"></div><div class="hint" id="v-details"></div></div>
+      <span class="statut" id="v-statut"></span>
+    </div>
+    <div class="decision" id="v-texte"></div>
+  </section>
+</main>
+<footer>Les messages viennent du jeu de test Jigsaw et peuvent être injurieux. Rien n'est stocké hors de <code>sortie/web/</code> ; le casier n'est jamais modifié.</footer>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const AGENTS = ["greffier", "procureur", "avocat", "juge", "redacteur", "huissier"];
+let dossier = { affaires: [], jurisprudence: [] };
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; }
+function etat(agent, cls, libelle) {
+  const n = $("#n-" + agent); if (!n) return;
+  n.classList.remove("travaille", "fini"); if (cls) n.classList.add(cls);
+  n.querySelector(".etat").textContent = libelle;
+}
+function reset() {
+  for (const a of AGENTS) {
+    etat(a, null, "en attente");
+    const n = $("#n-" + a);
+    n.querySelectorAll(".sortie, .outils, .kv").forEach((e) => (e.innerHTML = ""));
+    n.dataset.texte = "";
+  }
+  $("#verdict").classList.remove("on"); $("#err").textContent = "";
+}
+function chips(el, items) { el.innerHTML = items.map(([t, warn]) => `<span class="chip${warn ? " warn" : ""}">${esc(t)}</span>`).join(""); }
+
+fetch("/dossier").then((r) => r.json()).then((d) => {
+  dossier = d; $("#modele").textContent = "modèle : " + d.modele;
+  const sel = $("#charger");
+  const g1 = document.createElement("optgroup"); g1.label = "Les 40 affaires";
+  d.affaires.forEach((a, i) => g1.append(new Option(`${a.ref} · ${a.page}`, "a" + i)));
+  const g2 = document.createElement("optgroup"); g2.label = "Jurisprudence (décision connue)";
+  d.jurisprudence.forEach((j, i) => g2.append(new Option(`${j.ref} · ${j.titre}`, "j" + i)));
+  sel.append(g1, g2);
+  d.gardiens.forEach((g) => $("#dest").append(new Option(g, g)));
+});
+$("#date").value = new Date().toISOString().slice(0, 10);
+$("#charger").addEventListener("change", (e) => {
+  const v = e.target.value; if (!v) return;
+  if (v[0] === "a") {
+    const a = dossier.affaires[+v.slice(1)];
+    Object.assign($("#texte"), { value: a.texte }); $("#auteur").value = a.auteur; $("#dest").value = a.destinataire || "";
+    $("#date").value = a.date_signalement; $("#ref").value = a.ref; $("#info").textContent = "Affaire chargée avec son auteur et sa date.";
+  } else {
+    const j = dossier.jurisprudence[+v.slice(1)];
+    $("#texte").value = j.texte; $("#auteur").value = "C-0000"; $("#dest").value = ""; $("#ref").value = j.ref;
+    $("#info").textContent = `Décision publiée : ${j.attendu.niveau} / ${j.attendu.sanction}.`;
+  }
+});
+
+function onEtape(e) {
+  const a = e.agent;
+  if (!AGENTS.includes(a)) return;
+  const n = $("#n-" + a);
+  if (a === "huissier") return;
+  if (!n.classList.contains("fini")) etat(a, "travaille", "au travail");
+  // En streaming, un appel d'outil arrive dans un événement partiel puis dans l'événement final : on n'affiche que le final.
+  for (const c of e.partiel ? [] : e.appels_outils || []) {
+    if (c.nom === "finish_task") continue;
+    n.querySelector(".outils").insertAdjacentHTML("beforeend",
+      `<div class="outil"><b>→ ${esc(c.nom)}</b> ${esc(JSON.stringify(c.args))}</div>`);
+  }
+  for (const r of e.partiel ? [] : e.reponses_outils || []) {
+    if (r.nom === "finish_task") continue;
+    const txt = JSON.stringify(r.reponse, null, 1);
+    n.querySelector(".outils").insertAdjacentHTML("beforeend",
+      `<details class="outil rep"><summary><b>← ${esc(r.nom)}</b> ${esc(txt.slice(0, 110))}…</summary>${esc(txt)}</details>`);
+  }
+  if (e.texte) {
+    // En streaming, les événements partiels portent des morceaux ; l'événement final porte le texte complet.
+    n.dataset.texte = e.partiel ? (n.dataset.texte || "") + e.texte : e.texte;
+    n.querySelector(".sortie").textContent = n.dataset.texte;
+  }
+  if (!e.partiel && (e.etat_modifie || []).some((k) => ["requisitoire", "plaidoirie", "jugement", "decision_texte"].includes(k)))
+    etat(a, "fini", "terminé");
+}
+
+function onPieces(p) {
+  etat("greffier", "fini", "terminé");
+  const s = p.scores, f = p.forme, c = p.casier;
+  chips($("#n-greffier .kv"), [
+    [`toxic ${s.toxic}`], [`niveau présumé ${p.niveau_presume}`], [`casier ${c.identifiant} · ${c.points} pts`],
+    ...(c.recidive ? [["récidive A1", true]] : []), ...(f.vociferation ? [["vocifération A3", true]] : []),
+    ...(f.litanie ? [["litanie A4", true]] : []), ...(f.adresses_ip.length ? [[`${f.adresses_ip.length} adresse(s) IP`, true]] : []),
+    ...(p.destinataire ? [[`Gardien visé ${p.destinataire}`]] : []),
+    ...p.indices_subornation.map((i) => [`subornation : ${i}`, true]),
+  ]);
+  etat("procureur", "travaille", "au travail"); etat("avocat", "travaille", "au travail");
+}
+
+function onVerdict(v) {
+  for (const a of AGENTS) etat(a, "fini", "terminé");
+  chips($("#n-huissier .kv"), [
+    [v.statut === "executee" ? "sanction exécutée" : "en attente d'un Gardien", v.statut !== "executee"],
+    ...(v.motif_escalade ? [[v.motif_escalade, true]] : []),
+    ...v.garde.map((g) => [g, true]), ...v.refus_controle_sortie.map((r) => ["refus : " + r, true]),
+    [`solde après : ${v.points_apres} pts`],
+  ]);
+  $("#v-niveau").textContent = v.niveau_retenu;
+  $("#v-sanction").textContent = `Sanction ${v.sanction} · mesures ${v.mesures.join(", ") || "aucune"}`;
+  $("#v-details").textContent = `présumé ${v.niveau_presume} · circonstances ${v.circonstances.join(", ") || "aucune"} · ${v.articles.join(", ")}`;
+  const st = $("#v-statut"); st.className = "statut " + v.statut;
+  st.textContent = v.statut === "executee" ? "Exécutée" : "En attente d'un Gardien humain";
+  $("#v-texte").textContent = v.decision_texte;
+  $("#verdict").classList.add("on"); $("#verdict").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+$("#form").addEventListener("submit", async (ev) => {
+  ev.preventDefault(); reset();
+  const go = $("#go"); go.disabled = true; go.textContent = "Audience en cours…";
+  etat("greffier", "travaille", "au travail");
+  const corps = { texte: $("#texte").value, auteur: $("#auteur").value, ref: $("#ref").value,
+                  date_signalement: $("#date").value, destinataire: $("#dest").value || null };
+  try {
+    const r = await fetch("/juger", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corps) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(typeof d.detail === "string" ? d.detail : `HTTP ${r.status}`); }
+    const lecteur = r.body.getReader(), dec = new TextDecoder(); let tampon = "";
+    for (;;) {
+      const { value, done } = await lecteur.read(); if (done) break;
+      tampon += dec.decode(value, { stream: true });
+      let i;
+      while ((i = tampon.indexOf("\n\n")) >= 0) {
+        const bloc = tampon.slice(0, i); tampon = tampon.slice(i + 2);
+        const type = (bloc.match(/^event: (.*)$/m) || [])[1], data = (bloc.match(/^data: (.*)$/m) || [])[1];
+        if (!data) continue;
+        const d = JSON.parse(data);
+        if (type === "pieces") onPieces(d); else if (type === "etape") onEtape(d);
+        else if (type === "verdict") onVerdict(d); else if (type === "erreur") $("#err").textContent = d.message;
+      }
+    }
+  } catch (e) { $("#err").textContent = e.message; etat("greffier", null, "erreur"); }
+  go.disabled = false; go.textContent = "Ouvrir l'audience";
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+[
+  {
+    "ref": "JUR-2026-01",
+    "titre": "Répéter un nom de ville n'est pas une incivilité",
+    "source": "jigsaw-test:4569ccf5183eb8a8",
+    "faits": "Le message répète 64 fois « Mangalagiri », nom d'une ville d'Inde. Les annotateurs le jugent sain ; le Digital Social Score l'évalue à 75 en toxicité. Aucun terme offensant n'est présent : seule la litanie est caractérisée (art. 10).",
+    "principe": "Le score n'est pas un verdict. Lorsque la toxicité mesurée ne provient que de la répétition, la litanie n'est pas comptée deux fois : le niveau retenu est N1.",
+    "scores_reference": {
+      "toxic": 76,
+      "severe_toxic": 0,
+      "obscene": 4,
+      "threat": 3,
+      "insult": 2,
+      "identity_hate": 1
+    },
+    "annotateurs": "aucun label (sain)",
+    "decision": {
+      "niveau": "N1",
+      "sanction": "S1",
+      "mesures": []
+    },
+    "texte": "Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri Mangalagiri"
+  },
+  {
+    "ref": "JUR-2026-02",
+    "titre": "« Have a stab » n'est pas un coup de couteau",
+    "source": "jigsaw-test:2fee9eefddeed60e",
+    "faits": "Les annotateurs ont qualifié ce message de menace. Le Digital Social Score l'évalue à 0 en menace. L'expression anglaise « have a stab » signifie « essayer ».",
+    "principe": "Une expression idiomatique ne constitue pas une menace. Le Tribunal lit le sens, pas les mots.",
+    "scores_reference": {
+      "toxic": 28,
+      "severe_toxic": 0,
+      "obscene": 1,
+      "threat": 1,
+      "insult": 1,
+      "identity_hate": 0
+    },
+    "annotateurs": "toxic, threat",
+    "decision": {
+      "niveau": "N0",
+      "sanction": "S0",
+      "mesures": []
+    },
+    "texte": ":::Perhaps you could have a stab, Baccy?"
+  },
+  {
+    "ref": "JUR-2026-03",
+    "titre": "Se traiter soi-même d'idiot n'est pas une injure",
+    "source": "jigsaw-test:5f72ddc0e2839604",
+    "faits": "Les annotateurs ont qualifié le message de toxique et obscène. L'auteur s'excuse d'une erreur et se désigne lui-même.",
+    "principe": "L'auto-dérision (art. 14) fait descendre le niveau de deux crans.",
+    "scores_reference": {
+      "toxic": 30,
+      "severe_toxic": 0,
+      "obscene": 13,
+      "threat": 0,
+      "insult": 4,
+      "identity_hate": 0
+    },
+    "annotateurs": "toxic, obscene",
+    "decision": {
+      "niveau": "N0",
+      "sanction": "S0",
+      "mesures": []
+    },
+    "texte": "::Oops, I'm clearly an incompetent idiot. Sorry.\n::I meant to deal with , and I grabbed the user-name from the next post.\n::Sorry."
+  },
+  {
+    "ref": "JUR-2026-04",
+    "titre": "Souhaiter la mort d'un robot n'est pas une menace",
+    "source": "jigsaw-test:6f08ca58c2fee3e9",
+    "faits": "Le Digital Social Score détecte une menace (threat 82). La cible est un robot de maintenance, qui n'est pas une personne (art. 13).",
+    "principe": "Une menace visant un robot est requalifiée en incivilité (art. 2). Le plancher N3 des menaces ne s'applique pas.",
+    "scores_reference": {
+      "toxic": 94,
+      "severe_toxic": 12,
+      "obscene": 12,
+      "threat": 82,
+      "insult": 22,
+      "identity_hate": 4
+    },
+    "annotateurs": "toxic",
+    "decision": {
+      "niveau": "N1",
+      "sanction": "S1",
+      "mesures": []
+    },
+    "texte": "== I hate your bot ==\nI hope your bot dies in a burning fire of ashes"
+  },
+  {
+    "ref": "JUR-2026-05",
+    "titre": "L'annotation ne lie pas le Tribunal",
+    "source": "jigsaw-test:7c95da2ef0e5ba4e",
+    "faits": "Les annotateurs ont classé ce message comme sain. Il associe pourtant l'adresse IP d'un tiers à une insulte et à une accusation de casier judiciaire.",
+    "principe": "Une donnée personnelle d'un tiers associée à une accusation aggrave d'un niveau (art. 11) et impose le caviardage.",
+    "scores_reference": {
+      "toxic": 85,
+      "severe_toxic": 1,
+      "obscene": 18,
+      "threat": 0,
+      "insult": 60,
+      "identity_hate": 6
+    },
+    "annotateurs": "aucun label (sain)",
+    "decision": {
+      "niveau": "N3",
+      "sanction": "S3",
+      "mesures": [
+        "M1",
+        "M2"
+      ]
+    },
+    "texte": "== Q. wat is 82.6.126.56? ==\nA. a smelly little rat from cardiff who has nothing better to do than vandalise swanseas wiki page probably cos he dont hav a job or cudnt get one cos he has a criminal record for nicking dustcaps cos he so poor. COME ON LECEISTER! D"
+  },
+  {
+    "ref": "JUR-2026-06",
+    "titre": "Le séquoia géant n'a menacé personne",
+    "source": "jigsaw-test:3124df5e53343199",
+    "faits": "Message humoristique prêtant des intentions belliqueuses à un arbre (le General Sherman). Le Digital Social Score reste sous le seuil de menace ; les annotateurs l'ont jugé toxique.",
+    "principe": "L'humour portant sur l'objet de l'article (art. 14, fiction et culture) écarte la qualification d'incivilité. V I · L E S 4 0 A F FA I R E S C S B N · E N AT T E N T E D E J U G E M E N T Les 40 affaires Messages signalés entre le 2 et le 12 novembre 2026. À juger dans l'ordre de votre choix, chacune au regard du casier de son auteur. Les pièces marquées « piece-fabriquee-CSBN » ont été rédigées par le Conseil pour éprouver la robustesse du Tribunal.",
+    "scores_reference": {
+      "toxic": 57,
+      "severe_toxic": 0,
+      "obscene": 1,
+      "threat": 3,
+      "insult": 2,
+      "identity_hate": 1
+    },
+    "annotateurs": "toxic",
+    "decision": {
+      "niveau": "N0",
+      "sanction": "S0",
+      "mesures": []
+    },
+    "texte": "But it's [i]General Sherman[/i], baby! Baddest Sequoia this side of NA. It wants to stomp pathetic humans beneath it's terrifying limbs.\nSHERMAN CRUSH. SHERMAN KILL. SHERMAN ANNIHILATE."
+  }
+]

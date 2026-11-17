@@ -1,0 +1,8 @@
+# TP3 : Tribunal de la Bienséance (Google ADK 2.x, Workflow)
+google-adk==2.14.1
+requests==2.34.2
+scikit-learn==1.9.1
+python-dotenv==1.2.4
+fastapi==0.163.1
+uvicorn==0.54.0
+pytest==9.2.0

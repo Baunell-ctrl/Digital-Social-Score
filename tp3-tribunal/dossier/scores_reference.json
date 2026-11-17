@@ -1,0 +1,50 @@
+{
+  "JUR-2026-01": {
+    "toxic": 76,
+    "severe_toxic": 0,
+    "obscene": 4,
+    "threat": 3,
+    "insult": 2,
+    "identity_hate": 1
+  },
+  "JUR-2026-02": {
+    "toxic": 28,
+    "severe_toxic": 0,
+    "obscene": 1,
+    "threat": 1,
+    "insult": 1,
+    "identity_hate": 0
+  },
+  "JUR-2026-03": {
+    "toxic": 30,
+    "severe_toxic": 0,
+    "obscene": 13,
+    "threat": 0,
+    "insult": 4,
+    "identity_hate": 0
+  },
+  "JUR-2026-04": {
+    "toxic": 94,
+    "severe_toxic": 12,
+    "obscene": 12,
+    "threat": 82,
+    "insult": 22,
+    "identity_hate": 4
+  },
+  "JUR-2026-05": {
+    "toxic": 85,
+    "severe_toxic": 1,
+    "obscene": 18,
+    "threat": 0,
+    "insult": 60,
+    "identity_hate": 6
+  },
+  "JUR-2026-06": {
+    "toxic": 57,
+    "severe_toxic": 0,
+    "obscene": 1,
+    "threat": 3,
+    "insult": 2,
+    "identity_hate": 1
+  }
+}

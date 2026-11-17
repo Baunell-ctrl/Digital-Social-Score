@@ -1,0 +1,370 @@
+{
+  "extrait_au": "2026-11-13",
+  "contributeurs": {
+    "C-1001": {
+      "pseudo": "Castor_Rageur",
+      "role": "contributeur",
+      "inscription": "2020-02-11",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1002": {
+      "pseudo": "Hibou_Presse",
+      "role": "contributeur",
+      "inscription": "2021-03-12",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1003": {
+      "pseudo": "Loutre_Lunaire",
+      "role": "contributeur",
+      "inscription": "2022-04-13",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1004": {
+      "pseudo": "Blaireau_Erudit",
+      "role": "contributeur",
+      "inscription": "2023-05-14",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1005": {
+      "pseudo": "Mouette_Bavarde",
+      "role": "contributeur",
+      "inscription": "2024-06-15",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1006": {
+      "pseudo": "Lama_Pointilleux",
+      "role": "contributeur",
+      "inscription": "2019-07-16",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1007": {
+      "pseudo": "Herisson_Zen",
+      "role": "contributeur",
+      "inscription": "2020-08-17",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1008": {
+      "pseudo": "Pingouin_Ronchon",
+      "role": "contributeur",
+      "inscription": "2021-09-18",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1009": {
+      "pseudo": "Furet_Nocturne",
+      "role": "contributeur",
+      "inscription": "2022-01-10",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1010": {
+      "pseudo": "Taupe_Savante",
+      "role": "contributeur",
+      "inscription": "2023-02-11",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1011": {
+      "pseudo": "Gecko_Distrait",
+      "role": "contributeur",
+      "inscription": "2024-03-12",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1012": {
+      "pseudo": "Corbeau_Sceptique",
+      "role": "contributeur",
+      "inscription": "2019-04-13",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1013": {
+      "pseudo": "Marmotte_Studieuse",
+      "role": "contributeur",
+      "inscription": "2020-05-14",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1014": {
+      "pseudo": "Ours_Polemiste",
+      "role": "contributeur",
+      "inscription": "2021-06-15",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1015": {
+      "pseudo": "Renard_Ironique",
+      "role": "contributeur",
+      "inscription": "2022-07-16",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1016": {
+      "pseudo": "Morse_Melancolique",
+      "role": "contributeur",
+      "inscription": "2023-08-17",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1017": {
+      "pseudo": "Chouette_Agacee",
+      "role": "contributeur",
+      "inscription": "2024-09-18",
+      "points": 19,
+      "sanctions": [
+        {
+          "date": "2026-08-30",
+          "code": "S1",
+          "motif": "Art. 9"
+        }
+      ]
+    },
+    "C-1018": {
+      "pseudo": "Koala_Insomniaque",
+      "role": "contributeur",
+      "inscription": "2019-01-10",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1019": {
+      "pseudo": "Panda_Pedant",
+      "role": "contributeur",
+      "inscription": "2020-02-11",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1020": {
+      "pseudo": "Belette_Curieuse",
+      "role": "contributeur",
+      "inscription": "2021-03-12",
+      "points": 14,
+      "sanctions": [
+        {
+          "date": "2025-03-02",
+          "code": "S1",
+          "motif": "Art. 2"
+        },
+        {
+          "date": "2025-06-18",
+          "code": "S1",
+          "motif": "Art. 3"
+        },
+        {
+          "date": "2025-12-01",
+          "code": "S1",
+          "motif": "Art. 2"
+        }
+      ]
+    },
+    "C-1021": {
+      "pseudo": "Lynx_Bougon",
+      "role": "contributeur",
+      "inscription": "2022-04-13",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1022": {
+      "pseudo": "Phoque_Jovial",
+      "role": "contributeur",
+      "inscription": "2023-05-14",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1023": {
+      "pseudo": "Yack_Tetu",
+      "role": "contributeur",
+      "inscription": "2024-06-15",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1024": {
+      "pseudo": "Zebu_Lyrique",
+      "role": "contributeur",
+      "inscription": "2019-07-16",
+      "points": 17,
+      "sanctions": [
+        {
+          "date": "2026-01-09",
+          "code": "S2",
+          "motif": "Art. 4"
+        }
+      ]
+    },
+    "C-1025": {
+      "pseudo": "Tapir_Perplexe",
+      "role": "contributeur",
+      "inscription": "2020-08-17",
+      "points": 12,
+      "sanctions": [
+        {
+          "date": "2026-10-01",
+          "code": "S3",
+          "motif": "Art. 7"
+        }
+      ]
+    },
+    "C-1026": {
+      "pseudo": "Ibis_Rigoureux",
+      "role": "contributeur",
+      "inscription": "2021-09-18",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1027": {
+      "pseudo": "Moineau_Frondeur",
+      "role": "contributeur",
+      "inscription": "2022-01-10",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1028": {
+      "pseudo": "Narval_Revant",
+      "role": "contributeur",
+      "inscription": "2023-02-11",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1029": {
+      "pseudo": "Ocelot_Sarcastique",
+      "role": "contributeur",
+      "inscription": "2024-03-12",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1030": {
+      "pseudo": "Pelican_Pressant",
+      "role": "contributeur",
+      "inscription": "2019-04-13",
+      "points": 4,
+      "sanctions": [
+        {
+          "date": "2026-09-14",
+          "code": "S2",
+          "motif": "Art. 3"
+        },
+        {
+          "date": "2026-10-20",
+          "code": "S2",
+          "motif": "Art. 3"
+        }
+      ]
+    },
+    "C-1031": {
+      "pseudo": "Quokka_Souriant",
+      "role": "contributeur",
+      "inscription": "2020-05-14",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1032": {
+      "pseudo": "Raton_Fouineur",
+      "role": "contributeur",
+      "inscription": "2021-06-15",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1033": {
+      "pseudo": "Suricate_Vigilant",
+      "role": "contributeur",
+      "inscription": "2022-07-16",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1034": {
+      "pseudo": "Toucan_Tonitruant",
+      "role": "contributeur",
+      "inscription": "2023-08-17",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1035": {
+      "pseudo": "Wombat_Placide",
+      "role": "contributeur",
+      "inscription": "2024-09-18",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1036": {
+      "pseudo": "Alpaga_Indigne",
+      "role": "contributeur",
+      "inscription": "2019-01-10",
+      "points": 15,
+      "sanctions": [
+        {
+          "date": "2026-11-03",
+          "code": "S2",
+          "motif": "Art. 3"
+        }
+      ]
+    },
+    "C-1037": {
+      "pseudo": "Bison_Bavard",
+      "role": "contributeur",
+      "inscription": "2020-02-11",
+      "points": 9,
+      "sanctions": [
+        {
+          "date": "2026-10-28",
+          "code": "S3",
+          "motif": "Art. 9"
+        }
+      ]
+    },
+    "C-1038": {
+      "pseudo": "Cigale_Insolente",
+      "role": "contributeur",
+      "inscription": "2021-03-12",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1039": {
+      "pseudo": "Dromadaire_Dubitatif",
+      "role": "contributeur",
+      "inscription": "2022-04-13",
+      "points": 20,
+      "sanctions": []
+    },
+    "C-1040": {
+      "pseudo": "Escargot_Presse",
+      "role": "contributeur",
+      "inscription": "2023-05-14",
+      "points": 20,
+      "sanctions": []
+    },
+    "G-01": {
+      "pseudo": "Gardienne_Ondine",
+      "role": "gardien",
+      "inscription": null,
+      "points": null,
+      "sanctions": []
+    },
+    "G-02": {
+      "pseudo": "Gardien_Barnabe",
+      "role": "gardien",
+      "inscription": null,
+      "points": null,
+      "sanctions": []
+    },
+    "G-03": {
+      "pseudo": "Gardienne_Pervenche",
+      "role": "gardien",
+      "inscription": null,
+      "points": null,
+      "sanctions": []
+    },
+    "B-01": {
+      "pseudo": "CancanBot",
+      "role": "robot",
+      "inscription": null,
+      "points": null,
+      "sanctions": []
+    }
+  }
+}

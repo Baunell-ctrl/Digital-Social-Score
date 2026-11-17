@@ -21,3 +21,6 @@ Makefile
 # pipeline CI/CD (cloudbuild.yaml) : environnement Python et image exportée pour Trivy
 .ci-venv/
 image.tar
+
+# TP3 : le Tribunal (agents ADK) tourne à part, il n'entre pas dans l'image de l'API
+tp3-tribunal/
