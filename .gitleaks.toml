@@ -9,3 +9,6 @@ useDefault = true
 [allowlist]
 description = "données, rapports, supports de cours, poids du modèle, environnement Python du pipeline"
 paths = ['''(^|/)(data|reports|docs|artifacts|\.ci-venv)/''']
+# Fausse alerte : exemple curl du README qui envoie volontairement une mauvaise clé pour obtenir un 401.
+regexTarget = "line"
+regexes = ['''X-API-Key: mauvaise-cle''']
