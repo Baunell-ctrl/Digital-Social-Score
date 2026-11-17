@@ -11,6 +11,8 @@ Sécurité / RGPD (étape 4 du TP, détaillée dans le README) :
 - échecs d'authentification journalisés (journal d'audit), sans la clé ni l'adresse IP en clair ;
 - en-têtes de sécurité HTTP ; pas de TLS dans ce TP (API servie en HTTP simple, voir README étape 4 partie 2) ;
 - page web (``/``) : l'utilisateur y saisit sa clé API, qui n'est jamais dans la page ni dans le code.
+- limite du nombre de requêtes ``/score`` traitées EN MÊME TEMPS par ce pod (503 immédiat au-delà), contre
+  les attaques par coût asymétrique qui restent sous le seuil de ``RATE_LIMIT_PER_MINUTE`` (TP2 étape 3).
 
 Supervision (étape 6) : ``/metrics`` expose les métriques Prometheus, collectées sur GKE par
 Managed Service for Prometheus (voir k8s/monitoring/) :
@@ -52,6 +54,10 @@ API_KEY = os.environ.get("API_KEY", "")
 API_KEYS = os.environ.get("API_KEYS", "")
 # Requêtes autorisées par client et par minute, sur chaque instance (0 = pas de limite).
 RATE_LIMIT_PER_MINUTE = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "600"))
+# Requêtes /score traitées EN MÊME TEMPS, sur chaque instance (0 = pas de limite). Contrairement à
+# RATE_LIMIT_PER_MINUTE (qui compte des requêtes), ceci borne le coût de calcul en cours : une attaque
+# par coût asymétrique peut rester sous la limite de débit tout en saturant le pipeline (TP2 étape 3).
+MAX_CONCURRENT_SCORING = int(os.environ.get("MAX_CONCURRENT_SCORING", "0"))
 MAX_BODY_BYTES = 32_768
 # Page web de test (``/``) : l'utilisateur y saisit sa clé API. Désactivable avec DEMO_ENABLED=0.
 DEMO_ENABLED = os.environ.get("DEMO_ENABLED", "1") == "1"
@@ -85,6 +91,8 @@ AUTH_FAILURES = Counter("dss_auth_failures_total", "Requêtes refusées pour cl�
                         ["reason"])
 RATE_LIMITED = Counter("dss_rate_limited_total", "Requêtes refusées par la limite de requêtes (429)",
                        ["client"])
+OVERLOAD_REJECTED = Counter("dss_overload_rejected_total",
+                            "Requêtes refusées (503) : trop de traitements /score simultanés")
 
 state: dict = {}
 
@@ -224,6 +232,9 @@ def authenticate(key: str | None, request: Request) -> str:
 _hits: dict[str, deque] = defaultdict(deque)
 _hits_lock = threading.Lock()
 
+# Un jeton par requête /score en cours de traitement ; None si MAX_CONCURRENT_SCORING == 0 (désactivé).
+_scoring_slots = threading.Semaphore(MAX_CONCURRENT_SCORING) if MAX_CONCURRENT_SCORING > 0 else None
+
 
 def rate_limit(client: str, limit: int | None = None) -> None:
     """Fenêtre glissante d'une minute par client (compteur propre à chaque instance)."""
@@ -297,9 +308,19 @@ def health() -> dict:
 @app.post("/score", response_model=ScoreResponse)
 def score(req: ScoreRequest, client: str = Depends(check_api_key)) -> ScoreResponse:
     predictor = get_laya() if req.model == "laya" else state["predictor"]
-    t0 = time.perf_counter()
-    proba = predictor.predict(req.text)
-    latency = (time.perf_counter() - t0) * 1000
+
+    if _scoring_slots is not None and not _scoring_slots.acquire(blocking=False):
+        OVERLOAD_REJECTED.inc()
+        log.warning(json.dumps({"event": "overload_rejected", "client": client}))
+        raise HTTPException(status_code=503, detail="Service temporairement surchargé, réessayer plus tard",
+                            headers={"Retry-After": "2"})
+    try:
+        t0 = time.perf_counter()
+        proba = predictor.predict(req.text)
+        latency = (time.perf_counter() - t0) * 1000
+    finally:
+        if _scoring_slots is not None:
+            _scoring_slots.release()
     INFERENCE_LATENCY.labels(model=req.model).observe(latency / 1000)
     value = round(proba * 100, 1)
     SCORE_HIST.observe(value)
