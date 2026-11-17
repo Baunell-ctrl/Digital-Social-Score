@@ -5,7 +5,7 @@
 #   2. tests         pytest, dont la conformité IA Act (model_card.json, test de biais)
 #   3. securite-code bandit (failles dans le code Python) + pip-audit (failles connues des dépendances)
 #   4. build         image Docker, étiquetée avec les 7 premiers caractères du commit
-#   5. scan-image    Trivy : aucune faille CRITIQUE corrigeable dans l'image
+#   5. scan-image    Trivy : aucune faille CRITIQUE corrigeable dans l'image (3 sources pour sa base)
 #   6. push          image envoyée dans Artifact Registry
 #   7. deploy        le Deployment dss-api pointe vers la nouvelle image ; Kubernetes remplace les pods un par un
 #   8. verification  smoke test sur l'API déployée ; s'il échoue, retour automatique à la version précédente
@@ -69,8 +69,18 @@ steps:
 
   - id: scan-image
     name: aquasec/trivy:0.57.1
-    args: [image, --input, /workspace/image.tar, --scanners, vuln, --severity, CRITICAL,
-           --ignore-unfixed, --exit-code, '1', --no-progress]
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        # La base de vulnérabilités vient de registres publics qui tombent parfois (BLOB_UNKNOWN sur
+        # mirror.gcr.io) : on essaie trois sources. Une vraie faille CRITIQUE corrigeable échoue quand même.
+        for DB in mirror.gcr.io/aquasec/trivy-db:2 ghcr.io/aquasecurity/trivy-db:2 public.ecr.aws/aquasecurity/trivy-db:2; do
+          echo "=== base de vulnérabilités : $DB"
+          trivy image --input /workspace/image.tar --db-repository "$DB" --scanners vuln \
+            --severity CRITICAL --ignore-unfixed --exit-code 1 --no-progress && exit 0
+        done
+        exit 1
 
   - id: push
     name: gcr.io/cloud-builders/docker

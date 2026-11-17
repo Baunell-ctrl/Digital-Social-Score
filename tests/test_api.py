@@ -209,3 +209,13 @@ def test_keyless_demo_route_removed(client):
 def test_web_page_can_be_disabled(client, monkeypatch):
     monkeypatch.setattr(main, "DEMO_ENABLED", False)
     assert client.get("/").status_code == 404
+
+
+def test_csp_stricte_partout_sauf_pages_de_documentation(client):
+    """Défense en profondeur : « default-src 'none' » sur les réponses JSON ; /docs charge Swagger depuis un CDN."""
+    assert client.get("/health").headers["Content-Security-Policy"].startswith("default-src 'none'")
+    assert client.get("/openapi.json").headers["Content-Security-Policy"].startswith("default-src 'none'")
+    for path in ("/docs", "/redoc"):
+        r = client.get(path)
+        assert r.status_code == 200
+        assert "Content-Security-Policy" not in r.headers, f"{path} serait vide dans un navigateur"

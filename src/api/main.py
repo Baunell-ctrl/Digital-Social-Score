@@ -139,6 +139,8 @@ Instrumentator(excluded_handlers=["/health", "/metrics", "/fonts/.*"]).add(
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
+DOCS_PATHS = {"/docs", "/redoc"}
+
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
@@ -159,6 +161,10 @@ async def security_middleware(request: Request, call_next):
     """
     response = await call_next(request)
     for key, value in SECURITY_HEADERS.items():
+        # /docs et /redoc (pages Swagger/ReDoc de FastAPI) chargent leurs scripts depuis un CDN : la règle
+        # « default-src 'none' » les rendrait vides. Les autres en-têtes s'y appliquent quand même.
+        if key == "Content-Security-Policy" and request.url.path in DOCS_PATHS:
+            continue
         response.headers.setdefault(key, value)
     if request.url.path.startswith("/fonts/") and response.status_code == 200:
         response.headers["Cache-Control"] = "public, max-age=86400"  # polices : aucune donnée sensible
