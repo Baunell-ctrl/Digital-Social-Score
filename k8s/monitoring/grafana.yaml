@@ -25,6 +25,19 @@ data:
         options:
           path: /var/lib/grafana/dashboards
 ---
+# Disque persistant de Grafana : sa base (source de données, comptes, jeton du synchroniseur) survit
+# aux redémarrages et aux déplacements du pod par Autopilot. Avant (emptyDir), tout était perdu à chaque fois.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard-rwo
+  resources:
+    requests:
+      storage: 1Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -33,6 +46,8 @@ metadata:
     app: grafana
 spec:
   replicas: 1
+  strategy:
+    type: Recreate        # le disque (ReadWriteOnce) ne s'attache qu'à un pod : l'ancien s'arrête d'abord
   selector:
     matchLabels:
       app: grafana
@@ -107,8 +122,9 @@ spec:
         - name: dashboards
           configMap:
             name: grafana-dashboards
-        - name: data              # base SQLite de Grafana ; perdue si le pod redémarre (make grafana-reset)
-          emptyDir: {}
+        - name: data              # base SQLite de Grafana, sur le disque persistant
+          persistentVolumeClaim:
+            claimName: grafana-data
 ---
 apiVersion: cloud.google.com/v1
 kind: BackendConfig

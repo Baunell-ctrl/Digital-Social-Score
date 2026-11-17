@@ -4,6 +4,8 @@ Compte rendu du TP « API Digital Social Score : de l'analyse de texte à l'infr
 
 Le **TP2** (« de la menace à la défense » : attaque, défense, IA Act, DevSecOps) suit le TP1, dans la partie « TP2 : de la menace à la défense ».
 
+> **Comptes rendus (livrables) : [README_TP1.md](README_TP1.md) et [README_TP2.md](README_TP2.md).** Ce fichier est le journal de travail détaillé : toutes les mesures, commandes et étapes de mise en place.
+
 Chaque étape commence par l'**énoncé du TP** (objectifs pédagogiques et exercice), puis répond aux questions de l'exercice, dans l'ordre.
 
 ## Objectif global du TP et réponses
@@ -15,7 +17,7 @@ Chaque étape commence par l'**énoncé du TP** (objectifs pédagogiques et exer
 | respecte le RGPD : aucune donnée personnelle stockée en clair                  | anonymisation par NER, texte jamais stocké, logs pseudonymes (HMAC), deux registres de traitement | étapes 1 et 4 |
 | est capable de varier d'échelle                                                 | GKE Autopilot, 3 à 15 pods (autoscaling), mesuré jusqu'à 195 req/s                              | étape 5       |
 | est observable et auditable                                                      | métriques Prometheus (Managed Service for Prometheus), Grafana, 7 alertes, journal d'audit        | étape 6       |
-| est documentée avec un schéma d'architecture                                   | vue d'ensemble ci-dessous ; schéma final en cours                                                 | étape 7       |
+| est documentée avec un schéma d'architecture                                   | schéma d'architecture dans `README_TP1.md` (étape 7)                                                 | étape 7       |
 
 ## Livrables du TP
 
@@ -69,7 +71,7 @@ Lire un secret (toujours préciser le projet, sinon gcloud cherche dans le proje
 | Prometheus géré (GMP) → `/metrics` | lecture toutes les 30 s, dans le cluster                                | clé API dédiée `prometheus`, lue dans un Secret que seul le collecteur peut lire                                                           | réseau du cluster                                                       |
 | Grafana → Cloud Monitoring             | requêtes PromQL vers l'API de Google                                   | jeton Google renouvelé toutes les 10 min par le `datasource-syncer` (**Workload Identity**, rôle lecture seule `monitoring.viewer`) | HTTPS                                                                    |
 | Pods → Cloud Logging                   | GKE collecte la sortie standard des pods                                | automatique (agent de GKE)                                                                                                                      | HTTPS                                                                    |
-| Secret Manager → pods                  | copie dans des Secrets Kubernetes à l'installation                     | votre compte Google (IAM)                                                                                                                       | Secrets chiffrés par Google (clé KMS du projet : à activer, étape 4) |
+| Secret Manager → pods                  | copie dans des Secrets Kubernetes à l'installation                     | votre compte Google (IAM)                                                                                                                       | Secrets chiffrés par la clé KMS du projet (actif, vérifié le 17/11/2026) |
 | Cloud Build → Artifact Registry → GKE | construction puis téléchargement de l'image                           | comptes de service, rôles minimaux (IAM, étape 4)                                                                                             | HTTPS                                                                    |
 
 Les connexions internes à Google restent chiffrées. La connexion client → load balancer est volontairement en **HTTP, non chiffrée** : simplification assumée pour ce TP (les outils de test posaient trop de problèmes de certificats), voir étape 4 partie 2 pour l'analyse du compromis.
@@ -106,7 +108,7 @@ Les connexions internes à Google restent chiffrées. La connexion client → lo
 | `make deploy TAG=v7` | `deploy/deploy.sh` | premier déploiement ou mise à jour sans coupure | étapes 9, 11 et 13 |
 | `make rollback` | – | retour à la version précédente | étape 13 |
 | `make monitoring EMAIL=...` | `deploy/monitoring.sh` | collecte GMP, Grafana, alertes | étape 6, partie 2 |
-| `make grafana-reset` | `deploy/monitoring.sh` | après un redémarrage du pod Grafana | étape 6, partie 2 |
+| `make grafana-reset` | `deploy/monitoring.sh` | recrée la source de données et le compte `lecteur` de Grafana | étape 6, partie 2 |
 | `make status` | `deploy/status.sh` | image, pods, HPA, Ingress, collecte (lecture seule) | – |
 | `make smoke` | `deploy/smoke.sh` | tests rapides et grille de sécurité contre le cluster | étape 3 (12) et étape 4 (7) |
 | `make attack` / `make loadtest` | `deploy/attack.sh`, `loadtest/run_gke.sh` | attaque complète (5 min) / tests de charge (30 min) | étapes 6 et 5 |
@@ -696,7 +698,7 @@ Code : `src/api/main.py` et `k8s/`. Tests automatiques : `tests/test_api.py` (21
 | Exigence du TP             | Mise en œuvre                                                                                                                                | Partie |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | JWT ou clé API            | clé API par client, stockée dans Secret Manager puis dans un Secret Kubernetes                                                              | 1      |
-| HTTPS et chiffrement       | **HTTP uniquement (pas de TLS)** : choix assumé pour simplifier les tests de ce TP (conflits répétés d'outils de test avec les certificats) ; conséquence : la clé API circule en clair sur le réseau. Secrets chiffrés par une clé Cloud KMS (prévu, **pas encore actif** : voir partie 2) | 2      |
+| HTTPS et chiffrement       | **HTTP uniquement (pas de TLS)** : choix assumé pour simplifier les tests de ce TP (conflits répétés d'outils de test avec les certificats) ; conséquence : la clé API circule en clair sur le réseau. Secrets chiffrés par une clé Cloud KMS (actif, vérifié le 17/11/2026) | 2      |
 | Validation des entrées    | taille du texte, taille de la requête, valeurs autorisées                                                                                   | 3      |
 | Logs pseudonymes           | HMAC-SHA256 du texte et de l'IP, jamais le texte, la clé ou l'IP en clair                                                                    | 4      |
 | IAM                        | chaque identité n'a que les rôles nécessaires ; les pods n'ont aucun droit Google Cloud                                                    | 5      |
@@ -732,7 +734,7 @@ kubectl rollout restart deployment/dss-api
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | En transit (client → API) | **HTTP uniquement, pas de TLS** : choix assumé pour ce TP (les outils de test — `attack/flood.py`, `loadtest/attack.py`, `loadtest/locustfile.py`, `deploy/smoke.sh` — butaient sans arrêt sur des histoires de certificats auto-signés/managés). Conséquence assumée : **la clé API circule en clair** sur le réseau entre le client et le load balancer.                                                                                                                                                             |
 | En transit (dans Google)   | le load balancer joint les pods par le réseau privé de Google ; le Service des pods est interne (`ClusterIP`, pas d'IP publique)                                                                                                                                                                                                                                                                  |
-| Au repos : Secrets         | Secrets Kubernetes (clé API, clé des logs) chiffrés avec la clé Cloud KMS `dss-secrets-key` du projet, qui change tous les 90 jours **À activer** : vérifié le 12/11/2026, le cluster n'utilise pas encore cette clé (`databaseEncryption: DECRYPTED`, étape 8 de la partie 4 non appliquée). Les Secrets restent chiffrés par Google, avec ses propres clés. |
+| Au repos : Secrets         | Secrets Kubernetes (clé API, clé des logs) chiffrés avec la clé Cloud KMS `dss-secrets-key` du projet, qui change tous les 90 jours. Vérifié le 17/11/2026 : `databaseEncryption: ENCRYPTED` (le 12/11, elle n'était pas encore appliquée). |
 | Au repos : le reste        | images Docker, Secret Manager et logs chiffrés par défaut par Google Cloud (AES-256)                                                                                                                                                                                                                                                                                                                |
 | Données des utilisateurs  | **aucune donnée stockée** : le texte reste en mémoire le temps de la requête (quelques ms)                                                                                                                                                                                                                                                                                                  |
 
@@ -844,8 +846,8 @@ Les tests « auto » sont dans `tests/test_api.py` (`python -m pytest tests/test
 | Requête de plus de 32 Ko             | corps de 40 Ko                                                                  | 413           | ✅   | ✅ (rapport d'attaque, 12/11)                                                 |
 | Trop de requêtes                     | plus de `RATE_LIMIT_PER_MINUTE` requêtes en une minute                       | 429           | ✅   | ✅ 5 566 réponses 429 (étape 5)                                             |
 | En-têtes de sécurité               | `curl -I http://$IP/health`                                                  | présents     | ✅   | ✅ (rapport d'attaque, 12/11)                                                 |
-| Pas de texte ni de clé dans les logs | lecture des logs après un appel                                                | absents       | ✅   | à compléter                                                                 |
-| Secrets chiffrés par KMS             | `gcloud container clusters describe ... --format="value(databaseEncryption)"` | `ENCRYPTED` | –   | ❌ `DECRYPTED` (12/11) : étape 8 de la partie 4 à appliquer               |
+| Pas de texte ni de clé dans les logs | lecture des logs après un appel                                                | absents       | ✅   | ✅ lignes `score` : `client`, `event`, `latency_ms`, `model`, `score`, `text_id` seulement (17/11/2026) |
+| Secrets chiffrés par KMS             | `gcloud container clusters describe ... --format="value(databaseEncryption)"` | `ENCRYPTED` | –   | ✅ `ENCRYPTED` (17/11/2026 ; `DECRYPTED` le 12/11) |
 
 Pas de test HTTPS/TLS dans cette grille : l'API est servie en HTTP simple, sans certificat (choix assumé, voir étape 4 partie 2).
 
@@ -1220,7 +1222,7 @@ pods de l'API ──▶ GMP (Google) ──▶ Cloud Monitoring ──▶ Grafan
 
 ### 2. Tableau de bord et alertes
 
-**Accès :** http://34.54.213.190/grafana/ (bouton « Monitoring » de la page web), compte `lecteur` en lecture seule. Mot de passe : `gcloud secrets versions access latest --secret=grafana-viewer-password`. Grafana tourne dans un pod du cluster ; sa base est perdue s'il redémarre : `make grafana-reset` recrée la source de données et le compte `lecteur`. Le tableau de bord, lui, est rechargé depuis `monitoring/grafana/dss-dashboard.json`.
+**Accès :** http://34.54.213.190/grafana/ (bouton « Monitoring » de la page web), compte `lecteur` en lecture seule. Mot de passe : `gcloud secrets versions access latest --secret=grafana-viewer-password`. Grafana tourne dans un pod du cluster ; depuis le 17/11/2026, sa base (source de données, comptes, jeton du synchroniseur) est sur un disque persistant de 1 Go (`grafana-data`) et survit aux redémarrages du pod. Avant, elle était perdue à chaque redémarrage : c'est arrivé le 17/11 quand Autopilot a déplacé le pod (tableaux de bord vides, synchroniseur en erreur 401). `make grafana-reset` recrée la source de données et le compte `lecteur` si besoin. Le tableau de bord, lui, est rechargé depuis `monitoring/grafana/dss-dashboard.json`.
 
 **Tableau de bord** : 10 panneaux.
 
@@ -1358,9 +1360,13 @@ Ni le texte, ni la clé essayée, ni l'IP en clair n'apparaissent dans les logs 
 > 2. Dessiner les flux, authentifications, et chiffrement.
 > 3. Rédiger un texte explicatif et une légende du schéma.
 
-*En cours.* La base est la section « Vue d'ensemble : architecture et connexions » en tête de ce document (schéma, et tableau des connexions avec authentification et chiffrement). Le plan du schéma final et de l'analyse zero trust est dans `docs/pistes-tests-et-etape7.md`.
+Le schéma d'architecture (parcours de la donnée, composants, flux, authentification et chiffrement), son texte explicatif et sa légende sont dans **[README_TP1.md](README_TP1.md), étape 7** :
+
+![Architecture Digital Social Score](reports/images/architecture.png)
 
 # TP2 : de la menace à la défense
+
+> **Compte rendu du TP2 (livrable) : [README_TP2.md](README_TP2.md).** La partie ci-dessous est le journal de travail détaillé (tous les runs, essais et échecs).
 
 Compte rendu du TP « API Digital Social Score : de la menace à la défense, renforcer une IA déployée dans le cloud » (énoncé : `docs/TP2_Digital_Social_Score.pdf`). Même principe que le TP1 : l'énoncé de chaque étape, puis nos réponses, dans l'ordre des questions.
 
@@ -1385,7 +1391,7 @@ Compte rendu du TP « API Digital Social Score : de la menace à la défense, re
 | Graphique des métriques et interprétation de l'attaque | étape 2 |
 | Tableau des métriques avant/après et graphique de comparaison | étape 3 |
 | Fiche IA Act (tableau de risque et justification) et `model_card.json` | étape 4 |
-| Pipeline sécurisé (`cloudbuild.yaml`) | étape 5 |
+| Pipeline sécurisé (`cloudbuild.yaml`) et logs d'exécution | étape 5 |
 
 **Chronologie**
 
@@ -1532,45 +1538,64 @@ Latence P95, P99 et même le temps d'inférence affichent tous les trois un plat
 >
 > *Livrables :* un tableau des métriques avant/après ; un graphique de comparaison.
 
-### 1. Défenses implémentées et déployées
+### 1. Défenses mises en place
 
-Mises en œuvre en réponse au run de l'étape 2 **et** à l'audit red team inter-équipes
-(`docs/RAPPORT-CONSOLIDE.md`, ligne « Aurel (ADISSN) » : DoS avec kill switch immédiat + en-têtes
-manquants — fichier non modifié, c'est le compte-rendu externe de l'audit) :
+Déployées le 17/11/2026, en réponse au run de l'étape 2 et à l'audit red team inter-équipes (`docs/RAPPORT-CONSOLIDE.md` : « DoS avec kill switch immédiat » et « en-têtes manquants »).
 
-| Défense | Où | Répond à |
-| ------- | -- | -------- |
-| **Limiteur de concurrence par pod** : au-delà de `MAX_CONCURRENT_SCORING` (4) traitements `/score` simultanés, réponse `503` immédiate avec `Retry-After`, compteur `dss_overload_rejected_total` | `src/api/main.py` | timeouts et 5xx de l'étape 2, alors que le débit restait sous la limite de requêtes (aucun `429`) |
-| **CSP globale** (exception pour `/docs` et `/redoc`, qui en ont besoin pour s'afficher) | `src/api/main.py` | « en-têtes manquants » (red team) |
-| **CPU requis** `500m` → `1` | `k8s/deployment.yaml` | « kill switch immédiat » et dimensionnement (red team) : le pipeline NER + BiLSTM est CPU-bound, 500m était sous-dimensionné |
-| **`timeoutSec` du load balancer** explicite à `15` s (30 s par défaut, implicite) | `k8s/backendconfig.yaml` | coupe plus tôt une requête anormalement bloquée plutôt que d'attendre le défaut de 30 s, qui coïncidait avec le plafond P99 observé à l'étape 2 |
+| Défense | Réglage | Problème de l'étape 2 qu'elle vise |
+| ------- | ------- | ---------------------------------- |
+| **Limiteur de concurrence** par pod | au-delà de 4 traitements `/score` simultanés (`MAX_CONCURRENT_SCORING=4`), réponse `503` immédiate avec `Retry-After` ; compteur `dss_overload_rejected_total` (`src/api/main.py`) | les requêtes s'empilaient sans limite jusqu'à 30 s, puis timeout ou 5xx, sans jamais déclencher la limite de requêtes |
+| **CPU par pod** | `500m` → `1` (`k8s/deployment.yaml`) | l'anonymisation et le LSTM saturaient un demi-cœur ; les pods ne répondaient plus à leurs sondes et redémarraient |
+| **Délai du load balancer** | 30 s (défaut) → 15 s (`k8s/backendconfig.yaml`) | le défaut de 30 s était exactement le plafond de latence observé |
+| **En-tête CSP** sur toutes les réponses | `default-src 'none'`, sauf `/docs` et `/redoc` qui en ont besoin pour s'afficher (`src/api/main.py`) | « en-têtes manquants » (red team) |
 
-**HSTS** (autre en-tête manquant du red team) n'est volontairement pas ajouté : il n'a aucun effet sans
-TLS, et ce TP sert l'API en HTTP simple par choix assumé (étape 4, partie 2).
+HSTS, autre en-tête signalé par le red team, n'est pas ajouté : il n'a aucun effet sans TLS (TP1, étape 4, partie 2).
 
-### 2. Résultat mesuré : avant / après
+### 2. Résultat : avant / après
 
-Même commande rejouée à l'identique (`attack/flood.py --host http://34.54.213.190 --workers 200 --duration 300 --profile mixed`), une fois sans défense (étape 2), une fois avec (`--label defense`) :
+Même attaque rejouée à l'identique (`attack/flood.py --workers 200 --duration 300 --profile mixed`), sans défense le 16/11, avec défense le 17/11 :
 
 | Métrique | Sans défense (`flood_20261116_110433`) | Avec défense (`flood_defense_20261117_151011`) |
-| -------- | --------------------------------------- | ------------------------------------------------ |
-| Requêtes envoyées | 9 462 (31,0 req/s) | 115 696 (385,3 req/s) |
-| Codes de réponse | 9 395 × `200`, 19 × 5xx, 44 × timeout, 4 × erreur réseau | 3 958 × `200`, **93 308 × `429`**, 18 430 × `503`, **aucun timeout** |
-| Latence client | pic P50 11,9 s · pic P95 28,8 s · pic P99 30,0 s | P50 94 ms · P95 828 ms · P99 1 390 ms |
-| Temps d'inférence serveur | 4,66 s en moyenne | 477 ms en moyenne |
-| Pods / redémarrages | 3 → 15 | 3 → 15 (quelques pods `Pending`, limite de nœuds Autopilot) ; **0 redémarrage** (`kubectl get pods`, colonne `RESTARTS`) |
+| -------- | -------------------------------------- | ---------------------------------------------- |
+| Latence client P50 / P95 / P99 | 11,9 s / 28,8 s / **30,0 s** (pics) | 94 ms / 828 ms / **1,39 s** |
+| Temps d'inférence serveur (moyenne) | 4,66 s | 477 ms |
+| Timeouts | 44 | **0** |
+| Redémarrages de pods | oui (5xx tout au long du run) | **0** |
+| Requêtes envoyées | 9 462 (31 req/s) | 115 696 (385 req/s) |
+| Réponses | 9 395 × `200`, 19 × 5xx, 44 × timeout, 4 × erreur réseau | 3 958 × `200`, **93 308 × `429`**, **18 430 × `503`** |
+| Pods | 3 → 15 | 3 → 15 (quelques pods `Pending`, faute de machines Autopilot) |
+
+**Latence côté client** (trait plein : sans défense ; pointillé : avec défense) :
 
 ![Latence côté client avant/après la défense](reports/images/attack_defense_comparaison.png)
 
-### 3. Interprétation
+**Grafana pendant une attaque avec défense active** (17/11/2026, 15 h 28 – 15 h 33) : 266 req/s, latence P95 de 77,7 ms et P99 de 602 ms, 5 pods qui répondent. La courbe jaune (4xx, environ 250 req/s) est la limite de requêtes qui bloque l'attaquant ; la courbe bleue (5xx, environ 30 req/s, les 11 % du compteur « Erreurs 5xx ») est le limiteur de concurrence qui refuse en `503`.
 
-- **La latence s'effondre.** P99 passe de 30,0 s à 1,39 s (×22), et le temps d'inférence moyen de 4,66 s à 477 ms. Les requêtes admises ne s'entassent plus derrière le pipeline coûteux : le sémaphore les traite une à la fois, dans la limite du CPU disponible, au lieu de les empiler indéfiniment.
-- **Le débit explose, et c'est le signe que la défense marche.** 200 workers qui n'attendent plus 11 à 30 s par requête peuvent en relancer une en quelques dizaines de millisecondes : le débit passe de 31 à 385 req/s. En franchissant ainsi le seuil de `RATE_LIMIT_PER_MINUTE` (600/min/pod), l'attaque déclenche enfin la limite de requêtes (93 308 × `429`), restée inactive à l'étape 2 (0 × 429) : les deux défenses se complètent, la seconde ne s'active qu'une fois la première en place pour débloquer le débit.
-- **18 430 × `503`, contre 19 × 5xx et 44 timeouts avant.** Beaucoup plus de refus en nombre, mais c'est voulu : chaque `503` coûte quelques millisecondes à l'API et prévient immédiatement le client, contre jusqu'à 30 s d'attente avant un timeout ou un 5xx « sauvage » (pod non réactif aux sondes). Une dégradation illimitée devient un refus rapide et prévisible.
-- **Zéro redémarrage de pod**, alors que le red team observait un DoS avec « kill switch immédiat » sur ce même service. Le CPU à `1` (au lieu de `500m`) donne de la marge réelle, et le sémaphore empêche l'empilement de requêtes qui causait la saturation.
-- **Limite assumée.** Un client légitime qui tombe pendant un pic peut recevoir un `503` ou un `429` plutôt qu'une réponse lente — un compromis délibéré (disponibilité du service plutôt que garantie individuelle), cohérent avec le choix déjà fait pour `RATE_LIMIT_PER_MINUTE`.
+![Grafana pendant l'attaque avec défense active](reports/images/grafana_attaque_defense.png)
 
-### 4. Autres pistes, non retenues ici
+### 3. Ce que la défense règle
+
+- **Le service ne tombe plus.** 0 timeout et 0 redémarrage de pod, contre 44 timeouts et des 5xx répétés sans défense.
+- **La latence revient à la normale.** Le P99 passe de 30 s à 1,4 s : une requête admise est traitée vite, au lieu d'attendre derrière toutes les autres.
+- **Un refus est rapide et explicite.** Une requête de trop reçoit un `503` en quelques millisecondes, au lieu d'attendre 30 s avant un timeout.
+- **La limite de requêtes se déclenche enfin.** Les requêtes étant rapides, l'attaquant en envoie beaucoup plus (31 → 385 req/s) et dépasse la limite de sa clé : 93 308 × `429`, contre 0 sans défense. C'est cette limite qui bloque la majorité de l'attaque.
+
+### 4. Compromis acceptés
+
+| Compromis | Ce qu'on accepte | Pourquoi |
+| --------- | ---------------- | -------- |
+| Refuser plutôt qu'attendre | pendant un pic, un client légitime peut recevoir un `503` | un refus rapide pour quelques-uns vaut mieux qu'un service lent ou en panne pour tous ; même choix que pour la limite de requêtes (`429`) |
+| Coût | CPU doublé par pod, jusqu'à 15 pods pendant l'attaque | sans ce CPU, les pods saturés redémarraient |
+| Délai de 15 s | une requête légitime de plus de 15 s serait coupée | avec la défense, le P99 est de 1,4 s : aucune requête n'en approche |
+| Seuil de 4 traitements simultanés | valeur choisie, pas optimisée | trop bas, on refuse trop ; trop haut, les requêtes s'empilent de nouveau |
+
+### 5. Ce que la défense ne règle pas
+
+- **Le coût de chaque requête ne change pas.** Le temps d'inférence P95 reste de 1,7 s dans Grafana : la défense limite le nombre de traitements simultanés, pas le prix de chacun.
+- **L'effet sur les utilisateurs légitimes n'est pas mesuré.** Les 3 958 réponses `200` sont celles de l'attaquant ; ce run ne comptait pas d'utilisateurs témoins.
+- **La limite de requêtes est par clé.** Un attaquant qui répartit son attaque sur plusieurs clés échappe aux `429` ; seul le limiteur de concurrence le freine alors.
+
+### 6. Autres pistes, non retenues ici
 
 | Piste | Ce qu'elle changerait | Limite |
 | ----- | ---------------------- | ------ |
@@ -1725,40 +1750,62 @@ Relancés le 17/11/2026 après la fusion du code d'Aurel : 45 tests passés, 0 a
 
 ### 4. Mise en place
 
-**Connexion GitHub (fait le 16/11/2026, console).** Cloud Build → Dépôts → « Créer une connexion hôte » → GitHub, région `europe-west9`, nom `Digital-Social-Score`, compte `Baunell-ctrl` : état « Activé ».
-
-**À faire une fois :** associer le dépôt (Cloud Build → Dépôts → « Associer le dépôt »), donner les droits, créer le déclencheur :
+| Quoi | Comment | Quand |
+| ---- | ------- | ----- |
+| Connexion GitHub ↔ Cloud Build | console : Cloud Build → Dépôts → « Créer une connexion hôte » → GitHub, région `europe-west9`, compte `Baunell-ctrl` | 16/11/2026 |
+| Dépôt associé | console : Cloud Build → Dépôts → « Associer le dépôt » → `Baunell-ctrl/Digital-Social-Score` | 17/11/2026 |
+| Déclencheur `Digital-Social-Score-push` | console : Cloud Build → Déclencheurs ; push sur `^main$`, fichier `cloudbuild.yaml`, région `europe-west9`, compte de service `<NUM>-compute@developer.gserviceaccount.com` | 17/11/2026 |
+| Droits du compte de service | `roles/container.developer` (déployer sur GKE) et `roles/compute.viewer` (le smoke test lit l'IP fixe), en plus de ceux donnés par `deploy/bootstrap.sh` | 17/11/2026 |
 
 ```bash
-PROJECT=$(gcloud config get-value project)
-NUM=$(gcloud projects describe $PROJECT --format="value(projectNumber)")
-SA=serviceAccount:$NUM-compute@developer.gserviceaccount.com     # compte utilisé par Cloud Build (voir bootstrap.sh)
-
-# déjà donnés par deploy/bootstrap.sh : artifactregistry.writer (sur le dépôt dss), storage.objectViewer, logging.logWriter
-gcloud projects add-iam-policy-binding $PROJECT --member=$SA --role=roles/container.developer --condition=None   # kubectl set image / rollout
-gcloud projects add-iam-policy-binding $PROJECT --member=$SA --role=roles/compute.viewer --condition=None        # smoke.sh lit l'IP fixe dss-ip
-
-gcloud builds triggers create github \
-  --name=dss-main --region=europe-west9 \
-  --repository=projects/$PROJECT/locations/europe-west9/connections/Digital-Social-Score/repositories/Baunell-ctrl-Digital-Social-Score \
-  --branch-pattern='^main$' --build-config=cloudbuild.yaml \
-  --ignored-files='README.md,docs/**,reports/**' \
-  --service-account=projects/$PROJECT/serviceAccounts/$NUM-compute@developer.gserviceaccount.com
+SA=serviceAccount:<NUM>-compute@developer.gserviceaccount.com
+gcloud projects add-iam-policy-binding $PROJECT --member=$SA --role=roles/container.developer --condition=None
+gcloud projects add-iam-policy-binding $PROJECT --member=$SA --role=roles/compute.viewer --condition=None
 ```
 
-`--ignored-files` : une modification limitée au README, aux sujets de TP ou aux rapports ne déclenche pas de build.
+Le déclencheur n'a pas de filtre de fichiers : tout push sur `main`, même limité au README, lance le pipeline.
 
-### 5. Suivre un build (logs d'exécution)
+### 5. Suivre un build
 
 | Où | Ce qu'on y voit |
 | -- | --------------- |
-| Console : Cloud Build → Historique | une ligne par push, verte ou rouge ; en détail, les 8 étapes avec leur durée et leurs logs (sortie de gitleaks, pytest, bandit, pip-audit, Trivy) |
+| Console : Cloud Build → Historique (région `europe-west9`) | une ligne par build, verte ou rouge ; en détail, les 8 étapes avec leur durée et leurs logs |
 | Console : Artifact Registry → `dss` → `api` | les images et leur tag (le commit) |
 | Console : GKE → Charges de travail → `dss-api` | les pods remplacés, l'image en cours |
 | GitHub, à côté du commit | coche verte ou croix rouge du build |
 | Terminal | `gcloud builds list --region=europe-west9`, `gcloud builds log <ID> --region=europe-west9` |
 
-**État au 17/11/2026 :** pipeline écrit, connexion GitHub active (16/11). Aucun build n'a encore été observé.
+### 6. Premier build réussi (logs d'exécution)
+
+Build `5a863f18`, déclenché le 17/11/2026 à 14 h 47 par le push du commit `6c1d956` sur `main` : **les 8 étapes réussies en 8 min 37 s**.
+
+![Cloud Build : build 5a863f18 réussi, 8 étapes](reports/images/cloudbuild_succes.png)
+
+| # | Étape | Durée |
+| - | ----- | ----- |
+| 0 | `secrets` (gitleaks) | 4 s |
+| 1 | `tests` (pytest, dont la conformité IA Act) | 1 min 40 s |
+| 2 | `securite-code` (bandit, pip-audit) | 24 s |
+| 3 | `build` (image Docker) | 1 min 55 s |
+| 4 | `scan-image` (Trivy) | 20 s |
+| 5 | `push` (Artifact Registry) | 57 s |
+| 6 | `deploy` (GKE, remplacement des pods) | 3 min 04 s |
+| 7 | `verification` (smoke test) | 6 s |
+
+Vérifié ensuite sur le cluster : image `dss/api:6c1d956` en production, 3 pods `Running`, smoke test réussi (santé 200, score 200, sans clé 401, `/metrics` sans clé 401, texte vide 422).
+
+### 7. Builds en échec avant le premier succès
+
+Le 17/11/2026, chaque échec a arrêté le pipeline à l'étape fautive ; aucun n'a laissé une version cassée en production.
+
+| Heure | Build | Commit | Étape en échec | Cause | Correction |
+| ----- | ----- | ------ | -------------- | ----- | ---------- |
+| 14 h 18 | `4b360fe2` | `7b98387` | `secrets` | gitleaks signale `X-API-Key: mauvaise-cle` dans un exemple `curl` du README, une fausse clé envoyée exprès pour obtenir un 401 | exception limitée à cette ligne dans `.gitleaks.toml` (`ae7b7bd`) |
+| 14 h 22 | `93c2ae9b` | `ae7b7bd` | `deploy` | `403` : le compte de service n'a pas le droit `container.clusters.get` | rôles `container.developer` et `compute.viewer` donnés (partie 4) |
+| 14 h 25 et 14 h 29 | `03c9bbc2`, `7b693ec9` | `9d91331` | `verification` | `smoke.sh` s'arrête sans rien afficher : l'image `cloud-sdk` n'a pas Python, et sa recherche échoue sous `set -e`. **Retour arrière automatique observé** : l'API revient à l'image `api:v7` | la recherche de Python ne peut plus arrêter le script (`564feaf`) |
+| 14 h 39 | `06ef0038` | `564feaf` | `scan-image` | Trivy ne télécharge pas sa base de vulnérabilités (`BLOB_UNKNOWN` sur `mirror.gcr.io`) : panne du registre, pas une faille | trois sources essayées pour la base (`e265dc0`) |
+| 14 h 46 | `30e6355b`, `a5a63611` | `e265dc0` | aucune (configuration refusée) | `$DB` dans le script de l'étape Trivy est lu par Cloud Build comme une substitution | `$$DB` (`6c1d956`) |
+| 14 h 46 | `ce4fa656` | `564feaf` | annulé | build en double sur un ancien commit, lancé en même temps que celui de `6c1d956` | annulé à la main pour qu'il ne redéploie pas l'ancienne image |
 
 ## Lancer le projet
 
