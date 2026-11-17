@@ -35,6 +35,7 @@ import urllib3
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))  # permet « python attack/flood.py » autant que « python -m attack.flood »
 from attack.payloads import build  # noqa: E402
+from attack.report import render_report  # noqa: E402
 
 OUT_DIR = ROOT / "reports" / "attack"
 
@@ -209,17 +210,18 @@ def main() -> None:
         "inference_serveur_ms_moyenne": round(srv, 1),
         "timeline": stats.timeline,  # aucune cle ni aucun texte : seulement des mesures
     }
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
     suffix = f"_{args.label}" if args.label else ""
-    out = OUT_DIR / f"flood{suffix}_{datetime.now():%Y%m%d_%H%M%S}.json"
-    out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    run_dir = OUT_DIR / f"flood{suffix}_{datetime.now():%Y%m%d_%H%M%S}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "rapport.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    (run_dir / "rapport.txt").write_text(render_report(report), encoding="utf-8")
 
     print("\n=== Resume ===")
     print(f"  envoyees        : {sent}  ({report['debit_moyen_req_s']} req/s en moyenne)")
     print(f"  codes           : {codes}")
     print(f"  latence client  : P50 {p50:.0f} ms  P95 {p95:.0f} ms  P99 {p99:.0f} ms")
     print(f"  inference serveur: {srv:.0f} ms en moyenne (reponses 200)")
-    print(f"  rapport         : {out.relative_to(ROOT)}")
+    print(f"  rapport         : {run_dir.relative_to(ROOT)}  (rapport.json + rapport.txt)")
     if codes.get("5xx") or codes.get("timeout"):
         print("  -> des 5xx/timeouts : l'API a ete saturee (defense insuffisante ou absente).")
     elif codes.get("429"):
