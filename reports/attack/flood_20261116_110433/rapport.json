@@ -1,0 +1,4451 @@
+{
+  "cible": "http://34.54.213.190",
+  "profil": "mixed",
+  "workers": 200,
+  "duree_s": 305.6,
+  "label": "",
+  "debut": "2026-11-16T10:04:33+00:00",
+  "total_envoyees": 9462,
+  "debit_moyen_req_s": 31.0,
+  "codes": {
+    "200": 9395,
+    "timeout": 44,
+    "5xx": 19,
+    "erreur_reseau": 4
+  },
+  "latence_client_ms": {
+    "p50": 3453.0,
+    "p95": 20937.0,
+    "p99": 27734.0
+  },
+  "inference_serveur_ms_moyenne": 4658.1,
+  "timeline": [
+    {
+      "t": 1.0,
+      "envoyees": 0,
+      "req_s": 0.0,
+      "codes": {},
+      "p50_ms": 0.0,
+      "p95_ms": 0.0,
+      "p99_ms": 0.0,
+      "inference_ms": 0.0
+    },
+    {
+      "t": 2.0,
+      "envoyees": 0,
+      "req_s": 0.0,
+      "codes": {},
+      "p50_ms": 0.0,
+      "p95_ms": 0.0,
+      "p99_ms": 0.0,
+      "inference_ms": 0.0
+    },
+    {
+      "t": 3.0,
+      "envoyees": 0,
+      "req_s": 0.0,
+      "codes": {},
+      "p50_ms": 0.0,
+      "p95_ms": 0.0,
+      "p99_ms": 0.0,
+      "inference_ms": 0.0
+    },
+    {
+      "t": 4.0,
+      "envoyees": 0,
+      "req_s": 0.0,
+      "codes": {},
+      "p50_ms": 0.0,
+      "p95_ms": 0.0,
+      "p99_ms": 0.0,
+      "inference_ms": 0.0
+    },
+    {
+      "t": 5.0,
+      "envoyees": 1,
+      "req_s": 1.0,
+      "codes": {
+        "200": 1
+      },
+      "p50_ms": 4422.0,
+      "p95_ms": 4422.0,
+      "p99_ms": 4422.0,
+      "inference_ms": 4222.5
+    },
+    {
+      "t": 6.0,
+      "envoyees": 11,
+      "req_s": 10.0,
+      "codes": {
+        "200": 11
+      },
+      "p50_ms": 5547.0,
+      "p95_ms": 5890.0,
+      "p99_ms": 5890.0,
+      "inference_ms": 4918.9
+    },
+    {
+      "t": 7.0,
+      "envoyees": 30,
+      "req_s": 18.7,
+      "codes": {
+        "200": 30
+      },
+      "p50_ms": 6297.0,
+      "p95_ms": 6547.0,
+      "p99_ms": 6562.0,
+      "inference_ms": 4701.0
+    },
+    {
+      "t": 8.0,
+      "envoyees": 37,
+      "req_s": 7.0,
+      "codes": {
+        "200": 37
+      },
+      "p50_ms": 6140.0,
+      "p95_ms": 7656.0,
+      "p99_ms": 7891.0,
+      "inference_ms": 4399.2
+    },
+    {
+      "t": 9.0,
+      "envoyees": 40,
+      "req_s": 3.0,
+      "codes": {
+        "200": 40
+      },
+      "p50_ms": 6297.0,
+      "p95_ms": 8687.0,
+      "p99_ms": 8938.0,
+      "inference_ms": 4648.4
+    },
+    {
+      "t": 10.0,
+      "envoyees": 44,
+      "req_s": 4.0,
+      "codes": {
+        "200": 44
+      },
+      "p50_ms": 6437.0,
+      "p95_ms": 9375.0,
+      "p99_ms": 9828.0,
+      "inference_ms": 4963.0
+    },
+    {
+      "t": 11.0,
+      "envoyees": 56,
+      "req_s": 12.0,
+      "codes": {
+        "200": 56
+      },
+      "p50_ms": 6484.0,
+      "p95_ms": 10734.0,
+      "p99_ms": 10953.0,
+      "inference_ms": 5613.0
+    },
+    {
+      "t": 12.0,
+      "envoyees": 64,
+      "req_s": 8.0,
+      "codes": {
+        "200": 64
+      },
+      "p50_ms": 6516.0,
+      "p95_ms": 11188.0,
+      "p99_ms": 11953.0,
+      "inference_ms": 5944.7
+    },
+    {
+      "t": 13.0,
+      "envoyees": 77,
+      "req_s": 13.0,
+      "codes": {
+        "200": 77
+      },
+      "p50_ms": 7891.0,
+      "p95_ms": 12844.0,
+      "p99_ms": 12922.0,
+      "inference_ms": 6655.1
+    },
+    {
+      "t": 14.0,
+      "envoyees": 86,
+      "req_s": 9.0,
+      "codes": {
+        "200": 86
+      },
+      "p50_ms": 9375.0,
+      "p95_ms": 13391.0,
+      "p99_ms": 13625.0,
+      "inference_ms": 7076.8
+    },
+    {
+      "t": 15.0,
+      "envoyees": 99,
+      "req_s": 13.0,
+      "codes": {
+        "200": 99
+      },
+      "p50_ms": 10047.0,
+      "p95_ms": 14156.0,
+      "p99_ms": 14813.0,
+      "inference_ms": 7287.9
+    },
+    {
+      "t": 16.0,
+      "envoyees": 131,
+      "req_s": 31.5,
+      "codes": {
+        "200": 131
+      },
+      "p50_ms": 11188.0,
+      "p95_ms": 15625.0,
+      "p99_ms": 15781.0,
+      "inference_ms": 8051.7
+    },
+    {
+      "t": 17.0,
+      "envoyees": 157,
+      "req_s": 26.0,
+      "codes": {
+        "200": 157
+      },
+      "p50_ms": 11891.0,
+      "p95_ms": 16359.0,
+      "p99_ms": 16937.0,
+      "inference_ms": 8216.5
+    },
+    {
+      "t": 18.0,
+      "envoyees": 173,
+      "req_s": 16.0,
+      "codes": {
+        "200": 173
+      },
+      "p50_ms": 11953.0,
+      "p95_ms": 16937.0,
+      "p99_ms": 17500.0,
+      "inference_ms": 8283.0
+    },
+    {
+      "t": 19.0,
+      "envoyees": 187,
+      "req_s": 14.0,
+      "codes": {
+        "200": 187
+      },
+      "p50_ms": 11890.0,
+      "p95_ms": 17062.0,
+      "p99_ms": 18609.0,
+      "inference_ms": 8297.9
+    },
+    {
+      "t": 20.0,
+      "envoyees": 200,
+      "req_s": 13.0,
+      "codes": {
+        "200": 200
+      },
+      "p50_ms": 11812.0,
+      "p95_ms": 17500.0,
+      "p99_ms": 19562.0,
+      "inference_ms": 8108.3
+    },
+    {
+      "t": 21.0,
+      "envoyees": 218,
+      "req_s": 18.0,
+      "codes": {
+        "200": 218
+      },
+      "p50_ms": 11812.0,
+      "p95_ms": 18656.0,
+      "p99_ms": 20125.0,
+      "inference_ms": 8182.4
+    },
+    {
+      "t": 22.0,
+      "envoyees": 232,
+      "req_s": 14.0,
+      "codes": {
+        "200": 232
+      },
+      "p50_ms": 11875.0,
+      "p95_ms": 19562.0,
+      "p99_ms": 21344.0,
+      "inference_ms": 8197.8
+    },
+    {
+      "t": 23.0,
+      "envoyees": 243,
+      "req_s": 11.0,
+      "codes": {
+        "200": 243
+      },
+      "p50_ms": 11875.0,
+      "p95_ms": 20719.0,
+      "p99_ms": 22406.0,
+      "inference_ms": 8278.4
+    },
+    {
+      "t": 24.0,
+      "envoyees": 264,
+      "req_s": 20.7,
+      "codes": {
+        "200": 264
+      },
+      "p50_ms": 11812.0,
+      "p95_ms": 21750.0,
+      "p99_ms": 22922.0,
+      "inference_ms": 8356.4
+    },
+    {
+      "t": 25.0,
+      "envoyees": 278,
+      "req_s": 14.0,
+      "codes": {
+        "200": 278
+      },
+      "p50_ms": 11891.0,
+      "p95_ms": 22844.0,
+      "p99_ms": 24515.0,
+      "inference_ms": 8480.9
+    },
+    {
+      "t": 26.0,
+      "envoyees": 295,
+      "req_s": 17.0,
+      "codes": {
+        "200": 295
+      },
+      "p50_ms": 11891.0,
+      "p95_ms": 23000.0,
+      "p99_ms": 25031.0,
+      "inference_ms": 8526.3
+    },
+    {
+      "t": 27.0,
+      "envoyees": 313,
+      "req_s": 18.0,
+      "codes": {
+        "200": 313
+      },
+      "p50_ms": 11766.0,
+      "p95_ms": 23281.0,
+      "p99_ms": 25140.0,
+      "inference_ms": 8504.8
+    },
+    {
+      "t": 28.0,
+      "envoyees": 337,
+      "req_s": 24.0,
+      "codes": {
+        "200": 337
+      },
+      "p50_ms": 11156.0,
+      "p95_ms": 23953.0,
+      "p99_ms": 27063.0,
+      "inference_ms": 8411.8
+    },
+    {
+      "t": 29.0,
+      "envoyees": 347,
+      "req_s": 10.0,
+      "codes": {
+        "200": 347
+      },
+      "p50_ms": 11156.0,
+      "p95_ms": 24718.0,
+      "p99_ms": 27750.0,
+      "inference_ms": 8417.2
+    },
+    {
+      "t": 30.1,
+      "envoyees": 352,
+      "req_s": 4.9,
+      "codes": {
+        "200": 352
+      },
+      "p50_ms": 11094.0,
+      "p95_ms": 24718.0,
+      "p99_ms": 27750.0,
+      "inference_ms": 8367.0
+    },
+    {
+      "t": 31.1,
+      "envoyees": 364,
+      "req_s": 12.0,
+      "codes": {
+        "200": 362,
+        "timeout": 2
+      },
+      "p50_ms": 10953.0,
+      "p95_ms": 25000.0,
+      "p99_ms": 28547.0,
+      "inference_ms": 8301.2
+    },
+    {
+      "t": 32.1,
+      "envoyees": 375,
+      "req_s": 11.0,
+      "codes": {
+        "200": 373,
+        "timeout": 2
+      },
+      "p50_ms": 10953.0,
+      "p95_ms": 25000.0,
+      "p99_ms": 28547.0,
+      "inference_ms": 8207.5
+    },
+    {
+      "t": 33.1,
+      "envoyees": 392,
+      "req_s": 17.0,
+      "codes": {
+        "200": 390,
+        "timeout": 2
+      },
+      "p50_ms": 10891.0,
+      "p95_ms": 25000.0,
+      "p99_ms": 28547.0,
+      "inference_ms": 8127.2
+    },
+    {
+      "t": 34.1,
+      "envoyees": 407,
+      "req_s": 15.0,
+      "codes": {
+        "200": 405,
+        "timeout": 2
+      },
+      "p50_ms": 10672.0,
+      "p95_ms": 25000.0,
+      "p99_ms": 28000.0,
+      "inference_ms": 8017.4
+    },
+    {
+      "t": 35.1,
+      "envoyees": 432,
+      "req_s": 25.0,
+      "codes": {
+        "200": 430,
+        "timeout": 2
+      },
+      "p50_ms": 10657.0,
+      "p95_ms": 25031.0,
+      "p99_ms": 28000.0,
+      "inference_ms": 7958.6
+    },
+    {
+      "t": 36.1,
+      "envoyees": 451,
+      "req_s": 19.0,
+      "codes": {
+        "200": 448,
+        "timeout": 2,
+        "5xx": 1
+      },
+      "p50_ms": 10453.0,
+      "p95_ms": 25031.0,
+      "p99_ms": 28547.0,
+      "inference_ms": 7858.5
+    },
+    {
+      "t": 37.1,
+      "envoyees": 468,
+      "req_s": 16.7,
+      "codes": {
+        "200": 464,
+        "timeout": 3,
+        "5xx": 1
+      },
+      "p50_ms": 10438.0,
+      "p95_ms": 25031.0,
+      "p99_ms": 28656.0,
+      "inference_ms": 7759.6
+    },
+    {
+      "t": 38.1,
+      "envoyees": 495,
+      "req_s": 27.0,
+      "codes": {
+        "200": 491,
+        "timeout": 3,
+        "5xx": 1
+      },
+      "p50_ms": 10266.0,
+      "p95_ms": 25031.0,
+      "p99_ms": 28656.0,
+      "inference_ms": 7618.0
+    },
+    {
+      "t": 39.1,
+      "envoyees": 529,
+      "req_s": 34.0,
+      "codes": {
+        "200": 525,
+        "timeout": 3,
+        "5xx": 1
+      },
+      "p50_ms": 10422.0,
+      "p95_ms": 25140.0,
+      "p99_ms": 28656.0,
+      "inference_ms": 7663.1
+    },
+    {
+      "t": 40.1,
+      "envoyees": 546,
+      "req_s": 17.0,
+      "codes": {
+        "200": 542,
+        "timeout": 3,
+        "5xx": 1
+      },
+      "p50_ms": 10391.0,
+      "p95_ms": 25140.0,
+      "p99_ms": 28656.0,
+      "inference_ms": 7650.1
+    },
+    {
+      "t": 41.1,
+      "envoyees": 566,
+      "req_s": 20.0,
+      "codes": {
+        "200": 562,
+        "timeout": 3,
+        "5xx": 1
+      },
+      "p50_ms": 10218.0,
+      "p95_ms": 25140.0,
+      "p99_ms": 28656.0,
+      "inference_ms": 7546.0
+    },
+    {
+      "t": 42.1,
+      "envoyees": 589,
+      "req_s": 23.0,
+      "codes": {
+        "200": 585,
+        "timeout": 3,
+        "5xx": 1
+      },
+      "p50_ms": 10109.0,
+      "p95_ms": 25140.0,
+      "p99_ms": 28656.0,
+      "inference_ms": 7477.9
+    },
+    {
+      "t": 43.1,
+      "envoyees": 605,
+      "req_s": 15.7,
+      "codes": {
+        "200": 601,
+        "timeout": 3,
+        "5xx": 1
+      },
+      "p50_ms": 10109.0,
+      "p95_ms": 25984.0,
+      "p99_ms": 28547.0,
+      "inference_ms": 7485.1
+    },
+    {
+      "t": 44.1,
+      "envoyees": 633,
+      "req_s": 28.0,
+      "codes": {
+        "200": 628,
+        "timeout": 4,
+        "5xx": 1
+      },
+      "p50_ms": 9828.0,
+      "p95_ms": 25984.0,
+      "p99_ms": 28656.0,
+      "inference_ms": 7357.5
+    },
+    {
+      "t": 45.1,
+      "envoyees": 662,
+      "req_s": 29.0,
+      "codes": {
+        "200": 657,
+        "timeout": 4,
+        "5xx": 1
+      },
+      "p50_ms": 9828.0,
+      "p95_ms": 25984.0,
+      "p99_ms": 28656.0,
+      "inference_ms": 7278.5
+    },
+    {
+      "t": 46.1,
+      "envoyees": 685,
+      "req_s": 23.0,
+      "codes": {
+        "200": 679,
+        "timeout": 4,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 9828.0,
+      "p95_ms": 26000.0,
+      "p99_ms": 28719.0,
+      "inference_ms": 7258.4
+    },
+    {
+      "t": 47.1,
+      "envoyees": 709,
+      "req_s": 24.0,
+      "codes": {
+        "200": 702,
+        "timeout": 5,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 9734.0,
+      "p95_ms": 26047.0,
+      "p99_ms": 28719.0,
+      "inference_ms": 7242.8
+    },
+    {
+      "t": 48.1,
+      "envoyees": 730,
+      "req_s": 21.0,
+      "codes": {
+        "200": 723,
+        "timeout": 5,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 9437.0,
+      "p95_ms": 26047.0,
+      "p99_ms": 28719.0,
+      "inference_ms": 7192.0
+    },
+    {
+      "t": 49.1,
+      "envoyees": 754,
+      "req_s": 23.6,
+      "codes": {
+        "200": 747,
+        "timeout": 5,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 9234.0,
+      "p95_ms": 26047.0,
+      "p99_ms": 28719.0,
+      "inference_ms": 7128.8
+    },
+    {
+      "t": 50.1,
+      "envoyees": 766,
+      "req_s": 12.0,
+      "codes": {
+        "200": 758,
+        "timeout": 6,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 9187.0,
+      "p95_ms": 26047.0,
+      "p99_ms": 28781.0,
+      "inference_ms": 7081.8
+    },
+    {
+      "t": 51.1,
+      "envoyees": 781,
+      "req_s": 15.0,
+      "codes": {
+        "200": 773,
+        "timeout": 6,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8938.0,
+      "p95_ms": 26000.0,
+      "p99_ms": 28781.0,
+      "inference_ms": 7047.3
+    },
+    {
+      "t": 52.1,
+      "envoyees": 796,
+      "req_s": 15.0,
+      "codes": {
+        "200": 788,
+        "timeout": 6,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8828.0,
+      "p95_ms": 26047.0,
+      "p99_ms": 28781.0,
+      "inference_ms": 7018.6
+    },
+    {
+      "t": 53.1,
+      "envoyees": 805,
+      "req_s": 9.0,
+      "codes": {
+        "200": 797,
+        "timeout": 6,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8672.0,
+      "p95_ms": 26047.0,
+      "p99_ms": 28719.0,
+      "inference_ms": 6968.5
+    },
+    {
+      "t": 54.1,
+      "envoyees": 820,
+      "req_s": 14.8,
+      "codes": {
+        "200": 812,
+        "timeout": 6,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8687.0,
+      "p95_ms": 26047.0,
+      "p99_ms": 28719.0,
+      "inference_ms": 6976.1
+    },
+    {
+      "t": 55.1,
+      "envoyees": 843,
+      "req_s": 23.0,
+      "codes": {
+        "200": 835,
+        "timeout": 6,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8828.0,
+      "p95_ms": 25984.0,
+      "p99_ms": 28719.0,
+      "inference_ms": 6985.1
+    },
+    {
+      "t": 56.1,
+      "envoyees": 866,
+      "req_s": 23.0,
+      "codes": {
+        "200": 857,
+        "timeout": 7,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8813.0,
+      "p95_ms": 26094.0,
+      "p99_ms": 29328.0,
+      "inference_ms": 6941.3
+    },
+    {
+      "t": 57.1,
+      "envoyees": 886,
+      "req_s": 20.0,
+      "codes": {
+        "200": 877,
+        "timeout": 7,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8813.0,
+      "p95_ms": 26047.0,
+      "p99_ms": 29328.0,
+      "inference_ms": 6915.4
+    },
+    {
+      "t": 58.1,
+      "envoyees": 916,
+      "req_s": 30.0,
+      "codes": {
+        "200": 906,
+        "timeout": 8,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8953.0,
+      "p95_ms": 26094.0,
+      "p99_ms": 29328.0,
+      "inference_ms": 6914.6
+    },
+    {
+      "t": 59.1,
+      "envoyees": 937,
+      "req_s": 20.7,
+      "codes": {
+        "200": 925,
+        "timeout": 10,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8953.0,
+      "p95_ms": 26125.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6882.4
+    },
+    {
+      "t": 60.1,
+      "envoyees": 965,
+      "req_s": 28.0,
+      "codes": {
+        "200": 953,
+        "timeout": 10,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8938.0,
+      "p95_ms": 26094.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6828.1
+    },
+    {
+      "t": 61.2,
+      "envoyees": 993,
+      "req_s": 27.6,
+      "codes": {
+        "200": 980,
+        "timeout": 11,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8813.0,
+      "p95_ms": 26094.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6780.1
+    },
+    {
+      "t": 62.2,
+      "envoyees": 1014,
+      "req_s": 21.0,
+      "codes": {
+        "200": 998,
+        "timeout": 14,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8625.0,
+      "p95_ms": 26235.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6686.7
+    },
+    {
+      "t": 63.2,
+      "envoyees": 1036,
+      "req_s": 22.0,
+      "codes": {
+        "200": 1015,
+        "timeout": 19,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8531.0,
+      "p95_ms": 26547.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6622.3
+    },
+    {
+      "t": 64.2,
+      "envoyees": 1054,
+      "req_s": 17.7,
+      "codes": {
+        "200": 1031,
+        "timeout": 21,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8578.0,
+      "p95_ms": 26703.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6606.0
+    },
+    {
+      "t": 65.2,
+      "envoyees": 1077,
+      "req_s": 23.0,
+      "codes": {
+        "200": 1049,
+        "timeout": 26,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8672.0,
+      "p95_ms": 27047.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6599.0
+    },
+    {
+      "t": 66.2,
+      "envoyees": 1097,
+      "req_s": 19.7,
+      "codes": {
+        "200": 1069,
+        "timeout": 26,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8578.0,
+      "p95_ms": 27063.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6570.5
+    },
+    {
+      "t": 67.2,
+      "envoyees": 1128,
+      "req_s": 31.0,
+      "codes": {
+        "200": 1099,
+        "timeout": 27,
+        "5xx": 1,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8515.0,
+      "p95_ms": 27047.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6527.4
+    },
+    {
+      "t": 68.2,
+      "envoyees": 1158,
+      "req_s": 30.0,
+      "codes": {
+        "200": 1123,
+        "timeout": 32,
+        "5xx": 2,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8515.0,
+      "p95_ms": 27281.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6495.7
+    },
+    {
+      "t": 69.2,
+      "envoyees": 1174,
+      "req_s": 16.0,
+      "codes": {
+        "200": 1139,
+        "timeout": 32,
+        "5xx": 2,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8515.0,
+      "p95_ms": 27563.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6512.2
+    },
+    {
+      "t": 70.2,
+      "envoyees": 1192,
+      "req_s": 17.7,
+      "codes": {
+        "200": 1155,
+        "timeout": 34,
+        "5xx": 2,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8515.0,
+      "p95_ms": 27750.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6514.9
+    },
+    {
+      "t": 71.2,
+      "envoyees": 1209,
+      "req_s": 17.0,
+      "codes": {
+        "200": 1170,
+        "timeout": 36,
+        "5xx": 2,
+        "erreur_reseau": 1
+      },
+      "p50_ms": 8312.0,
+      "p95_ms": 27766.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6474.3
+    },
+    {
+      "t": 72.2,
+      "envoyees": 1223,
+      "req_s": 14.0,
+      "codes": {
+        "200": 1182,
+        "timeout": 37,
+        "5xx": 2,
+        "erreur_reseau": 2
+      },
+      "p50_ms": 8172.0,
+      "p95_ms": 27844.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6435.1
+    },
+    {
+      "t": 73.2,
+      "envoyees": 1241,
+      "req_s": 18.0,
+      "codes": {
+        "200": 1196,
+        "timeout": 41,
+        "5xx": 2,
+        "erreur_reseau": 2
+      },
+      "p50_ms": 8266.0,
+      "p95_ms": 27953.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6404.6
+    },
+    {
+      "t": 74.2,
+      "envoyees": 1257,
+      "req_s": 16.0,
+      "codes": {
+        "200": 1209,
+        "timeout": 42,
+        "5xx": 2,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8375.0,
+      "p95_ms": 28484.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6406.0
+    },
+    {
+      "t": 75.2,
+      "envoyees": 1283,
+      "req_s": 25.6,
+      "codes": {
+        "200": 1233,
+        "timeout": 44,
+        "5xx": 2,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8469.0,
+      "p95_ms": 28719.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6426.7
+    },
+    {
+      "t": 76.2,
+      "envoyees": 1307,
+      "req_s": 24.0,
+      "codes": {
+        "200": 1257,
+        "timeout": 44,
+        "5xx": 2,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8296.0,
+      "p95_ms": 28656.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6383.0
+    },
+    {
+      "t": 77.2,
+      "envoyees": 1325,
+      "req_s": 18.0,
+      "codes": {
+        "200": 1275,
+        "timeout": 44,
+        "5xx": 2,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8407.0,
+      "p95_ms": 28625.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6392.4
+    },
+    {
+      "t": 78.2,
+      "envoyees": 1339,
+      "req_s": 14.0,
+      "codes": {
+        "200": 1289,
+        "timeout": 44,
+        "5xx": 2,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8485.0,
+      "p95_ms": 28625.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6415.8
+    },
+    {
+      "t": 79.2,
+      "envoyees": 1363,
+      "req_s": 23.6,
+      "codes": {
+        "200": 1313,
+        "timeout": 44,
+        "5xx": 2,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8625.0,
+      "p95_ms": 28547.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6444.3
+    },
+    {
+      "t": 80.2,
+      "envoyees": 1386,
+      "req_s": 23.0,
+      "codes": {
+        "200": 1336,
+        "timeout": 44,
+        "5xx": 2,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8672.0,
+      "p95_ms": 28531.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6438.6
+    },
+    {
+      "t": 81.2,
+      "envoyees": 1410,
+      "req_s": 24.0,
+      "codes": {
+        "200": 1359,
+        "timeout": 44,
+        "5xx": 3,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8797.0,
+      "p95_ms": 28500.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6478.5
+    },
+    {
+      "t": 82.2,
+      "envoyees": 1438,
+      "req_s": 28.0,
+      "codes": {
+        "200": 1387,
+        "timeout": 44,
+        "5xx": 3,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8797.0,
+      "p95_ms": 28531.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6466.0
+    },
+    {
+      "t": 83.2,
+      "envoyees": 1462,
+      "req_s": 23.6,
+      "codes": {
+        "200": 1411,
+        "timeout": 44,
+        "5xx": 3,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8797.0,
+      "p95_ms": 28500.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6446.6
+    },
+    {
+      "t": 84.2,
+      "envoyees": 1488,
+      "req_s": 26.0,
+      "codes": {
+        "200": 1437,
+        "timeout": 44,
+        "5xx": 3,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8813.0,
+      "p95_ms": 28484.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6457.7
+    },
+    {
+      "t": 85.2,
+      "envoyees": 1513,
+      "req_s": 25.0,
+      "codes": {
+        "200": 1462,
+        "timeout": 44,
+        "5xx": 3,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8703.0,
+      "p95_ms": 28469.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6426.5
+    },
+    {
+      "t": 86.2,
+      "envoyees": 1535,
+      "req_s": 22.0,
+      "codes": {
+        "200": 1484,
+        "timeout": 44,
+        "5xx": 3,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8750.0,
+      "p95_ms": 28422.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6431.4
+    },
+    {
+      "t": 87.3,
+      "envoyees": 1560,
+      "req_s": 24.6,
+      "codes": {
+        "200": 1509,
+        "timeout": 44,
+        "5xx": 3,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8797.0,
+      "p95_ms": 28265.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6442.4
+    },
+    {
+      "t": 88.3,
+      "envoyees": 1582,
+      "req_s": 22.0,
+      "codes": {
+        "200": 1531,
+        "timeout": 44,
+        "5xx": 3,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8797.0,
+      "p95_ms": 28047.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6440.1
+    },
+    {
+      "t": 89.3,
+      "envoyees": 1595,
+      "req_s": 13.0,
+      "codes": {
+        "200": 1544,
+        "timeout": 44,
+        "5xx": 3,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8797.0,
+      "p95_ms": 28047.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6438.6
+    },
+    {
+      "t": 90.3,
+      "envoyees": 1622,
+      "req_s": 27.0,
+      "codes": {
+        "200": 1571,
+        "timeout": 44,
+        "5xx": 3,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8828.0,
+      "p95_ms": 27954.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6464.5
+    },
+    {
+      "t": 91.3,
+      "envoyees": 1644,
+      "req_s": 21.7,
+      "codes": {
+        "200": 1593,
+        "timeout": 44,
+        "5xx": 3,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8813.0,
+      "p95_ms": 27953.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6450.2
+    },
+    {
+      "t": 92.3,
+      "envoyees": 1666,
+      "req_s": 22.0,
+      "codes": {
+        "200": 1614,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8797.0,
+      "p95_ms": 27922.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6428.0
+    },
+    {
+      "t": 93.3,
+      "envoyees": 1677,
+      "req_s": 10.8,
+      "codes": {
+        "200": 1625,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8750.0,
+      "p95_ms": 27922.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6418.7
+    },
+    {
+      "t": 94.3,
+      "envoyees": 1697,
+      "req_s": 20.0,
+      "codes": {
+        "200": 1645,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8797.0,
+      "p95_ms": 27906.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6429.4
+    },
+    {
+      "t": 95.3,
+      "envoyees": 1725,
+      "req_s": 28.0,
+      "codes": {
+        "200": 1673,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8953.0,
+      "p95_ms": 27828.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6458.7
+    },
+    {
+      "t": 96.3,
+      "envoyees": 1746,
+      "req_s": 21.0,
+      "codes": {
+        "200": 1694,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8938.0,
+      "p95_ms": 27766.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6441.4
+    },
+    {
+      "t": 97.3,
+      "envoyees": 1765,
+      "req_s": 18.7,
+      "codes": {
+        "200": 1713,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9000.0,
+      "p95_ms": 27765.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6465.8
+    },
+    {
+      "t": 98.3,
+      "envoyees": 1783,
+      "req_s": 18.0,
+      "codes": {
+        "200": 1731,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8985.0,
+      "p95_ms": 27750.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6455.8
+    },
+    {
+      "t": 99.3,
+      "envoyees": 1800,
+      "req_s": 17.0,
+      "codes": {
+        "200": 1748,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9000.0,
+      "p95_ms": 27750.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6455.1
+    },
+    {
+      "t": 100.3,
+      "envoyees": 1818,
+      "req_s": 18.0,
+      "codes": {
+        "200": 1766,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9000.0,
+      "p95_ms": 27734.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6454.4
+    },
+    {
+      "t": 101.3,
+      "envoyees": 1831,
+      "req_s": 12.8,
+      "codes": {
+        "200": 1779,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8985.0,
+      "p95_ms": 27656.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6458.4
+    },
+    {
+      "t": 102.3,
+      "envoyees": 1855,
+      "req_s": 24.0,
+      "codes": {
+        "200": 1803,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9000.0,
+      "p95_ms": 27593.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6463.7
+    },
+    {
+      "t": 103.3,
+      "envoyees": 1869,
+      "req_s": 14.0,
+      "codes": {
+        "200": 1817,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9032.0,
+      "p95_ms": 27563.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6484.8
+    },
+    {
+      "t": 104.3,
+      "envoyees": 1888,
+      "req_s": 18.7,
+      "codes": {
+        "200": 1836,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9187.0,
+      "p95_ms": 27453.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6513.9
+    },
+    {
+      "t": 105.3,
+      "envoyees": 1899,
+      "req_s": 11.0,
+      "codes": {
+        "200": 1847,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9171.0,
+      "p95_ms": 27453.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6503.8
+    },
+    {
+      "t": 106.3,
+      "envoyees": 1932,
+      "req_s": 33.0,
+      "codes": {
+        "200": 1880,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9172.0,
+      "p95_ms": 27391.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6534.6
+    },
+    {
+      "t": 107.3,
+      "envoyees": 1945,
+      "req_s": 13.0,
+      "codes": {
+        "200": 1893,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9188.0,
+      "p95_ms": 27297.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6566.4
+    },
+    {
+      "t": 108.4,
+      "envoyees": 1969,
+      "req_s": 23.6,
+      "codes": {
+        "200": 1917,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9219.0,
+      "p95_ms": 27281.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6583.6
+    },
+    {
+      "t": 109.4,
+      "envoyees": 1999,
+      "req_s": 30.0,
+      "codes": {
+        "200": 1947,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9312.0,
+      "p95_ms": 27281.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6636.3
+    },
+    {
+      "t": 110.4,
+      "envoyees": 2031,
+      "req_s": 31.5,
+      "codes": {
+        "200": 1979,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9469.0,
+      "p95_ms": 27125.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6704.8
+    },
+    {
+      "t": 111.4,
+      "envoyees": 2051,
+      "req_s": 20.0,
+      "codes": {
+        "200": 1999,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9485.0,
+      "p95_ms": 27109.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6721.2
+    },
+    {
+      "t": 112.4,
+      "envoyees": 2065,
+      "req_s": 13.8,
+      "codes": {
+        "200": 2013,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9485.0,
+      "p95_ms": 27063.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6716.1
+    },
+    {
+      "t": 113.4,
+      "envoyees": 2082,
+      "req_s": 17.0,
+      "codes": {
+        "200": 2030,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9515.0,
+      "p95_ms": 27047.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6735.4
+    },
+    {
+      "t": 114.4,
+      "envoyees": 2109,
+      "req_s": 27.0,
+      "codes": {
+        "200": 2057,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9485.0,
+      "p95_ms": 27000.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6727.6
+    },
+    {
+      "t": 115.4,
+      "envoyees": 2130,
+      "req_s": 20.7,
+      "codes": {
+        "200": 2078,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9437.0,
+      "p95_ms": 26969.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6719.2
+    },
+    {
+      "t": 116.4,
+      "envoyees": 2155,
+      "req_s": 25.0,
+      "codes": {
+        "200": 2103,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9312.0,
+      "p95_ms": 26938.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6707.0
+    },
+    {
+      "t": 117.4,
+      "envoyees": 2176,
+      "req_s": 21.0,
+      "codes": {
+        "200": 2124,
+        "timeout": 44,
+        "5xx": 4,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9312.0,
+      "p95_ms": 26938.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6707.1
+    },
+    {
+      "t": 118.4,
+      "envoyees": 2211,
+      "req_s": 34.5,
+      "codes": {
+        "200": 2158,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9187.0,
+      "p95_ms": 26734.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6662.4
+    },
+    {
+      "t": 119.4,
+      "envoyees": 2246,
+      "req_s": 35.0,
+      "codes": {
+        "200": 2193,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 9000.0,
+      "p95_ms": 26547.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6613.8
+    },
+    {
+      "t": 120.4,
+      "envoyees": 2270,
+      "req_s": 24.0,
+      "codes": {
+        "200": 2217,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8938.0,
+      "p95_ms": 26547.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6569.9
+    },
+    {
+      "t": 121.4,
+      "envoyees": 2289,
+      "req_s": 18.7,
+      "codes": {
+        "200": 2236,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8938.0,
+      "p95_ms": 26437.0,
+      "p99_ms": 30016.0,
+      "inference_ms": 6560.0
+    },
+    {
+      "t": 122.4,
+      "envoyees": 2305,
+      "req_s": 16.0,
+      "codes": {
+        "200": 2252,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8860.0,
+      "p95_ms": 26375.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6550.0
+    },
+    {
+      "t": 123.4,
+      "envoyees": 2332,
+      "req_s": 27.0,
+      "codes": {
+        "200": 2279,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8953.0,
+      "p95_ms": 26266.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6557.5
+    },
+    {
+      "t": 124.5,
+      "envoyees": 2362,
+      "req_s": 29.6,
+      "codes": {
+        "200": 2309,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8860.0,
+      "p95_ms": 26125.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6538.9
+    },
+    {
+      "t": 125.5,
+      "envoyees": 2386,
+      "req_s": 24.0,
+      "codes": {
+        "200": 2333,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8812.0,
+      "p95_ms": 26094.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6510.4
+    },
+    {
+      "t": 126.5,
+      "envoyees": 2427,
+      "req_s": 41.0,
+      "codes": {
+        "200": 2374,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8687.0,
+      "p95_ms": 26032.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6471.4
+    },
+    {
+      "t": 127.5,
+      "envoyees": 2466,
+      "req_s": 38.4,
+      "codes": {
+        "200": 2413,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8625.0,
+      "p95_ms": 25984.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6427.5
+    },
+    {
+      "t": 128.5,
+      "envoyees": 2502,
+      "req_s": 36.0,
+      "codes": {
+        "200": 2449,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8469.0,
+      "p95_ms": 25922.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6371.4
+    },
+    {
+      "t": 129.5,
+      "envoyees": 2550,
+      "req_s": 48.0,
+      "codes": {
+        "200": 2497,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8266.0,
+      "p95_ms": 25906.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6340.7
+    },
+    {
+      "t": 130.5,
+      "envoyees": 2595,
+      "req_s": 44.3,
+      "codes": {
+        "200": 2542,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8219.0,
+      "p95_ms": 25891.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6314.8
+    },
+    {
+      "t": 131.5,
+      "envoyees": 2630,
+      "req_s": 35.0,
+      "codes": {
+        "200": 2577,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 8093.0,
+      "p95_ms": 25843.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6284.4
+    },
+    {
+      "t": 132.5,
+      "envoyees": 2678,
+      "req_s": 48.0,
+      "codes": {
+        "200": 2625,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 7890.0,
+      "p95_ms": 25812.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6240.6
+    },
+    {
+      "t": 133.5,
+      "envoyees": 2717,
+      "req_s": 38.4,
+      "codes": {
+        "200": 2664,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 7750.0,
+      "p95_ms": 25531.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6222.1
+    },
+    {
+      "t": 134.5,
+      "envoyees": 2772,
+      "req_s": 55.0,
+      "codes": {
+        "200": 2719,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 7578.0,
+      "p95_ms": 25484.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6198.0
+    },
+    {
+      "t": 135.5,
+      "envoyees": 2807,
+      "req_s": 35.0,
+      "codes": {
+        "200": 2754,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 7407.0,
+      "p95_ms": 25375.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6162.3
+    },
+    {
+      "t": 136.5,
+      "envoyees": 2848,
+      "req_s": 40.4,
+      "codes": {
+        "200": 2795,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 7328.0,
+      "p95_ms": 25266.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6145.3
+    },
+    {
+      "t": 137.5,
+      "envoyees": 2884,
+      "req_s": 36.0,
+      "codes": {
+        "200": 2831,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 7203.0,
+      "p95_ms": 25140.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6128.7
+    },
+    {
+      "t": 138.5,
+      "envoyees": 2927,
+      "req_s": 42.3,
+      "codes": {
+        "200": 2874,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 7109.0,
+      "p95_ms": 25110.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6094.5
+    },
+    {
+      "t": 139.5,
+      "envoyees": 2961,
+      "req_s": 33.5,
+      "codes": {
+        "200": 2908,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 6938.0,
+      "p95_ms": 25109.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6074.3
+    },
+    {
+      "t": 140.5,
+      "envoyees": 3009,
+      "req_s": 48.0,
+      "codes": {
+        "200": 2956,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 6718.0,
+      "p95_ms": 25031.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 6030.4
+    },
+    {
+      "t": 141.6,
+      "envoyees": 3043,
+      "req_s": 33.5,
+      "codes": {
+        "200": 2990,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 6562.0,
+      "p95_ms": 25015.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 5992.7
+    },
+    {
+      "t": 142.6,
+      "envoyees": 3084,
+      "req_s": 41.0,
+      "codes": {
+        "200": 3031,
+        "timeout": 44,
+        "5xx": 5,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 6500.0,
+      "p95_ms": 25000.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 5963.5
+    },
+    {
+      "t": 143.6,
+      "envoyees": 3122,
+      "req_s": 38.0,
+      "codes": {
+        "200": 3068,
+        "timeout": 44,
+        "5xx": 6,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 6375.0,
+      "p95_ms": 24953.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 5929.5
+    },
+    {
+      "t": 144.6,
+      "envoyees": 3169,
+      "req_s": 46.3,
+      "codes": {
+        "200": 3114,
+        "timeout": 44,
+        "5xx": 7,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 6281.0,
+      "p95_ms": 24953.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 5906.3
+    },
+    {
+      "t": 145.6,
+      "envoyees": 3224,
+      "req_s": 55.0,
+      "codes": {
+        "200": 3169,
+        "timeout": 44,
+        "5xx": 7,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 6297.0,
+      "p95_ms": 24875.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 5915.4
+    },
+    {
+      "t": 146.6,
+      "envoyees": 3260,
+      "req_s": 36.0,
+      "codes": {
+        "200": 3205,
+        "timeout": 44,
+        "5xx": 7,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 6281.0,
+      "p95_ms": 24875.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 5909.8
+    },
+    {
+      "t": 147.6,
+      "envoyees": 3296,
+      "req_s": 35.4,
+      "codes": {
+        "200": 3241,
+        "timeout": 44,
+        "5xx": 7,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 6187.0,
+      "p95_ms": 24844.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 5896.3
+    },
+    {
+      "t": 148.6,
+      "envoyees": 3346,
+      "req_s": 49.2,
+      "codes": {
+        "200": 3291,
+        "timeout": 44,
+        "5xx": 7,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 6125.0,
+      "p95_ms": 24718.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 5872.9
+    },
+    {
+      "t": 149.6,
+      "envoyees": 3384,
+      "req_s": 38.0,
+      "codes": {
+        "200": 3329,
+        "timeout": 44,
+        "5xx": 7,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 6094.0,
+      "p95_ms": 24688.0,
+      "p99_ms": 30015.0,
+      "inference_ms": 5849.9
+    },
+    {
+      "t": 150.6,
+      "envoyees": 3428,
+      "req_s": 43.3,
+      "codes": {
+        "200": 3373,
+        "timeout": 44,
+        "5xx": 7,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 6047.0,
+      "p95_ms": 24641.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5820.0
+    },
+    {
+      "t": 151.6,
+      "envoyees": 3461,
+      "req_s": 33.0,
+      "codes": {
+        "200": 3406,
+        "timeout": 44,
+        "5xx": 7,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5953.0,
+      "p95_ms": 24610.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5791.1
+    },
+    {
+      "t": 152.6,
+      "envoyees": 3507,
+      "req_s": 46.0,
+      "codes": {
+        "200": 3452,
+        "timeout": 44,
+        "5xx": 7,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5906.0,
+      "p95_ms": 24578.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5784.8
+    },
+    {
+      "t": 153.6,
+      "envoyees": 3541,
+      "req_s": 33.5,
+      "codes": {
+        "200": 3486,
+        "timeout": 44,
+        "5xx": 7,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5844.0,
+      "p95_ms": 24515.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5762.1
+    },
+    {
+      "t": 154.6,
+      "envoyees": 3594,
+      "req_s": 53.0,
+      "codes": {
+        "200": 3538,
+        "timeout": 44,
+        "5xx": 8,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5750.0,
+      "p95_ms": 24500.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5719.0
+    },
+    {
+      "t": 155.7,
+      "envoyees": 3632,
+      "req_s": 37.4,
+      "codes": {
+        "200": 3576,
+        "timeout": 44,
+        "5xx": 8,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5734.0,
+      "p95_ms": 24438.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5702.0
+    },
+    {
+      "t": 156.7,
+      "envoyees": 3675,
+      "req_s": 43.0,
+      "codes": {
+        "200": 3619,
+        "timeout": 44,
+        "5xx": 8,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5625.0,
+      "p95_ms": 24344.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5676.9
+    },
+    {
+      "t": 157.7,
+      "envoyees": 3713,
+      "req_s": 37.4,
+      "codes": {
+        "200": 3657,
+        "timeout": 44,
+        "5xx": 8,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5578.0,
+      "p95_ms": 24312.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5650.6
+    },
+    {
+      "t": 158.7,
+      "envoyees": 3754,
+      "req_s": 41.0,
+      "codes": {
+        "200": 3698,
+        "timeout": 44,
+        "5xx": 8,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5593.0,
+      "p95_ms": 24297.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5634.3
+    },
+    {
+      "t": 159.7,
+      "envoyees": 3798,
+      "req_s": 43.3,
+      "codes": {
+        "200": 3742,
+        "timeout": 44,
+        "5xx": 8,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5562.0,
+      "p95_ms": 24235.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5616.7
+    },
+    {
+      "t": 160.7,
+      "envoyees": 3843,
+      "req_s": 45.0,
+      "codes": {
+        "200": 3787,
+        "timeout": 44,
+        "5xx": 8,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5531.0,
+      "p95_ms": 24094.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5599.6
+    },
+    {
+      "t": 161.7,
+      "envoyees": 3885,
+      "req_s": 41.4,
+      "codes": {
+        "200": 3829,
+        "timeout": 44,
+        "5xx": 8,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5531.0,
+      "p95_ms": 24000.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5596.2
+    },
+    {
+      "t": 162.7,
+      "envoyees": 3924,
+      "req_s": 38.4,
+      "codes": {
+        "200": 3868,
+        "timeout": 44,
+        "5xx": 8,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5516.0,
+      "p95_ms": 23938.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5585.8
+    },
+    {
+      "t": 163.7,
+      "envoyees": 3972,
+      "req_s": 48.0,
+      "codes": {
+        "200": 3916,
+        "timeout": 44,
+        "5xx": 8,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5468.0,
+      "p95_ms": 23906.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5566.5
+    },
+    {
+      "t": 164.7,
+      "envoyees": 4023,
+      "req_s": 50.2,
+      "codes": {
+        "200": 3966,
+        "timeout": 44,
+        "5xx": 9,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5422.0,
+      "p95_ms": 23844.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5549.3
+    },
+    {
+      "t": 165.7,
+      "envoyees": 4062,
+      "req_s": 39.0,
+      "codes": {
+        "200": 4005,
+        "timeout": 44,
+        "5xx": 9,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5344.0,
+      "p95_ms": 23813.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5532.2
+    },
+    {
+      "t": 166.8,
+      "envoyees": 4111,
+      "req_s": 48.3,
+      "codes": {
+        "200": 4053,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5235.0,
+      "p95_ms": 23781.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5511.0
+    },
+    {
+      "t": 167.8,
+      "envoyees": 4152,
+      "req_s": 41.0,
+      "codes": {
+        "200": 4094,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5109.0,
+      "p95_ms": 23641.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5484.1
+    },
+    {
+      "t": 168.8,
+      "envoyees": 4197,
+      "req_s": 44.3,
+      "codes": {
+        "200": 4139,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5063.0,
+      "p95_ms": 23563.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5459.2
+    },
+    {
+      "t": 169.8,
+      "envoyees": 4234,
+      "req_s": 37.0,
+      "codes": {
+        "200": 4176,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 5046.0,
+      "p95_ms": 23531.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5435.8
+    },
+    {
+      "t": 170.8,
+      "envoyees": 4275,
+      "req_s": 40.4,
+      "codes": {
+        "200": 4217,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4953.0,
+      "p95_ms": 23485.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5409.2
+    },
+    {
+      "t": 171.8,
+      "envoyees": 4301,
+      "req_s": 26.0,
+      "codes": {
+        "200": 4243,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4922.0,
+      "p95_ms": 23453.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5393.9
+    },
+    {
+      "t": 172.8,
+      "envoyees": 4333,
+      "req_s": 31.5,
+      "codes": {
+        "200": 4275,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4875.0,
+      "p95_ms": 23407.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5374.4
+    },
+    {
+      "t": 173.8,
+      "envoyees": 4364,
+      "req_s": 31.0,
+      "codes": {
+        "200": 4306,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4859.0,
+      "p95_ms": 23375.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5357.2
+    },
+    {
+      "t": 174.8,
+      "envoyees": 4406,
+      "req_s": 41.3,
+      "codes": {
+        "200": 4348,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4828.0,
+      "p95_ms": 23359.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5343.8
+    },
+    {
+      "t": 175.8,
+      "envoyees": 4443,
+      "req_s": 36.5,
+      "codes": {
+        "200": 4385,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4812.0,
+      "p95_ms": 23281.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5331.4
+    },
+    {
+      "t": 176.8,
+      "envoyees": 4480,
+      "req_s": 37.0,
+      "codes": {
+        "200": 4422,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4765.0,
+      "p95_ms": 23266.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5311.4
+    },
+    {
+      "t": 177.8,
+      "envoyees": 4518,
+      "req_s": 37.4,
+      "codes": {
+        "200": 4460,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4703.0,
+      "p95_ms": 23235.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5285.8
+    },
+    {
+      "t": 178.9,
+      "envoyees": 4559,
+      "req_s": 40.4,
+      "codes": {
+        "200": 4501,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4656.0,
+      "p95_ms": 23140.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5273.1
+    },
+    {
+      "t": 179.9,
+      "envoyees": 4585,
+      "req_s": 25.6,
+      "codes": {
+        "200": 4527,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4625.0,
+      "p95_ms": 23110.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5263.6
+    },
+    {
+      "t": 180.9,
+      "envoyees": 4624,
+      "req_s": 39.0,
+      "codes": {
+        "200": 4566,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4609.0,
+      "p95_ms": 23094.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5256.8
+    },
+    {
+      "t": 181.9,
+      "envoyees": 4663,
+      "req_s": 38.4,
+      "codes": {
+        "200": 4605,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4578.0,
+      "p95_ms": 23063.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5248.8
+    },
+    {
+      "t": 182.9,
+      "envoyees": 4698,
+      "req_s": 34.4,
+      "codes": {
+        "200": 4640,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4562.0,
+      "p95_ms": 23063.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5238.8
+    },
+    {
+      "t": 183.9,
+      "envoyees": 4740,
+      "req_s": 41.4,
+      "codes": {
+        "200": 4682,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4516.0,
+      "p95_ms": 23062.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5215.2
+    },
+    {
+      "t": 184.9,
+      "envoyees": 4783,
+      "req_s": 42.3,
+      "codes": {
+        "200": 4725,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4469.0,
+      "p95_ms": 23016.0,
+      "p99_ms": 30000.0,
+      "inference_ms": 5201.1
+    },
+    {
+      "t": 186.0,
+      "envoyees": 4828,
+      "req_s": 44.3,
+      "codes": {
+        "200": 4770,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4422.0,
+      "p95_ms": 22985.0,
+      "p99_ms": 29968.0,
+      "inference_ms": 5186.3
+    },
+    {
+      "t": 187.0,
+      "envoyees": 4867,
+      "req_s": 38.4,
+      "codes": {
+        "200": 4809,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4359.0,
+      "p95_ms": 22969.0,
+      "p99_ms": 29968.0,
+      "inference_ms": 5168.7
+    },
+    {
+      "t": 188.0,
+      "envoyees": 4896,
+      "req_s": 28.5,
+      "codes": {
+        "200": 4838,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4328.0,
+      "p95_ms": 23000.0,
+      "p99_ms": 29968.0,
+      "inference_ms": 5162.2
+    },
+    {
+      "t": 189.0,
+      "envoyees": 4938,
+      "req_s": 42.0,
+      "codes": {
+        "200": 4880,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4313.0,
+      "p95_ms": 22969.0,
+      "p99_ms": 29953.0,
+      "inference_ms": 5155.4
+    },
+    {
+      "t": 190.0,
+      "envoyees": 4984,
+      "req_s": 45.3,
+      "codes": {
+        "200": 4926,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4297.0,
+      "p95_ms": 22985.0,
+      "p99_ms": 29953.0,
+      "inference_ms": 5155.4
+    },
+    {
+      "t": 191.0,
+      "envoyees": 5028,
+      "req_s": 43.3,
+      "codes": {
+        "200": 4970,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4281.0,
+      "p95_ms": 22969.0,
+      "p99_ms": 29921.0,
+      "inference_ms": 5157.5
+    },
+    {
+      "t": 192.0,
+      "envoyees": 5065,
+      "req_s": 37.0,
+      "codes": {
+        "200": 5007,
+        "timeout": 44,
+        "5xx": 10,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4234.0,
+      "p95_ms": 22938.0,
+      "p99_ms": 29921.0,
+      "inference_ms": 5148.8
+    },
+    {
+      "t": 193.0,
+      "envoyees": 5104,
+      "req_s": 38.4,
+      "codes": {
+        "200": 5045,
+        "timeout": 44,
+        "5xx": 11,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4187.0,
+      "p95_ms": 22922.0,
+      "p99_ms": 29906.0,
+      "inference_ms": 5134.2
+    },
+    {
+      "t": 194.0,
+      "envoyees": 5147,
+      "req_s": 42.4,
+      "codes": {
+        "200": 5088,
+        "timeout": 44,
+        "5xx": 11,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4141.0,
+      "p95_ms": 22907.0,
+      "p99_ms": 29906.0,
+      "inference_ms": 5122.8
+    },
+    {
+      "t": 195.0,
+      "envoyees": 5189,
+      "req_s": 42.0,
+      "codes": {
+        "200": 5130,
+        "timeout": 44,
+        "5xx": 11,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4094.0,
+      "p95_ms": 22922.0,
+      "p99_ms": 29906.0,
+      "inference_ms": 5108.8
+    },
+    {
+      "t": 196.1,
+      "envoyees": 5219,
+      "req_s": 29.5,
+      "codes": {
+        "200": 5160,
+        "timeout": 44,
+        "5xx": 11,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4078.0,
+      "p95_ms": 22907.0,
+      "p99_ms": 29875.0,
+      "inference_ms": 5101.8
+    },
+    {
+      "t": 197.1,
+      "envoyees": 5259,
+      "req_s": 39.4,
+      "codes": {
+        "200": 5200,
+        "timeout": 44,
+        "5xx": 11,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4078.0,
+      "p95_ms": 22922.0,
+      "p99_ms": 29875.0,
+      "inference_ms": 5106.1
+    },
+    {
+      "t": 198.1,
+      "envoyees": 5300,
+      "req_s": 39.7,
+      "codes": {
+        "200": 5241,
+        "timeout": 44,
+        "5xx": 11,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4063.0,
+      "p95_ms": 22906.0,
+      "p99_ms": 29875.0,
+      "inference_ms": 5099.1
+    },
+    {
+      "t": 199.1,
+      "envoyees": 5347,
+      "req_s": 46.3,
+      "codes": {
+        "200": 5288,
+        "timeout": 44,
+        "5xx": 11,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4063.0,
+      "p95_ms": 22891.0,
+      "p99_ms": 29829.0,
+      "inference_ms": 5085.5
+    },
+    {
+      "t": 200.1,
+      "envoyees": 5370,
+      "req_s": 22.6,
+      "codes": {
+        "200": 5311,
+        "timeout": 44,
+        "5xx": 11,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4047.0,
+      "p95_ms": 22890.0,
+      "p99_ms": 29829.0,
+      "inference_ms": 5076.5
+    },
+    {
+      "t": 201.1,
+      "envoyees": 5411,
+      "req_s": 41.0,
+      "codes": {
+        "200": 5352,
+        "timeout": 44,
+        "5xx": 11,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4047.0,
+      "p95_ms": 22875.0,
+      "p99_ms": 29687.0,
+      "inference_ms": 5065.8
+    },
+    {
+      "t": 202.2,
+      "envoyees": 5444,
+      "req_s": 32.5,
+      "codes": {
+        "200": 5385,
+        "timeout": 44,
+        "5xx": 11,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4063.0,
+      "p95_ms": 22844.0,
+      "p99_ms": 29687.0,
+      "inference_ms": 5064.1
+    },
+    {
+      "t": 203.2,
+      "envoyees": 5477,
+      "req_s": 33.0,
+      "codes": {
+        "200": 5418,
+        "timeout": 44,
+        "5xx": 11,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4093.0,
+      "p95_ms": 22828.0,
+      "p99_ms": 29687.0,
+      "inference_ms": 5061.4
+    },
+    {
+      "t": 204.2,
+      "envoyees": 5517,
+      "req_s": 39.4,
+      "codes": {
+        "200": 5458,
+        "timeout": 44,
+        "5xx": 11,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4094.0,
+      "p95_ms": 22796.0,
+      "p99_ms": 29656.0,
+      "inference_ms": 5053.6
+    },
+    {
+      "t": 205.2,
+      "envoyees": 5565,
+      "req_s": 48.0,
+      "codes": {
+        "200": 5506,
+        "timeout": 44,
+        "5xx": 11,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4094.0,
+      "p95_ms": 22656.0,
+      "p99_ms": 29656.0,
+      "inference_ms": 5056.9
+    },
+    {
+      "t": 206.2,
+      "envoyees": 5610,
+      "req_s": 44.3,
+      "codes": {
+        "200": 5550,
+        "timeout": 44,
+        "5xx": 12,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4078.0,
+      "p95_ms": 22625.0,
+      "p99_ms": 29656.0,
+      "inference_ms": 5049.7
+    },
+    {
+      "t": 207.2,
+      "envoyees": 5654,
+      "req_s": 43.3,
+      "codes": {
+        "200": 5594,
+        "timeout": 44,
+        "5xx": 12,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4078.0,
+      "p95_ms": 22625.0,
+      "p99_ms": 29656.0,
+      "inference_ms": 5049.0
+    },
+    {
+      "t": 208.2,
+      "envoyees": 5689,
+      "req_s": 35.0,
+      "codes": {
+        "200": 5629,
+        "timeout": 44,
+        "5xx": 12,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4063.0,
+      "p95_ms": 22547.0,
+      "p99_ms": 29656.0,
+      "inference_ms": 5044.3
+    },
+    {
+      "t": 209.2,
+      "envoyees": 5732,
+      "req_s": 43.0,
+      "codes": {
+        "200": 5671,
+        "timeout": 44,
+        "5xx": 13,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4031.0,
+      "p95_ms": 22453.0,
+      "p99_ms": 29625.0,
+      "inference_ms": 5024.7
+    },
+    {
+      "t": 210.2,
+      "envoyees": 5762,
+      "req_s": 29.5,
+      "codes": {
+        "200": 5701,
+        "timeout": 44,
+        "5xx": 13,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4000.0,
+      "p95_ms": 22438.0,
+      "p99_ms": 29625.0,
+      "inference_ms": 5019.0
+    },
+    {
+      "t": 211.2,
+      "envoyees": 5793,
+      "req_s": 30.5,
+      "codes": {
+        "200": 5732,
+        "timeout": 44,
+        "5xx": 13,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4031.0,
+      "p95_ms": 22437.0,
+      "p99_ms": 29625.0,
+      "inference_ms": 5018.8
+    },
+    {
+      "t": 212.2,
+      "envoyees": 5825,
+      "req_s": 31.5,
+      "codes": {
+        "200": 5764,
+        "timeout": 44,
+        "5xx": 13,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4015.0,
+      "p95_ms": 22422.0,
+      "p99_ms": 29469.0,
+      "inference_ms": 5009.7
+    },
+    {
+      "t": 213.2,
+      "envoyees": 5860,
+      "req_s": 35.0,
+      "codes": {
+        "200": 5799,
+        "timeout": 44,
+        "5xx": 13,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4031.0,
+      "p95_ms": 22406.0,
+      "p99_ms": 29469.0,
+      "inference_ms": 5011.3
+    },
+    {
+      "t": 214.3,
+      "envoyees": 5899,
+      "req_s": 38.4,
+      "codes": {
+        "200": 5838,
+        "timeout": 44,
+        "5xx": 13,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4031.0,
+      "p95_ms": 22406.0,
+      "p99_ms": 29469.0,
+      "inference_ms": 5004.1
+    },
+    {
+      "t": 215.3,
+      "envoyees": 5952,
+      "req_s": 53.0,
+      "codes": {
+        "200": 5891,
+        "timeout": 44,
+        "5xx": 13,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4062.0,
+      "p95_ms": 22360.0,
+      "p99_ms": 29453.0,
+      "inference_ms": 5009.6
+    },
+    {
+      "t": 216.3,
+      "envoyees": 5988,
+      "req_s": 35.4,
+      "codes": {
+        "200": 5927,
+        "timeout": 44,
+        "5xx": 13,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4063.0,
+      "p95_ms": 22266.0,
+      "p99_ms": 29453.0,
+      "inference_ms": 5008.3
+    },
+    {
+      "t": 217.3,
+      "envoyees": 6020,
+      "req_s": 31.5,
+      "codes": {
+        "200": 5959,
+        "timeout": 44,
+        "5xx": 13,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4032.0,
+      "p95_ms": 22235.0,
+      "p99_ms": 29328.0,
+      "inference_ms": 5001.7
+    },
+    {
+      "t": 218.3,
+      "envoyees": 6063,
+      "req_s": 43.0,
+      "codes": {
+        "200": 6002,
+        "timeout": 44,
+        "5xx": 13,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4031.0,
+      "p95_ms": 22203.0,
+      "p99_ms": 29328.0,
+      "inference_ms": 5002.2
+    },
+    {
+      "t": 219.3,
+      "envoyees": 6095,
+      "req_s": 31.5,
+      "codes": {
+        "200": 6034,
+        "timeout": 44,
+        "5xx": 13,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4031.0,
+      "p95_ms": 22171.0,
+      "p99_ms": 29328.0,
+      "inference_ms": 5003.4
+    },
+    {
+      "t": 220.3,
+      "envoyees": 6130,
+      "req_s": 34.5,
+      "codes": {
+        "200": 6068,
+        "timeout": 44,
+        "5xx": 14,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4031.0,
+      "p95_ms": 22156.0,
+      "p99_ms": 29141.0,
+      "inference_ms": 4999.2
+    },
+    {
+      "t": 221.3,
+      "envoyees": 6160,
+      "req_s": 30.0,
+      "codes": {
+        "200": 6098,
+        "timeout": 44,
+        "5xx": 14,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4031.0,
+      "p95_ms": 22140.0,
+      "p99_ms": 29141.0,
+      "inference_ms": 4997.5
+    },
+    {
+      "t": 222.3,
+      "envoyees": 6208,
+      "req_s": 47.2,
+      "codes": {
+        "200": 6146,
+        "timeout": 44,
+        "5xx": 14,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4047.0,
+      "p95_ms": 22093.0,
+      "p99_ms": 29093.0,
+      "inference_ms": 5002.1
+    },
+    {
+      "t": 223.4,
+      "envoyees": 6247,
+      "req_s": 38.4,
+      "codes": {
+        "200": 6185,
+        "timeout": 44,
+        "5xx": 14,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4032.0,
+      "p95_ms": 22031.0,
+      "p99_ms": 29093.0,
+      "inference_ms": 5002.2
+    },
+    {
+      "t": 224.4,
+      "envoyees": 6298,
+      "req_s": 51.0,
+      "codes": {
+        "200": 6236,
+        "timeout": 44,
+        "5xx": 14,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4062.0,
+      "p95_ms": 21984.0,
+      "p99_ms": 29093.0,
+      "inference_ms": 5007.8
+    },
+    {
+      "t": 225.4,
+      "envoyees": 6339,
+      "req_s": 40.4,
+      "codes": {
+        "200": 6277,
+        "timeout": 44,
+        "5xx": 14,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4031.0,
+      "p95_ms": 21969.0,
+      "p99_ms": 29047.0,
+      "inference_ms": 4997.9
+    },
+    {
+      "t": 226.4,
+      "envoyees": 6380,
+      "req_s": 40.4,
+      "codes": {
+        "200": 6318,
+        "timeout": 44,
+        "5xx": 14,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4031.0,
+      "p95_ms": 21953.0,
+      "p99_ms": 29047.0,
+      "inference_ms": 4994.7
+    },
+    {
+      "t": 227.4,
+      "envoyees": 6412,
+      "req_s": 31.5,
+      "codes": {
+        "200": 6350,
+        "timeout": 44,
+        "5xx": 14,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4031.0,
+      "p95_ms": 21922.0,
+      "p99_ms": 29047.0,
+      "inference_ms": 4988.0
+    },
+    {
+      "t": 228.4,
+      "envoyees": 6461,
+      "req_s": 48.3,
+      "codes": {
+        "200": 6399,
+        "timeout": 44,
+        "5xx": 14,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4031.0,
+      "p95_ms": 21907.0,
+      "p99_ms": 29047.0,
+      "inference_ms": 4988.0
+    },
+    {
+      "t": 229.4,
+      "envoyees": 6495,
+      "req_s": 34.0,
+      "codes": {
+        "200": 6433,
+        "timeout": 44,
+        "5xx": 14,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 4031.0,
+      "p95_ms": 21906.0,
+      "p99_ms": 29047.0,
+      "inference_ms": 4979.2
+    },
+    {
+      "t": 230.4,
+      "envoyees": 6539,
+      "req_s": 43.3,
+      "codes": {
+        "200": 6477,
+        "timeout": 44,
+        "5xx": 14,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3985.0,
+      "p95_ms": 21860.0,
+      "p99_ms": 28891.0,
+      "inference_ms": 4969.1
+    },
+    {
+      "t": 231.5,
+      "envoyees": 6580,
+      "req_s": 40.4,
+      "codes": {
+        "200": 6517,
+        "timeout": 44,
+        "5xx": 15,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3938.0,
+      "p95_ms": 21860.0,
+      "p99_ms": 28891.0,
+      "inference_ms": 4956.5
+    },
+    {
+      "t": 232.5,
+      "envoyees": 6620,
+      "req_s": 39.4,
+      "codes": {
+        "200": 6557,
+        "timeout": 44,
+        "5xx": 15,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3937.0,
+      "p95_ms": 21844.0,
+      "p99_ms": 28875.0,
+      "inference_ms": 4951.2
+    },
+    {
+      "t": 233.5,
+      "envoyees": 6657,
+      "req_s": 36.4,
+      "codes": {
+        "200": 6593,
+        "timeout": 44,
+        "5xx": 16,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3922.0,
+      "p95_ms": 21813.0,
+      "p99_ms": 28875.0,
+      "inference_ms": 4948.3
+    },
+    {
+      "t": 234.5,
+      "envoyees": 6703,
+      "req_s": 43.3,
+      "codes": {
+        "200": 6639,
+        "timeout": 44,
+        "5xx": 16,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3937.0,
+      "p95_ms": 21704.0,
+      "p99_ms": 28781.0,
+      "inference_ms": 4945.1
+    },
+    {
+      "t": 235.6,
+      "envoyees": 6759,
+      "req_s": 55.1,
+      "codes": {
+        "200": 6695,
+        "timeout": 44,
+        "5xx": 16,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3922.0,
+      "p95_ms": 21672.0,
+      "p99_ms": 28781.0,
+      "inference_ms": 4934.2
+    },
+    {
+      "t": 236.6,
+      "envoyees": 6789,
+      "req_s": 29.6,
+      "codes": {
+        "200": 6725,
+        "timeout": 44,
+        "5xx": 16,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3922.0,
+      "p95_ms": 21625.0,
+      "p99_ms": 28781.0,
+      "inference_ms": 4927.9
+    },
+    {
+      "t": 237.6,
+      "envoyees": 6822,
+      "req_s": 32.5,
+      "codes": {
+        "200": 6758,
+        "timeout": 44,
+        "5xx": 16,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3922.0,
+      "p95_ms": 21594.0,
+      "p99_ms": 28719.0,
+      "inference_ms": 4922.8
+    },
+    {
+      "t": 238.6,
+      "envoyees": 6859,
+      "req_s": 36.4,
+      "codes": {
+        "200": 6795,
+        "timeout": 44,
+        "5xx": 16,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3875.0,
+      "p95_ms": 21594.0,
+      "p99_ms": 28719.0,
+      "inference_ms": 4918.6
+    },
+    {
+      "t": 239.6,
+      "envoyees": 6899,
+      "req_s": 39.4,
+      "codes": {
+        "200": 6835,
+        "timeout": 44,
+        "5xx": 16,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3906.0,
+      "p95_ms": 21563.0,
+      "p99_ms": 28719.0,
+      "inference_ms": 4916.5
+    },
+    {
+      "t": 240.6,
+      "envoyees": 6929,
+      "req_s": 29.5,
+      "codes": {
+        "200": 6865,
+        "timeout": 44,
+        "5xx": 16,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3906.0,
+      "p95_ms": 21531.0,
+      "p99_ms": 28656.0,
+      "inference_ms": 4914.9
+    },
+    {
+      "t": 241.6,
+      "envoyees": 6965,
+      "req_s": 36.0,
+      "codes": {
+        "200": 6901,
+        "timeout": 44,
+        "5xx": 16,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3875.0,
+      "p95_ms": 21531.0,
+      "p99_ms": 28656.0,
+      "inference_ms": 4910.2
+    },
+    {
+      "t": 242.7,
+      "envoyees": 7001,
+      "req_s": 35.4,
+      "codes": {
+        "200": 6937,
+        "timeout": 44,
+        "5xx": 16,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3828.0,
+      "p95_ms": 21469.0,
+      "p99_ms": 28625.0,
+      "inference_ms": 4897.4
+    },
+    {
+      "t": 243.7,
+      "envoyees": 7046,
+      "req_s": 44.3,
+      "codes": {
+        "200": 6982,
+        "timeout": 44,
+        "5xx": 16,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3797.0,
+      "p95_ms": 21453.0,
+      "p99_ms": 28625.0,
+      "inference_ms": 4889.4
+    },
+    {
+      "t": 244.7,
+      "envoyees": 7084,
+      "req_s": 38.0,
+      "codes": {
+        "200": 7020,
+        "timeout": 44,
+        "5xx": 16,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3796.0,
+      "p95_ms": 21437.0,
+      "p99_ms": 28625.0,
+      "inference_ms": 4885.8
+    },
+    {
+      "t": 245.7,
+      "envoyees": 7122,
+      "req_s": 36.9,
+      "codes": {
+        "200": 7057,
+        "timeout": 44,
+        "5xx": 17,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3781.0,
+      "p95_ms": 21422.0,
+      "p99_ms": 28578.0,
+      "inference_ms": 4875.7
+    },
+    {
+      "t": 246.7,
+      "envoyees": 7163,
+      "req_s": 41.0,
+      "codes": {
+        "200": 7098,
+        "timeout": 44,
+        "5xx": 17,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3750.0,
+      "p95_ms": 21391.0,
+      "p99_ms": 28578.0,
+      "inference_ms": 4870.7
+    },
+    {
+      "t": 247.7,
+      "envoyees": 7193,
+      "req_s": 29.5,
+      "codes": {
+        "200": 7128,
+        "timeout": 44,
+        "5xx": 17,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3750.0,
+      "p95_ms": 21391.0,
+      "p99_ms": 28578.0,
+      "inference_ms": 4866.5
+    },
+    {
+      "t": 248.7,
+      "envoyees": 7231,
+      "req_s": 37.4,
+      "codes": {
+        "200": 7165,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3781.0,
+      "p95_ms": 21359.0,
+      "p99_ms": 28547.0,
+      "inference_ms": 4871.6
+    },
+    {
+      "t": 249.8,
+      "envoyees": 7276,
+      "req_s": 44.3,
+      "codes": {
+        "200": 7210,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3781.0,
+      "p95_ms": 21344.0,
+      "p99_ms": 28547.0,
+      "inference_ms": 4870.3
+    },
+    {
+      "t": 250.8,
+      "envoyees": 7311,
+      "req_s": 34.4,
+      "codes": {
+        "200": 7245,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3766.0,
+      "p95_ms": 21344.0,
+      "p99_ms": 28531.0,
+      "inference_ms": 4865.1
+    },
+    {
+      "t": 251.8,
+      "envoyees": 7349,
+      "req_s": 38.0,
+      "codes": {
+        "200": 7283,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3765.0,
+      "p95_ms": 21328.0,
+      "p99_ms": 28531.0,
+      "inference_ms": 4859.7
+    },
+    {
+      "t": 252.8,
+      "envoyees": 7394,
+      "req_s": 44.3,
+      "codes": {
+        "200": 7328,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3766.0,
+      "p95_ms": 21297.0,
+      "p99_ms": 28531.0,
+      "inference_ms": 4857.3
+    },
+    {
+      "t": 253.8,
+      "envoyees": 7436,
+      "req_s": 41.4,
+      "codes": {
+        "200": 7370,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3750.0,
+      "p95_ms": 21266.0,
+      "p99_ms": 28500.0,
+      "inference_ms": 4852.2
+    },
+    {
+      "t": 254.8,
+      "envoyees": 7481,
+      "req_s": 45.0,
+      "codes": {
+        "200": 7415,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3750.0,
+      "p95_ms": 21219.0,
+      "p99_ms": 28500.0,
+      "inference_ms": 4846.2
+    },
+    {
+      "t": 255.8,
+      "envoyees": 7532,
+      "req_s": 50.2,
+      "codes": {
+        "200": 7466,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3734.0,
+      "p95_ms": 21203.0,
+      "p99_ms": 28500.0,
+      "inference_ms": 4835.2
+    },
+    {
+      "t": 256.8,
+      "envoyees": 7572,
+      "req_s": 39.4,
+      "codes": {
+        "200": 7506,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3719.0,
+      "p95_ms": 21188.0,
+      "p99_ms": 28500.0,
+      "inference_ms": 4828.6
+    },
+    {
+      "t": 257.8,
+      "envoyees": 7598,
+      "req_s": 26.0,
+      "codes": {
+        "200": 7532,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3718.0,
+      "p95_ms": 21187.0,
+      "p99_ms": 28500.0,
+      "inference_ms": 4821.7
+    },
+    {
+      "t": 258.8,
+      "envoyees": 7637,
+      "req_s": 38.4,
+      "codes": {
+        "200": 7571,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3703.0,
+      "p95_ms": 21156.0,
+      "p99_ms": 28484.0,
+      "inference_ms": 4819.0
+    },
+    {
+      "t": 259.8,
+      "envoyees": 7684,
+      "req_s": 47.0,
+      "codes": {
+        "200": 7618,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3703.0,
+      "p95_ms": 21140.0,
+      "p99_ms": 28484.0,
+      "inference_ms": 4817.8
+    },
+    {
+      "t": 260.9,
+      "envoyees": 7727,
+      "req_s": 42.3,
+      "codes": {
+        "200": 7661,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3703.0,
+      "p95_ms": 21110.0,
+      "p99_ms": 28469.0,
+      "inference_ms": 4813.1
+    },
+    {
+      "t": 261.9,
+      "envoyees": 7761,
+      "req_s": 33.5,
+      "codes": {
+        "200": 7695,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3687.0,
+      "p95_ms": 21109.0,
+      "p99_ms": 28469.0,
+      "inference_ms": 4807.3
+    },
+    {
+      "t": 262.9,
+      "envoyees": 7803,
+      "req_s": 42.0,
+      "codes": {
+        "200": 7737,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3672.0,
+      "p95_ms": 21047.0,
+      "p99_ms": 28422.0,
+      "inference_ms": 4798.5
+    },
+    {
+      "t": 263.9,
+      "envoyees": 7836,
+      "req_s": 32.5,
+      "codes": {
+        "200": 7770,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3656.0,
+      "p95_ms": 21032.0,
+      "p99_ms": 28422.0,
+      "inference_ms": 4788.6
+    },
+    {
+      "t": 264.9,
+      "envoyees": 7877,
+      "req_s": 40.4,
+      "codes": {
+        "200": 7811,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3656.0,
+      "p95_ms": 20984.0,
+      "p99_ms": 28422.0,
+      "inference_ms": 4787.7
+    },
+    {
+      "t": 265.9,
+      "envoyees": 7906,
+      "req_s": 29.0,
+      "codes": {
+        "200": 7840,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3641.0,
+      "p95_ms": 20968.0,
+      "p99_ms": 28265.0,
+      "inference_ms": 4782.3
+    },
+    {
+      "t": 266.9,
+      "envoyees": 7947,
+      "req_s": 40.4,
+      "codes": {
+        "200": 7881,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3641.0,
+      "p95_ms": 20906.0,
+      "p99_ms": 28265.0,
+      "inference_ms": 4779.3
+    },
+    {
+      "t": 267.9,
+      "envoyees": 7993,
+      "req_s": 45.3,
+      "codes": {
+        "200": 7927,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3640.0,
+      "p95_ms": 20890.0,
+      "p99_ms": 28265.0,
+      "inference_ms": 4777.0
+    },
+    {
+      "t": 269.0,
+      "envoyees": 8035,
+      "req_s": 41.4,
+      "codes": {
+        "200": 7969,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3625.0,
+      "p95_ms": 20859.0,
+      "p99_ms": 28140.0,
+      "inference_ms": 4768.5
+    },
+    {
+      "t": 270.0,
+      "envoyees": 8076,
+      "req_s": 40.4,
+      "codes": {
+        "200": 8010,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3609.0,
+      "p95_ms": 20859.0,
+      "p99_ms": 28140.0,
+      "inference_ms": 4759.6
+    },
+    {
+      "t": 271.0,
+      "envoyees": 8118,
+      "req_s": 41.3,
+      "codes": {
+        "200": 8052,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3578.0,
+      "p95_ms": 20859.0,
+      "p99_ms": 28062.0,
+      "inference_ms": 4752.8
+    },
+    {
+      "t": 272.0,
+      "envoyees": 8157,
+      "req_s": 38.4,
+      "codes": {
+        "200": 8091,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3547.0,
+      "p95_ms": 20859.0,
+      "p99_ms": 28062.0,
+      "inference_ms": 4746.3
+    },
+    {
+      "t": 273.0,
+      "envoyees": 8204,
+      "req_s": 45.5,
+      "codes": {
+        "200": 8138,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3546.0,
+      "p95_ms": 20828.0,
+      "p99_ms": 28047.0,
+      "inference_ms": 4745.4
+    },
+    {
+      "t": 274.0,
+      "envoyees": 8242,
+      "req_s": 37.4,
+      "codes": {
+        "200": 8176,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3516.0,
+      "p95_ms": 20797.0,
+      "p99_ms": 28047.0,
+      "inference_ms": 4733.9
+    },
+    {
+      "t": 275.1,
+      "envoyees": 8279,
+      "req_s": 36.4,
+      "codes": {
+        "200": 8213,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3515.0,
+      "p95_ms": 20859.0,
+      "p99_ms": 28047.0,
+      "inference_ms": 4731.8
+    },
+    {
+      "t": 276.1,
+      "envoyees": 8328,
+      "req_s": 48.3,
+      "codes": {
+        "200": 8262,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3500.0,
+      "p95_ms": 20828.0,
+      "p99_ms": 28000.0,
+      "inference_ms": 4724.6
+    },
+    {
+      "t": 277.1,
+      "envoyees": 8363,
+      "req_s": 34.4,
+      "codes": {
+        "200": 8297,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3469.0,
+      "p95_ms": 20828.0,
+      "p99_ms": 28000.0,
+      "inference_ms": 4718.0
+    },
+    {
+      "t": 278.1,
+      "envoyees": 8401,
+      "req_s": 37.4,
+      "codes": {
+        "200": 8335,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3469.0,
+      "p95_ms": 20844.0,
+      "p99_ms": 27954.0,
+      "inference_ms": 4712.4
+    },
+    {
+      "t": 279.1,
+      "envoyees": 8439,
+      "req_s": 38.0,
+      "codes": {
+        "200": 8373,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3454.0,
+      "p95_ms": 20859.0,
+      "p99_ms": 27954.0,
+      "inference_ms": 4708.8
+    },
+    {
+      "t": 280.1,
+      "envoyees": 8483,
+      "req_s": 43.3,
+      "codes": {
+        "200": 8417,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3469.0,
+      "p95_ms": 20859.0,
+      "p99_ms": 27954.0,
+      "inference_ms": 4705.9
+    },
+    {
+      "t": 281.1,
+      "envoyees": 8528,
+      "req_s": 44.3,
+      "codes": {
+        "200": 8462,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3454.0,
+      "p95_ms": 20859.0,
+      "p99_ms": 27953.0,
+      "inference_ms": 4703.4
+    },
+    {
+      "t": 282.2,
+      "envoyees": 8562,
+      "req_s": 33.5,
+      "codes": {
+        "200": 8496,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3437.0,
+      "p95_ms": 20844.0,
+      "p99_ms": 27953.0,
+      "inference_ms": 4696.9
+    },
+    {
+      "t": 283.2,
+      "envoyees": 8601,
+      "req_s": 38.4,
+      "codes": {
+        "200": 8535,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3422.0,
+      "p95_ms": 20844.0,
+      "p99_ms": 27922.0,
+      "inference_ms": 4692.8
+    },
+    {
+      "t": 284.2,
+      "envoyees": 8653,
+      "req_s": 51.2,
+      "codes": {
+        "200": 8587,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3407.0,
+      "p95_ms": 20859.0,
+      "p99_ms": 27922.0,
+      "inference_ms": 4688.9
+    },
+    {
+      "t": 285.2,
+      "envoyees": 8706,
+      "req_s": 52.2,
+      "codes": {
+        "200": 8640,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3407.0,
+      "p95_ms": 20828.0,
+      "p99_ms": 27906.0,
+      "inference_ms": 4682.3
+    },
+    {
+      "t": 286.2,
+      "envoyees": 8752,
+      "req_s": 45.3,
+      "codes": {
+        "200": 8686,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3391.0,
+      "p95_ms": 20781.0,
+      "p99_ms": 27906.0,
+      "inference_ms": 4669.5
+    },
+    {
+      "t": 287.2,
+      "envoyees": 8782,
+      "req_s": 29.5,
+      "codes": {
+        "200": 8716,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3375.0,
+      "p95_ms": 20844.0,
+      "p99_ms": 27906.0,
+      "inference_ms": 4667.3
+    },
+    {
+      "t": 288.2,
+      "envoyees": 8812,
+      "req_s": 29.6,
+      "codes": {
+        "200": 8746,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3375.0,
+      "p95_ms": 20844.0,
+      "p99_ms": 27844.0,
+      "inference_ms": 4659.9
+    },
+    {
+      "t": 289.3,
+      "envoyees": 8848,
+      "req_s": 35.4,
+      "codes": {
+        "200": 8782,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3359.0,
+      "p95_ms": 20859.0,
+      "p99_ms": 27844.0,
+      "inference_ms": 4660.0
+    },
+    {
+      "t": 290.3,
+      "envoyees": 8892,
+      "req_s": 42.7,
+      "codes": {
+        "200": 8826,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3359.0,
+      "p95_ms": 20937.0,
+      "p99_ms": 27844.0,
+      "inference_ms": 4663.6
+    },
+    {
+      "t": 291.3,
+      "envoyees": 8928,
+      "req_s": 35.4,
+      "codes": {
+        "200": 8862,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3344.0,
+      "p95_ms": 20922.0,
+      "p99_ms": 27828.0,
+      "inference_ms": 4656.8
+    },
+    {
+      "t": 292.3,
+      "envoyees": 8972,
+      "req_s": 43.3,
+      "codes": {
+        "200": 8906,
+        "timeout": 44,
+        "5xx": 18,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3344.0,
+      "p95_ms": 20906.0,
+      "p99_ms": 27828.0,
+      "inference_ms": 4655.6
+    },
+    {
+      "t": 293.3,
+      "envoyees": 9025,
+      "req_s": 52.2,
+      "codes": {
+        "200": 8958,
+        "timeout": 44,
+        "5xx": 19,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3344.0,
+      "p95_ms": 20906.0,
+      "p99_ms": 27828.0,
+      "inference_ms": 4652.0
+    },
+    {
+      "t": 294.4,
+      "envoyees": 9051,
+      "req_s": 25.6,
+      "codes": {
+        "200": 8984,
+        "timeout": 44,
+        "5xx": 19,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3329.0,
+      "p95_ms": 20906.0,
+      "p99_ms": 27828.0,
+      "inference_ms": 4647.4
+    },
+    {
+      "t": 295.4,
+      "envoyees": 9092,
+      "req_s": 40.4,
+      "codes": {
+        "200": 9025,
+        "timeout": 44,
+        "5xx": 19,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3343.0,
+      "p95_ms": 20906.0,
+      "p99_ms": 27828.0,
+      "inference_ms": 4644.9
+    },
+    {
+      "t": 296.4,
+      "envoyees": 9120,
+      "req_s": 27.6,
+      "codes": {
+        "200": 9053,
+        "timeout": 44,
+        "5xx": 19,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3328.0,
+      "p95_ms": 20906.0,
+      "p99_ms": 27766.0,
+      "inference_ms": 4635.9
+    },
+    {
+      "t": 297.4,
+      "envoyees": 9157,
+      "req_s": 36.4,
+      "codes": {
+        "200": 9090,
+        "timeout": 44,
+        "5xx": 19,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3328.0,
+      "p95_ms": 20906.0,
+      "p99_ms": 27766.0,
+      "inference_ms": 4632.9
+    },
+    {
+      "t": 298.4,
+      "envoyees": 9197,
+      "req_s": 39.4,
+      "codes": {
+        "200": 9130,
+        "timeout": 44,
+        "5xx": 19,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3328.0,
+      "p95_ms": 20906.0,
+      "p99_ms": 27766.0,
+      "inference_ms": 4625.5
+    },
+    {
+      "t": 299.5,
+      "envoyees": 9241,
+      "req_s": 42.7,
+      "codes": {
+        "200": 9174,
+        "timeout": 44,
+        "5xx": 19,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3328.0,
+      "p95_ms": 20891.0,
+      "p99_ms": 27765.0,
+      "inference_ms": 4621.8
+    },
+    {
+      "t": 300.5,
+      "envoyees": 9277,
+      "req_s": 35.4,
+      "codes": {
+        "200": 9210,
+        "timeout": 44,
+        "5xx": 19,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3312.0,
+      "p95_ms": 20891.0,
+      "p99_ms": 27765.0,
+      "inference_ms": 4615.7
+    },
+    {
+      "t": 301.5,
+      "envoyees": 9330,
+      "req_s": 52.2,
+      "codes": {
+        "200": 9263,
+        "timeout": 44,
+        "5xx": 19,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3328.0,
+      "p95_ms": 20937.0,
+      "p99_ms": 27750.0,
+      "inference_ms": 4628.4
+    },
+    {
+      "t": 302.5,
+      "envoyees": 9377,
+      "req_s": 46.3,
+      "codes": {
+        "200": 9310,
+        "timeout": 44,
+        "5xx": 19,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3375.0,
+      "p95_ms": 20968.0,
+      "p99_ms": 27750.0,
+      "inference_ms": 4636.9
+    },
+    {
+      "t": 303.5,
+      "envoyees": 9405,
+      "req_s": 27.6,
+      "codes": {
+        "200": 9338,
+        "timeout": 44,
+        "5xx": 19,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3391.0,
+      "p95_ms": 20953.0,
+      "p99_ms": 27734.0,
+      "inference_ms": 4646.2
+    },
+    {
+      "t": 304.5,
+      "envoyees": 9429,
+      "req_s": 23.6,
+      "codes": {
+        "200": 9362,
+        "timeout": 44,
+        "5xx": 19,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3406.0,
+      "p95_ms": 20938.0,
+      "p99_ms": 27734.0,
+      "inference_ms": 4654.7
+    },
+    {
+      "t": 305.5,
+      "envoyees": 9462,
+      "req_s": 32.5,
+      "codes": {
+        "200": 9395,
+        "timeout": 44,
+        "5xx": 19,
+        "erreur_reseau": 4
+      },
+      "p50_ms": 3453.0,
+      "p95_ms": 20937.0,
+      "p99_ms": 27734.0,
+      "inference_ms": 4658.1
+    }
+  ]
+}
