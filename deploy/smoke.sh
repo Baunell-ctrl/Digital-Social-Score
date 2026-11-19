@@ -19,6 +19,11 @@ check() {  # check <nom> <code attendu> <arguments curl...>
 }
 JSON=(-H "Content-Type: application/json")
 
+# Juste après un déploiement, le load balancer peut encore répondre 502 le temps de brancher le nouveau pod.
+for _ in $(seq 36); do
+  [ "$(curl -s -o /dev/null -w "%{http_code}" -m 5 "$HOST/health" || true)" = 200 ] && break; sleep 5
+done
+
 step "Requêtes ($HOST)"
 check "santé"                       200 "$HOST/health"
 check "score avec clé"              200 -X POST "$HOST/score" "${JSON[@]}" -H "X-API-Key: $API_KEY" -d '{"text": "You are a stupid idiot"}'

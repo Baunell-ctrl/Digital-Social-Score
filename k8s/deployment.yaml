@@ -9,6 +9,10 @@ metadata:
     app: dss-api
 spec:
   replicas: 1                      # valeur de départ ; ensuite c'est le HPA qui décide (k8s/hpa.yaml, 1 à 15)
+  # Un nouveau pod doit rester prêt 90 s avant que l'ancien soit arrêté : le temps que le load balancer
+  # le branche, surtout s'il démarre dans une autre zone. Le 19/11/2026, avec 1 seul pod, la mise à jour
+  # avait coupé le service (erreurs 502) pendant ce branchement.
+  minReadySeconds: 90
   selector:
     matchLabels:
       app: dss-api
