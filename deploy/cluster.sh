@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cluster GKE Autopilot (README, étape 3 partie 4, étapes 7 et 8). Après deploy/bootstrap.sh.
+# Cluster GKE Autopilot (docs/JOURNAL.md, étape 3 partie 4, étapes 7 et 8). Après deploy/bootstrap.sh.
 #
 #   bash deploy/cluster.sh          (ou : make cluster)
 #

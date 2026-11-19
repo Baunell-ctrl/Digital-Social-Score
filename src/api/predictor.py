@@ -1,6 +1,7 @@
 """Chargement du BiLSTM binaire et prédiction pour l'API.
 
-Même pipeline qu'à l'entraînement : anonymisation (regex + spaCy) -> nettoyage -> BiLSTM.
+Même pipeline qu'à l'entraînement : anonymisation (regex + spaCy) -> nettoyage -> BiLSTM, précédé d'une
+normalisation contre les mots déguisés (« id1ot », « i.d.i.o.t » : src/preprocessing/robustesse.py).
 
 Le modèle est entraîné sur **un seul label** : 1 (toxique) si au moins une des 6 colonnes
 Jigsaw (toxic, severe_toxic, obscene, threat, insult, identity_hate) vaut 1, sinon 0.
@@ -23,6 +24,7 @@ from torch import nn
 
 from src.anonymization.anonymizer import anonymize_text, detect, load_nlp
 from src.preprocessing.cleaner import clean_text
+from src.preprocessing.robustesse import normaliser
 
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS_DIR = Path(os.environ.get("ARTIFACTS_DIR", ROOT / "artifacts"))
@@ -45,7 +47,7 @@ class BiLSTM(nn.Module):
 
 
 class ToxicityPredictor:
-    def __init__(self, artifacts_dir: Path = ARTIFACTS_DIR, use_ner: bool = True):
+    def __init__(self, artifacts_dir: Path = ARTIFACTS_DIR, use_ner: bool = True, normalise: bool = True):
         cfg = json.loads((artifacts_dir / "config.json").read_text(encoding="utf-8"))
         self.stoi: dict[str, int] = json.loads((artifacts_dir / "vocab.json").read_text(encoding="utf-8"))
         self.max_len = cfg["max_len"]
@@ -56,9 +58,12 @@ class ToxicityPredictor:
         self.model.eval()
         torch.set_num_threads(max(1, os.cpu_count() or 1))
         self.nlp = load_nlp() if use_ner else None
+        self.normalise = normalise
 
     def preprocess(self, text: str) -> str:
-        """Anonymise puis nettoie, comme le jeu d'entraînement."""
+        """Normalise les mots déguisés, puis anonymise et nettoie comme le jeu d'entraînement."""
+        if self.normalise:
+            text = normaliser(text, self.stoi)
         doc = self.nlp(text) if self.nlp is not None else None
         return clean_text(anonymize_text(text, detect(text, doc)))
 
@@ -67,9 +72,20 @@ class ToxicityPredictor:
         return torch.tensor([ids], dtype=torch.long)
 
     @torch.no_grad()
+    def predict_detail(self, text: str) -> tuple[float, float]:
+        """(probabilité que le texte soit toxique, part des mots inconnus du vocabulaire).
+
+        La part de mots inconnus sert au suivi de dérive : si elle monte, les textes reçus ne ressemblent
+        plus aux données d'entraînement (nouvel argot, autre langue) et le modèle devient moins fiable.
+        """
+        mots = self.preprocess(text).split()[: self.max_len]
+        proba = float(torch.sigmoid(self.model(self.encode(" ".join(mots))))[0])
+        inconnus = sum(w not in self.stoi for w in mots) / len(mots) if mots else 0.0
+        return proba, inconnus
+
     def predict(self, text: str) -> float:
         """Probabilité (0-1) que le texte soit toxique."""
-        return float(torch.sigmoid(self.model(self.encode(self.preprocess(text))))[0])
+        return self.predict_detail(text)[0]
 
 
 class LayaPredictor:

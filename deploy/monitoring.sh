@@ -62,6 +62,18 @@ kubectl apply -f k8s/monitoring/grafana.yaml
 [ -z "$EXISTED" ] || kubectl rollout restart deployment/grafana
 kubectl rollout status deployment/grafana --timeout=5m
 
+# Disque de Grafana protégé : "Retain" (supprimer le PVC ne supprime plus le disque) et une sauvegarde
+# chaque nuit, gardée 7 jours (environ 1 Go, quelques centimes par mois).
+PV=$(kubectl get pvc grafana-data -o jsonpath='{.spec.volumeName}')
+kubectl patch pv "$PV" -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+DISK=$(kubectl get pv "$PV" -o jsonpath='{.spec.csi.volumeHandle}')      # projects/…/zones/<zone>/disks/<nom>
+DISK_ZONE=$(echo "$DISK" | cut -d/ -f4)
+gcloud compute resource-policies describe grafana-quotidien --region "$REGION" >/dev/null 2>&1 || \
+  gcloud compute resource-policies create snapshot-schedule grafana-quotidien --region "$REGION" \
+    --daily-schedule --start-time 02:00 --max-retention-days 7 --on-source-disk-delete keep-auto-snapshots
+gcloud compute disks describe "${DISK##*/}" --zone "$DISK_ZONE" --format="value(resourcePolicies)" | grep -q grafana-quotidien || \
+  gcloud compute disks add-resource-policies "${DISK##*/}" --zone "$DISK_ZONE" --resource-policies grafana-quotidien
+
 # Attendre qu'il ne reste qu'UN pod Grafana : sinon le port-forward peut viser l'ancien pod en cours d'arrêt.
 for _ in $(seq 60); do
   [ "$(kubectl get pods -l app=grafana --no-headers 2>/dev/null | wc -l)" -eq 1 ] && break; sleep 2

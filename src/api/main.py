@@ -3,16 +3,25 @@
 Lancement local :  API_KEY=test uvicorn src.api.main:app --reload
 Documentation   :  http://localhost:8000/docs
 
-Sécurité / RGPD (étape 4 du TP, détaillée dans le README) :
-- une clé API par client (``X-API-Key``), comparée en temps constant, révocable individuellement ;
+Sécurité / RGPD (étape 4 du TP, détaillée dans docs/JOURNAL.md) :
+- une clé API par client (``X-API-Key``), comparée en temps constant, révocable individuellement,
+  avec une date d'expiration facultative (``API_KEYS="nom:clé:2027-01-31"``) ;
 - limitation du nombre de requêtes par client (429) contre l'abus et l'extraction du modèle ;
 - validation des entrées (texte de 1 à 5 000 caractères, corps de requête limité à 32 Ko) ;
 - le texte n'est jamais stocké ni journalisé : seul un identifiant HMAC (pseudonyme) est écrit ;
 - échecs d'authentification journalisés (journal d'audit), sans la clé ni l'adresse IP en clair ;
-- en-têtes de sécurité HTTP ; pas de TLS dans ce TP (API servie en HTTP simple, voir README étape 4 partie 2) ;
+- en-têtes de sécurité HTTP (dont une Content-Security-Policy stricte) ;
 - page web (``/``) : l'utilisateur y saisit sa clé API, qui n'est jamais dans la page ni dans le code.
 - limite du nombre de requêtes ``/score`` traitées EN MÊME TEMPS par ce pod (503 immédiat au-delà), contre
   les attaques par coût asymétrique qui restent sous le seuil de ``RATE_LIMIT_PER_MINUTE`` (TP2 étape 3).
+
+Défenses contre les autres attaques du cours 5 (TP2, README_TP2 section 3) :
+- extraction / inversion du modèle : score arrondi par paliers (``SCORE_STEP``), jamais la probabilité
+  exacte, et quota quotidien de requêtes par client (``DAILY_QUOTA_PER_CLIENT``) ;
+- exemples adversariaux (mots déguisés) : normalisation des entrées (src/preprocessing/robustesse.py) ;
+- fuzzing / injection JSON : schéma strict (champ inconnu refusé), le texte n'est jamais évalué ni exécuté ;
+- empoisonnement / modèle remplacé : empreintes SHA-256 des fichiers du modèle vérifiées au démarrage
+  (src/security/integrite.py, artifacts/manifest.json).
 
 Supervision (étape 6) : ``/metrics`` expose les métriques Prometheus, collectées sur GKE par
 Managed Service for Prometheus (voir k8s/monitoring/) :
@@ -43,7 +52,9 @@ from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from prometheus_fastapi_instrumentator import Instrumentator, metrics as instr_metrics
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+from src.security.integrite import verifier_artefacts
 
 from .predictor import LayaPredictor, ToxicityPredictor
 
@@ -58,7 +69,21 @@ RATE_LIMIT_PER_MINUTE = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "600"))
 # RATE_LIMIT_PER_MINUTE (qui compte des requêtes), ceci borne le coût de calcul en cours : une attaque
 # par coût asymétrique peut rester sous la limite de débit tout en saturant le pipeline (TP2 étape 3).
 MAX_CONCURRENT_SCORING = int(os.environ.get("MAX_CONCURRENT_SCORING", "0"))
+# Partage équitable des places : traitements /score simultanés autorisés POUR UNE MÊME CLÉ (0 = pas de limite).
+# Mesuré en local (TP2) : avec le seul limiteur global, l'attaquant prend toutes les places et 99 % des
+# messages des autres clients sont refusés ; une limite par clé lui interdit de les monopoliser.
+MAX_CONCURRENT_PER_CLIENT = int(os.environ.get("MAX_CONCURRENT_PER_CLIENT", "0"))
 MAX_BODY_BYTES = 32_768
+# Contre l'extraction du modèle (cours 5, § 17 : « ne jamais envoyer les scores exacts ») : le score est
+# arrondi au palier le plus proche (5 → 0, 5, 10… 100). Un attaquant qui veut cloner le modèle n'obtient
+# qu'une sortie grossière ; la décision toxique / non toxique, elle, reste calculée sur la probabilité exacte.
+SCORE_STEP = float(os.environ.get("SCORE_STEP", "5"))
+# Quota quotidien de requêtes /score par client, sur chaque instance (0 = pas de quota). Cloner un modèle
+# demande des dizaines de milliers de requêtes : au-delà du quota, 429 jusqu'au lendemain, et un événement
+# « quota_exceeded » dans les logs signale le client.
+DAILY_QUOTA_PER_CLIENT = int(os.environ.get("DAILY_QUOTA_PER_CLIENT", "0"))
+# Refuse de démarrer si les fichiers du modèle ne correspondent pas aux empreintes de artifacts/manifest.json.
+VERIFY_ARTIFACTS = os.environ.get("VERIFY_ARTIFACTS", "1") == "1"
 # Page web de test (``/``) : l'utilisateur y saisit sa clé API. Désactivable avec DEMO_ENABLED=0.
 DEMO_ENABLED = os.environ.get("DEMO_ENABLED", "1") == "1"
 STATIC_DIR = Path(__file__).parent / "static"
@@ -81,8 +106,10 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("dss")
 
 # --- Métriques Prometheus propres à l'API (méthode n°2 du cours : instrumentation manuelle) ---
-# Seuils de latence (secondes) : 0,3 s pour le SLO du cours, 0,5 s pour l'alerte de latence.
-LATENCY_BUCKETS = (0.01, 0.025, 0.05, 0.1, 0.2, 0.3, 0.5, 1, 2.5, 5, 10)
+# Seuils de latence (secondes) : 0,3 s pour le SLO du cours, 0,5 s pour l'alerte de latence. Ils vont jusqu'à
+# 30 s, le délai maximal d'une requête : avec un dernier seuil à 10 s, Grafana affichait un plat à 10 s pendant
+# l'attaque du TP2 alors que les clients attendaient 30 s.
+LATENCY_BUCKETS = (0.01, 0.025, 0.05, 0.1, 0.2, 0.3, 0.5, 1, 2.5, 5, 10, 15, 20, 30)
 SCORE_HIST = Histogram("dss_toxicity_score", "Scores de toxicité renvoyés", buckets=(10, 25, 50, 75, 90, 100))
 INFERENCE_LATENCY = Histogram("dss_inference_latency_seconds",
                               "Durée de l'inférence seule (anonymisation + nettoyage + modèle)",
@@ -93,19 +120,34 @@ RATE_LIMITED = Counter("dss_rate_limited_total", "Requêtes refusées par la lim
                        ["client"])
 OVERLOAD_REJECTED = Counter("dss_overload_rejected_total",
                             "Requêtes refusées (503) : trop de traitements /score simultanés")
+# Suivi de dérive (cours 1) : si les textes reçus ou les décisions du modèle s'éloignent de ce qui a été
+# observé à l'entraînement, ces deux séries le montrent dans Grafana.
+UNKNOWN_WORDS = Histogram("dss_unknown_word_ratio", "Part des mots du texte inconnus du vocabulaire du modèle",
+                          buckets=(0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1))
+PREDICTIONS = Counter("dss_predictions_total", "Décisions du modèle", ["toxic"])
+QUOTA_EXCEEDED = Counter("dss_quota_exceeded_total", "Requêtes refusées par le quota quotidien (429)",
+                         ["client"])
 
 state: dict = {}
 
 
 def parse_keys(single: str, multiple: str) -> dict[str, str]:
-    """Retourne {clé: nom du client}. ``multiple`` = "nom:clé,nom:clé" (le nom est facultatif)."""
+    """Retourne {clé: nom du client}. ``multiple`` = "nom:clé,nom:clé:2027-01-31" (nom et date facultatifs)."""
     keys: dict[str, str] = {}
     if single:
         keys[single] = "default"
     for i, entry in enumerate(e.strip() for e in multiple.split(",") if e.strip()):
-        name, sep, key = entry.partition(":")
-        keys[key if sep else name] = name if sep else f"client-{i + 1}"
+        parts = entry.split(":")
+        if len(parts) == 1:
+            keys[parts[0]] = f"client-{i + 1}"
+        else:
+            keys[parts[1]] = parts[0]
     return keys
+
+
+def parse_expiry(multiple: str) -> dict[str, str]:
+    """{nom du client: date d'expiration AAAA-MM-JJ} pour les entrées "nom:clé:date" de API_KEYS."""
+    return {p[0]: p[2] for e in multiple.split(",") if len(p := e.strip().split(":")) == 3}
 
 
 def pseudonym(value: str) -> str:
@@ -116,18 +158,25 @@ def pseudonym(value: str) -> str:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     state["keys"] = parse_keys(API_KEY, API_KEYS)
+    state["expiry"] = parse_expiry(API_KEYS)
     if not state["keys"]:
         raise RuntimeError("Définir API_KEY ou API_KEYS : l'API refuse de démarrer sans clé")
     if any(len(k) < 16 for k in state["keys"]):
         log.warning(json.dumps({"event": "weak_api_key", "detail": "clé API de moins de 16 caractères"}))
-    state["predictor"] = ToxicityPredictor(use_ner=os.environ.get("USE_NER", "1") == "1")
+    if VERIFY_ARTIFACTS:
+        verifier_artefacts()  # lève une erreur (l'API ne démarre pas) si un fichier du modèle a été modifié
+    state["predictor"] = ToxicityPredictor(use_ner=os.environ.get("USE_NER", "1") == "1",
+                                           normalise=os.environ.get("NORMALISATION", "1") == "1")
     # Séries créées à 0 dès le démarrage : sans elles, une métrique n'existe qu'après le premier
     # événement (premier 401, premier 429…) et une règle d'alerte qui la cite est refusée.
-    for reason in ("absente", "invalide"):
+    for reason in ("absente", "invalide", "expiree"):
         AUTH_FAILURES.labels(reason=reason)
     for name in set(state["keys"].values()):
         RATE_LIMITED.labels(client=name)
+        QUOTA_EXCEEDED.labels(client=name)
     INFERENCE_LATENCY.labels(model="lstm")
+    for decision in ("true", "false"):
+        PREDICTIONS.labels(toxic=decision)
     yield
 
 
@@ -232,10 +281,14 @@ def client_ip(request: Request) -> str:
 
 def authenticate(key: str | None, request: Request) -> str:
     """Retourne le nom du client, ou lève 401. Chaque échec est écrit dans le journal d'audit."""
+    reason = "absente" if not key else "invalide"
     for known, name in state["keys"].items():
         if key and secrets.compare_digest(key.encode(), known.encode()):
-            return name
-    reason = "absente" if not key else "invalide"
+            expire = state.get("expiry", {}).get(name)
+            if not expire or time.strftime("%Y-%m-%d", time.gmtime()) <= expire:
+                return name
+            reason = "expiree"   # clé connue mais périmée : refusée comme une clé invalide, motif distinct
+            break
     AUTH_FAILURES.labels(reason=reason).inc()
     log.warning(json.dumps({"event": "auth_failed", "path": request.url.path,
                             "reason": reason,
@@ -248,6 +301,28 @@ _hits_lock = threading.Lock()
 
 # Un jeton par requête /score en cours de traitement ; None si MAX_CONCURRENT_SCORING == 0 (désactivé).
 _scoring_slots = threading.Semaphore(MAX_CONCURRENT_SCORING) if MAX_CONCURRENT_SCORING > 0 else None
+_en_cours: dict[str, int] = defaultdict(int)   # traitements /score en cours, par client, sur cette instance
+
+
+def prendre_place(client: str) -> bool:
+    """Réserve une place de traitement : d'abord la part du client, puis une place du pod. False si refusé."""
+    with _hits_lock:
+        if MAX_CONCURRENT_PER_CLIENT > 0 and _en_cours[client] >= MAX_CONCURRENT_PER_CLIENT:
+            return False
+        _en_cours[client] += 1
+    if _scoring_slots is not None and not _scoring_slots.acquire(blocking=False):
+        rendre_place(client, slot=False)
+        return False
+    return True
+
+
+def rendre_place(client: str, slot: bool = True) -> None:
+    if slot and _scoring_slots is not None:
+        _scoring_slots.release()
+    with _hits_lock:
+        _en_cours[client] -= 1
+        if _en_cours[client] <= 0:
+            del _en_cours[client]
 
 
 def rate_limit(client: str, limit: int | None = None) -> None:
@@ -270,6 +345,33 @@ def rate_limit(client: str, limit: int | None = None) -> None:
             raise HTTPException(status_code=429, detail="Trop de requêtes, réessayer plus tard",
                                 headers={"Retry-After": str(retry)})
         hits.append(now)
+
+
+_quota: dict[str, tuple[str, int]] = {}   # client -> (jour, requêtes /score ce jour-là), sur cette instance
+
+
+def daily_quota(client: str) -> None:
+    """Quota quotidien par client (défense contre l'extraction du modèle). Remis à zéro chaque jour (UTC)."""
+    if DAILY_QUOTA_PER_CLIENT <= 0:
+        return
+    jour = time.strftime("%Y-%m-%d", time.gmtime())
+    with _hits_lock:
+        jour_vu, n = _quota.get(client, (jour, 0))
+        n = n if jour_vu == jour else 0
+        if n >= DAILY_QUOTA_PER_CLIENT:
+            QUOTA_EXCEEDED.labels(client=client).inc()
+            log.warning(json.dumps({"event": "quota_exceeded", "client": client}))
+            raise HTTPException(status_code=429, detail="Quota quotidien atteint, réessayer demain",
+                                headers={"Retry-After": "3600"})
+        _quota[client] = (jour, n + 1)
+
+
+def round_score(proba: float, step: float | None = None) -> float:
+    """Score sur 100 arrondi au palier ``step`` (contre l'extraction du modèle) ; step <= 0 : 1 décimale."""
+    step = SCORE_STEP if step is None else step
+    if step <= 0:
+        return round(proba * 100, 1)
+    return float(min(100, max(0, round(proba * 100 / step) * step)))
 
 
 def check_api_key(request: Request, key: str | None = Security(api_key_header)) -> str:
@@ -302,13 +404,16 @@ def get_laya() -> LayaPredictor:
 
 
 class ScoreRequest(BaseModel):
+    # Schéma strict : un champ inattendu est refusé (422) au lieu d'être ignoré (fuzzing, injection JSON).
+    model_config = ConfigDict(extra="forbid")
+
     text: str = Field(min_length=1, max_length=5000, examples=["Thank you for your help, have a nice day"])
     model: Literal["lstm", "laya"] = Field(
         default="lstm", description="lstm (déployé, rapide) ou laya (local uniquement, plus lent)")
 
 
 class ScoreResponse(BaseModel):
-    score: float = Field(description="Toxicité de 0 (respectueux) à 100 (très toxique)")
+    score: float = Field(description="Toxicité de 0 (respectueux) à 100 (très toxique), arrondie par paliers")
     toxic: bool = Field(description="true si le score dépasse le seuil (50)")
     model: str
     latency_ms: float
@@ -321,23 +426,28 @@ def health() -> dict:
 
 @app.post("/score", response_model=ScoreResponse)
 def score(req: ScoreRequest, client: str = Depends(check_api_key)) -> ScoreResponse:
+    daily_quota(client)
     predictor = get_laya() if req.model == "laya" else state["predictor"]
 
-    if _scoring_slots is not None and not _scoring_slots.acquire(blocking=False):
+    if not prendre_place(client):
         OVERLOAD_REJECTED.inc()
         log.warning(json.dumps({"event": "overload_rejected", "client": client}))
         raise HTTPException(status_code=503, detail="Service temporairement surchargé, réessayer plus tard",
                             headers={"Retry-After": "2"})
     try:
         t0 = time.perf_counter()
-        proba = predictor.predict(req.text)
+        if hasattr(predictor, "predict_detail"):
+            proba, inconnus = predictor.predict_detail(req.text)
+            UNKNOWN_WORDS.observe(inconnus)
+        else:
+            proba = predictor.predict(req.text)
         latency = (time.perf_counter() - t0) * 1000
     finally:
-        if _scoring_slots is not None:
-            _scoring_slots.release()
+        rendre_place(client)
     INFERENCE_LATENCY.labels(model=req.model).observe(latency / 1000)
-    value = round(proba * 100, 1)
+    value = round_score(proba)
     SCORE_HIST.observe(value)
+    PREDICTIONS.labels(toxic=str(proba >= THRESHOLD).lower()).inc()
 
     # Log pseudonyme : HMAC-SHA256 du texte avec une clé secrète, jamais le texte ni sa longueur.
     log.info(json.dumps({"event": "score", "client": client, "model": req.model,

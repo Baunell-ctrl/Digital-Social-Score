@@ -13,7 +13,9 @@ COPY src/__init__.py src/__init__.py
 COPY src/api src/api
 COPY src/anonymization src/anonymization
 COPY src/preprocessing src/preprocessing
-COPY artifacts/lstm.pt artifacts/vocab.json artifacts/config.json artifacts/
+COPY src/security src/security
+# manifest.json : empreintes SHA-256 du modèle, vérifiées au démarrage (l'API refuse un modèle modifié)
+COPY artifacts/lstm.pt artifacts/vocab.json artifacts/config.json artifacts/manifest.json artifacts/
 
 # Utilisateur non root
 RUN useradd --create-home app && chown -R app /app

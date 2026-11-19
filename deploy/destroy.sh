@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Supprime tout ce qui est facturé (README, étape 3 partie 4, étape 15) : cluster, IP fixe, load balancer,
-# politique TLS, règles d'alerte. Demande de taper le nom du cluster avant de commencer.
+# Supprime tout ce qui est facturé (docs/JOURNAL.md, étape 3 partie 4, étape 15) : cluster, IP fixe, load balancer,
+# règles d'alerte. Demande de taper le nom du cluster avant de commencer.
 #
 #   bash deploy/destroy.sh          (ou : make destroy)
 #

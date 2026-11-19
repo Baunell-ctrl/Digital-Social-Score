@@ -123,10 +123,11 @@ def main():
     model.load_state_dict(torch.load(ckpt, map_location=device, weights_only=True))
     results = {"model": "lstm_binary", "label_rule": "OR of 6 columns", "seed": SEED,
                "dev": compute_metrics(dev["label"].values, predict(model, Xdv, device)),
-               "test": compute_metrics(test["label"].values, predict(model, Xte, device)),
+               # val complet (recoupe le train) ; le test propre est calculé par src/models/evaluate_lstm.py
+               "test_full": compute_metrics(test["label"].values, predict(model, Xte, device)),
                "history": history}
     (ROOT / "reports" / "results_lstm.json").write_text(json.dumps(results, indent=2))
-    print("TEST:", json.dumps(results["test"], indent=2))
+    print("TEST (val complet):", json.dumps(results["test_full"], indent=2))
 
 
 if __name__ == "__main__":

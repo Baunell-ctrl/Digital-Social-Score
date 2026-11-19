@@ -22,7 +22,7 @@
 | API fonctionnelle et documentée | [Étape 3.2](#2-créer-une-api-recevant-un-texte-et-renvoyant-un-score) |
 | Exemples de requêtes et réponses | [Étape 3.3](#3-tester-plusieurs-exemples-de-requêtes) |
 | Schéma d'architecture Cloud + texte explicatif | [Étape 7](#étape-7--modélisation-de-linfrastructure-cloud) |
-| Registre RGPD | [Étape 1.4](#4-documenter-le-registre-de-traitement-des-données) (données) et [étape 4.2](#2-mettre-en-place-https-iam-et-registre-rgpd) (API) |
+| Registre RGPD | [Étape 1.4](#4-documenter-le-registre-de-traitement-des-données) (données) et [étape 4.2](#2-mettre-en-place-iam-et-registre-rgpd) (API) |
 | Tableau de bord / captures supervision | [Étape 6](#étape-6--sécurité-et-supervision) |
 | Rapport de simulation de charge | [Étape 5](#étape-5--simulation-de-montée-en-charge) |
 | Grille de tests sécurité / stress / failover | sécurité : [étape 4.3](#3-grille-de-tests-de-sécurité) ; stress et failover : [étape 5.2](#2-mesurer-latence-moyenne-p95p99-taux-derreur) |
@@ -84,7 +84,7 @@ Registre RGPD du jeu de données (modèle de la CNIL) :
 | Données traitées | texte des commentaires ; données personnelles détectées : noms, lieux, emails, URL, IP, téléphones, pseudos |
 | Minimisation | données personnelles remplacées par des étiquettes ; seul le jeu anonymisé sert à l'entraînement |
 | Destinataires | équipe projet uniquement |
-| Conservation | durée du projet ; le jeu brut est supprimé à la fin |
+| Conservation | le jeu brut, issu d'un jeu public (Kaggle), reste dans le dépôt pendant le projet pour que les résultats soient reproductibles ; il sera supprimé du dépôt **et de son historique Git** à la fin du projet. Seul le jeu anonymisé sert à l'entraînement |
 | Transferts hors UE | aucun |
 | Limite connue | un nom rare ou mal écrit peut échapper au NER |
 
@@ -110,17 +110,26 @@ Le texte est mis en **minuscules**, et les **emojis**, les **sauts de ligne** et
 
 ### 3. Comparer précision, rappel et temps de traitement
 
-Sur 1 308 commentaires jamais vus pendant l'entraînement :
+Sur 1 308 commentaires jamais vus pendant l'entraînement (LSTM : `python -m src.models.evaluate_lstm`, modèle déployé, pipeline de l'API) :
 
-| Modèle | Précision | Rappel | F1 | Temps par texte | Taille |
-| ------ | --------: | -----: | -: | --------------: | -----: |
-| LSTM | 0,894 | 0,911 | 0,902 | **0,4 ms** | **16 Mo** |
-| BERT | **0,941** | **0,919** | **0,930** | 6,5 ms | 268 Mo |
-| LAYA | 0,908 | 0,906 | 0,907 | 10,3 ms | 840 Mo |
+| Modèle | Précision | Rappel | F1 | Temps par texte, sur processeur | Taille |
+| ------ | --------: | -----: | -: | ------------------------------: | -----: |
+| LSTM | 0,873 | **0,936** | 0,903 | **1,0 ms** | **16 Mo** |
+| BERT | **0,941** | 0,919 | **0,930** | 14,4 ms | 268 Mo |
+| LAYA | 0,908 | 0,906 | 0,907 | non remesuré (10,3 ms sur GPU) | 840 Mo |
 
-**Conclusion : nous retenons le LSTM.** BERT est le plus précis, mais l'écart est d'environ 5 points de précision. En face, le LSTM est **16 fois plus rapide** et **17 fois plus léger**, et il tourne sur un simple processeur, sans carte graphique. Dans le cloud, cela veut dire une image plus petite, moins de calcul par requête et une facture plus basse.
+Les temps sont mesurés **comme en production** : sur processeur, un seul cœur, un texte à la fois (`python -m src.models.benchmark_cpu`, `reports/benchmark_cpu.json`). Les premiers temps, mesurés sur GPU par lots, ne reflétaient pas le déploiement. LAYA n'a pas pu être remesuré : son modèle n'est plus sur le poste de mesure.
 
-**Ce qu'on perd :** le LSTM réagit aux mots plutôt qu'au sens. « You are a wonderful person » obtient 98,7, parce que la tournure « you are » précède souvent une insulte dans les données. BERT se trompe moins sur ces cas.
+Dans l'API, une requête complète prend **4,1 ms**, dont **73 % pour l'anonymisation spaCy** : c'est l'étape la plus coûteuse, et c'est elle que vise l'attaque du TP2.
+
+**Conclusion : nous retenons le LSTM.** BERT est le plus précis, mais l'écart n'est que de 2,7 points de F1 (7 points de précision ; le LSTM a en revanche le meilleur rappel). En face, le LSTM est **14 fois plus rapide** sur processeur et **17 fois plus léger**, sans carte graphique. Dans le cloud, cela veut dire une image plus petite, moins de calcul par requête et une facture plus basse.
+
+**Ce qu'on perd :** le LSTM réagit aux mots plutôt qu'au sens. « You are a wonderful person » obtient 98,7, parce que la tournure « you are » précède souvent une insulte dans les données. Le test de biais (TP2) le confirme : 4 phrases neutres sur 8 sont jugées toxiques même avec un mot anodin (« I am a tall person. »).
+
+**Pistes de correction**, de la moins chère à la plus chère :
+1. **Ne jamais sanctionner automatiquement** sur un score seul : le score sert à trier, un humain décide (c'est la règle de la model card et du TP3).
+2. **Ajouter à l'entraînement des phrases neutres et positives** de la même forme (« you are kind », « I am a … person »), puis rejouer le test de biais pour vérifier que les faux positifs baissent.
+3. Passer à BERT, qui comprend mieux le contexte : 7 points de précision en plus, pour un temps de calcul 14 fois plus long.
 
 ---
 
@@ -187,9 +196,7 @@ Dix textes envoyés à l'API déployée sur GKE :
 
 **Choix : une clé API par client.** L'API est appelée par des applications (outil de modération, réseau social), pas par des personnes qui se connectent : une clé suffit pour ce cas « machine à machine », sans serveur d'identité. Chaque client a sa propre clé : on peut en **révoquer un** sans couper les autres, et son nom (jamais sa clé) apparaît dans les logs. Les clés sont longues (256 bits), conservées dans Secret Manager, et comparées en temps constant. Un JWT serait utile avec des comptes utilisateurs ou des droits différents par rôle, ce qui n'est pas notre cas.
 
-### 2. Mettre en place HTTPS, IAM et registre RGPD
-
-**HTTPS : écart assumé.** L'API est servie en **HTTP simple**. Nos outils de test se heurtaient sans cesse aux certificats (auto-signés, gérés par Google, adresse IP sans nom de domaine), et nous avons privilégié la simplicité pour ce TP. **Conséquence : la clé API et le texte circulent en clair** entre le client et le load balancer de Google. Un usage réel imposerait un nom de domaine et HTTPS.
+### 2. Mettre en place IAM et registre RGPD
 
 **Chiffrement au repos :** les secrets du cluster (clés API, clé des logs) sont chiffrés par une clé **Cloud KMS** propre au projet, changée tous les 90 jours (vérifié actif le 17/11/2026). Le reste (images, logs, Secret Manager) est chiffré par défaut par Google. **Aucun texte n'est stocké.**
 
@@ -199,7 +206,8 @@ Dix textes envoyés à l'API déployée sur GKE :
 | ---------- | ----- | ---------------- |
 | Texte | 1 à 5 000 caractères | 422 |
 | Taille de la requête | 32 Ko maximum | 413 |
-| Débit | 600 requêtes par minute et par client, contre le vol de modèle (*model stealing*) | 429 |
+| Débit | 600 requêtes par minute par clé, comptées sur chaque instance (3 à 15), contre l'abus et le vol de modèle | 429 |
+| Durée de vie des clés | date d'expiration facultative par clé (`nom:clé:AAAA-MM-JJ`) : une clé périmée est refusée | 401 |
 | Logs | seul un identifiant pseudonyme (HMAC) du texte et de l'IP est écrit, jamais le texte, la clé ou l'IP | – |
 | Conteneurs | sans privilèges administrateur | – |
 
@@ -317,6 +325,15 @@ Mesures du 12/11/2026 (2 à 10 instances à l'époque) :
 | Client abusif ou copie du modèle | refus 429 pour ce client, alerte « extraction » ; on révoque sa clé |
 | Saturation | latence et CPU en hausse, nouvelles instances en attente de machine |
 
+**Suivi de dérive** (le modèle vieillit si les textes reçus changent) : deux courbes Grafana la surveillent.
+
+| Indicateur | Référence, mesurée sur le test | Ce qu'une hausse signifie |
+| ---------- | ----------------------------- | ------------------------- |
+| Part de mots inconnus du modèle | 3,4 % | nouvel argot, autre langue, mots déguisés : le modèle comprend moins bien |
+| Part de textes jugés toxiques | 52 % (test équilibré) | changement du public ou du modèle : à comparer d'une semaine sur l'autre |
+
+**Mesure de latence :** ses seuils vont maintenant jusqu'à 30 s, le délai maximal d'une requête. Avant, ils s'arrêtaient à 10 s, et Grafana affichait un plat à 10 s pendant l'attaque du TP2 alors que les clients attendaient 30 s.
+
 ### 2. Simuler panne ou attaque et évaluer la continuité du service
 
 **Attaque par saturation** (déni de service), le 13/11/2026 : la montée en charge et le stress test ont été rejoués avec la configuration améliorée, jusqu'à 300 utilisateurs simultanés.
@@ -365,6 +382,5 @@ Mesures du 12/11/2026 (2 à 10 instances à l'époque) :
 - **Moindre privilège** : les instances de l'API n'ont aucun droit Google Cloud ; chaque compte de service n'a que les rôles dont il a besoin.
 - **Rien n'est exposé inutilement** : les instances n'ont pas d'adresse publique, seul le load balancer les joint par le réseau privé de Google.
 - **Minimisation** : aucun texte stocké, logs pseudonymes, secrets chiffrés par KMS.
-- **Écart assumé** : le flux client → load balancer est en HTTP, sans chiffrement (étape 4).
 
 **Légende :** flèches orange, préparation et déploiement du modèle ; vertes, requête d'un client ; bleues, flux internes à Google Cloud ; 🔑, accès authentifié ; 🔒, donnée chiffrée.

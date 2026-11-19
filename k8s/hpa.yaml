@@ -1,5 +1,7 @@
 # Autoscaling horizontal, réglé d'après les mesures de l'étape 5 :
-# - minReplicas 3 (au lieu de 2) : de la marge au repos, et la perte d'un pod laisse encore 2 pods ;
+# - minReplicas 1 depuis le 19/11/2026 (période de correction, environ 1 mois) : 1 pod actif au repos pour
+#   réduire le coût ; le HPA remonte jusqu'à 15 dès que la charge augmente. Pendant les mesures du TP1/TP2
+#   c'était 3 (de la marge au repos, et la perte d'un pod en laissait encore 2) ;
 # - seuil CPU 50 % (au lieu de 70 %) : le HPA demande des pods plus tôt, ce qui laisse le temps
 #   aux nouveaux pods (et parfois aux nouveaux nœuds Autopilot) de démarrer avant la saturation ;
 # - maxReplicas 15 (au lieu de 10) : le plafond mesuré (environ 20 req/s par pod) passe de ~195 à ~290 req/s.
@@ -12,7 +14,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: dss-api
-  minReplicas: 3
+  minReplicas: 1
   maxReplicas: 15
   metrics:
     - type: Resource

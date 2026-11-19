@@ -1,0 +1,28 @@
+{
+  "jeu": "test propre : 640 toxiques, 668 sains",
+  "mots_deguises": 3791,
+  "detection_toxiques": {
+    "originaux_sans_defense": 0.933,
+    "deguises_sans_defense": 0.755,
+    "deguises_avec_defense": 0.928,
+    "originaux_avec_defense": 0.936
+  },
+  "faux_positifs_sains": {
+    "sans_defense": 0.129,
+    "avec_defense": 0.13
+  },
+  "exemples": [
+    {
+      "original": "block me for 2 years screw",
+      "deguise": "block me for 2 years s​crew"
+    },
+    {
+      "original": "your harassment of me cease your wikistalking you little freak url",
+      "deguise": "your harassment of me cease your wikistalking you little fr3ak url"
+    },
+    {
+      "original": "well then ur a stupid admin then you should be blocked mate now u are waste",
+      "deguise": "well then ur a $tupid admin then you should be blocked mate now u are waste"
+    }
+  ]
+}

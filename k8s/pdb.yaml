@@ -1,12 +1,13 @@
-# Pendant une maintenance de Google (mise à jour de nœud, réparation), Kubernetes n'arrête jamais
-# assez de pods pour en laisser moins de 2 prêts. Ne protège pas d'une panne brutale (voir la répartition
-# par zone dans k8s/deployment.yaml).
+# Pendant une maintenance de Google (mise à jour de nœud, réparation) ou un regroupement de nœuds par
+# Autopilot, Kubernetes n'arrête jamais le dernier pod prêt de l'API : il en démarre d'abord un autre.
+# minAvailable était 2 avec 3 pods minimum ; avec 1 pod au repos (k8s/hpa.yaml), 2 aurait bloqué toute maintenance.
+# Ne protège pas d'une panne brutale : dans ce cas le Deployment recrée le pod (environ 1 minute).
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: dss-api
 spec:
-  minAvailable: 2
+  minAvailable: 1
   selector:
     matchLabels:
       app: dss-api

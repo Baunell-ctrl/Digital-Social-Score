@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Déploie l'API sur le cluster, ou la met à jour sans coupure (README, étape 3 partie 4, étapes 9 à 13).
+# Déploie l'API sur le cluster, ou la met à jour sans coupure (docs/JOURNAL.md, étape 3 partie 4, étapes 9 à 13).
 #
 #   TAG=v7 bash deploy/deploy.sh            (ou : make deploy TAG=v7)
 #   TAG=v7 DRY_RUN=1 bash deploy/deploy.sh  (ou : make diff TAG=v7)  -> montre ce qui changerait, sans rien appliquer

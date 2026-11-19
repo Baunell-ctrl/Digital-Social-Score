@@ -42,13 +42,18 @@
     "preparation": "anonymisation (regex + spaCy en_core_web_sm), puis nettoyage (minuscules, ponctuation, emojis)"
   },
   "performance_test": {
-    "precision": 0.894,
-    "rappel": 0.911,
-    "f1": 0.902,
-    "faux_positifs": 69,
-    "commentaires_toxiques_oublies": 57,
-    "jeu": "test, 1 308 commentaires jamais vus à l'entraînement",
-    "source": "reports/results_lstm.json"
+    "precision": 0.873,
+    "rappel": 0.936,
+    "f1": 0.903,
+    "faux_positifs": 87,
+    "commentaires_toxiques_oublies": 41,
+    "jeu": "test propre, 1 308 commentaires jamais vus à l'entraînement (pipeline de l'API, modèle déployé)",
+    "source": "reports/results_lstm.json (test_clean), script src/models/evaluate_lstm.py",
+    "temps_par_texte_cpu_ms": {
+      "lstm_seul": 1.0,
+      "api_complete": 4.1,
+      "source": "reports/benchmark_cpu.json"
+    }
   },
   "privacy_measures": [
     "anonymisation du texte avant le modèle (regex + NER spaCy : personnes, lieux, emails, URL, IP, téléphones, pseudos)",
@@ -56,10 +61,10 @@
     "logs pseudonymisés : identifiants HMAC-SHA256 du texte et de l'IP, jamais le texte, la clé ou l'IP en clair",
     "logs chiffrés au repos par Google Cloud (chiffrement par défaut)",
     "clés API et clé des logs dans Secret Manager, IAM au moindre privilège",
-    "hébergement en région europe-west9 (Paris)"
+    "hébergement en région europe-west9 (Paris)",
+    "score renvoyé arrondi par paliers de 5, jamais la probabilité exacte (limite ce qu'on peut déduire du modèle et de ses données)"
   ],
   "privacy_limits": [
-    "pas de TLS entre le client et l'API (HTTP simple, choix du TP) : le texte et la clé API circulent en clair",
     "les nationalités, religions et groupes (NORP) ne sont pas masqués, pour garder le sens des propos haineux"
   ],
   "bias_detected": true,
@@ -86,8 +91,16 @@
     "scores élevés sur des phrases courtes et neutres (faux positifs)",
     "anglais uniquement, vocabulaire de Wikipédia avant 2018 : dérive possible avec un vocabulaire nouveau",
     "l'anonymisation peut laisser passer des noms rares",
-    "pré-traitement (anonymisation spaCy) vulnérable à une attaque par coût asymétrique : 19 réponses 5xx et 44 timeouts le 16/11/2026 (TP2, étapes 1 et 2)"
+    "pré-traitement (anonymisation spaCy) vulnérable à une attaque par coût asymétrique : 19 réponses 5xx et 44 timeouts le 16/11/2026, plus aucun timeout avec la défense le 17/11/2026 (TP2, étapes 2 et 3)"
   ],
   "human_oversight": "Le score est une aide à la décision. Le déployeur doit faire relire par un humain tout contenu avant sanction.",
-  "contact": "équipe projet Digital Social Score (TP)"
+  "contact": "équipe projet Digital Social Score (TP)",
+  "securite": {
+    "cout_asymetrique": "4 traitements simultanés par pod dont au plus 2 par clé (partage équitable), 1 CPU par pod, délai du load balancer de 15 s ; mesure locale avec utilisateurs témoins : 86 % servis en 0,2 s pendant l'attaque, contre 1 % avec le limiteur seul (reports/attack/flood_local-*)",
+    "exemples_adversariaux": "normalisation des mots déguisés : détection des toxiques déguisés 75,5 % sans défense, 92,8 % avec (reports/attack/adversarial.json)",
+    "extraction_du_modele": "limite de 600 requêtes par minute et quota de 50 000 par jour, par clé et par pod ; score arrondi par paliers de 5 (reports/attack/extraction.json)",
+    "empoisonnement": "empreintes SHA-256 du modèle vérifiées au démarrage, empreintes et audit des données vérifiés à chaque déploiement (artifacts/manifest.json)",
+    "fuzzing_et_injection": "schéma strict (champ inconnu refusé), 200 entrées aléatoires et 8 injections testées sans erreur 500"
+  },
+  "surveillance_de_derive": "part de mots inconnus du modèle (référence : 3,4 %) et part de textes jugés toxiques (référence : 52 % sur le test équilibré), suivies dans Grafana"
 }

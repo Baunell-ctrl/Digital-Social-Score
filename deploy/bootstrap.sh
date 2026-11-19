@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Préparation du projet Google Cloud, UNE fois par projet (README, étape 3 partie 4, étapes 3 à 5, 8 et 10).
+# Préparation du projet Google Cloud, UNE fois par projet (docs/JOURNAL.md, étape 3 partie 4, étapes 3 à 5, 8 et 10).
 # Relançable : chaque ressource déjà présente est laissée telle quelle.
 #
 #   bash deploy/bootstrap.sh        (ou : make bootstrap)

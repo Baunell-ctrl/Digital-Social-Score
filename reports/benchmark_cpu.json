@@ -1,0 +1,22 @@
+{
+  "machine": "arm (macOS-27.0-arm64-arm-64bit), 1 fil de calcul",
+  "textes": "300 commentaires du test propre, un appel par texte",
+  "lstm_seul": {
+    "moyenne_ms": 1.0,
+    "p95_ms": 2.78
+  },
+  "api_sans_anonymisation_spacy": {
+    "moyenne_ms": 1.1,
+    "p95_ms": 3.11
+  },
+  "api_complete_comme_en_production": {
+    "moyenne_ms": 4.1,
+    "p95_ms": 10.56
+  },
+  "part_anonymisation_spacy": 0.73,
+  "distilbert_seul": {
+    "moyenne_ms": 14.42,
+    "p95_ms": 19.56
+  },
+  "rapport_bert_sur_lstm": 14.4
+}

@@ -5,7 +5,6 @@ parallèle, et mesure l'effet sur la disponibilité : débit, codes de réponse,
 d'inférence serveur. Une vue se rafraîchit chaque seconde pour voir le profil de l'attaque en direct.
 
     python attack/flood.py --host http://34.54.213.190 --key MA_CLE --workers 200 --duration 120
-    python attack/flood.py --ip 34.54.213.190 --key MA_CLE --workers 200 --duration 120 --insecure   # cible HTTPS à certificat non reconnu
 
 Cible : uniquement VOTRE propre déploiement, que vous êtes autorisé à tester. Le script affiche la
 cible et demande une confirmation avant de commencer (--yes pour la passer).
@@ -30,7 +29,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
-import urllib3
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))  # permet « python attack/flood.py » autant que « python -m attack.flood »
@@ -40,14 +38,20 @@ from attack.report import render_report  # noqa: E402
 OUT_DIR = ROOT / "reports" / "attack"
 
 
-def code_bucket(status: int | str) -> str:
-    """Regroupe le code de réponse en famille lisible."""
+def code_bucket(status: int | str, refus_api: bool = False) -> str:
+    """Regroupe le code de réponse en famille lisible.
+
+    ``refus_api`` : 503 envoyé par l'API elle-même (en-tête Retry-After), donc un refus volontaire du
+    limiteur de concurrence ; un 503 sans cet en-tête vient du load balancer (pod indisponible) : « 5xx ».
+    """
     if isinstance(status, str):
         return "timeout" if "Timeout" in status else "erreur_reseau"
     if status == 200:
         return "200"
     if status == 429:
         return "429"
+    if status == 503 and refus_api:
+        return "503"   # refus volontaire du limiteur de concurrence (défense), distinct d'un pod tombé
     if 500 <= status < 600:
         return "5xx"
     return f"{status // 100}xx"
@@ -61,6 +65,7 @@ class Stats:
         self.codes: Counter[str] = Counter()
         self.client_ms: list[float] = []      # latence vue par le client (toutes requêtes)
         self.server_ms: list[float] = []      # latency_ms renvoyé par l'API (réponses 200)
+        self.ok_ms: list[float] = []          # latence vue par le client, réponses 200 seulement (service rendu)
         self.sent = 0
         self.timeline: list[dict] = []        # une entrée toutes les ~1 s (séries temporelles)
 
@@ -69,6 +74,8 @@ class Stats:
             self.sent += 1
             self.codes[bucket] += 1
             self.client_ms.append(client_ms)
+            if bucket == "200":
+                self.ok_ms.append(client_ms)
             if server_ms is not None:
                 self.server_ms.append(server_ms)
 
@@ -87,10 +94,9 @@ def _pcts(xs: list[float]) -> tuple[float, float, float]:
     return q(0.50), q(0.95), q(0.99)
 
 
-def worker(stop: float, host: str, key: str, profile: str, timeout: float, verify, stats: Stats, wid: int) -> None:
+def worker(stop: float, host: str, key: str, profile: str, timeout: float, stats: Stats, wid: int) -> None:
     """Envoie des requêtes en boucle jusqu'à l'échéance, une charge pire-cas à chaque fois."""
     s = requests.Session()
-    s.verify = verify
     headers = {"X-API-Key": key, "Content-Type": "application/json"}
     n = 0
     while time.monotonic() < stop:
@@ -106,7 +112,7 @@ def worker(stop: float, host: str, key: str, profile: str, timeout: float, verif
                     server_ms = float(r.json().get("latency_ms"))
                 except (ValueError, TypeError, requests.JSONDecodeError):
                     server_ms = None
-            stats.record(code_bucket(r.status_code), client_ms, server_ms)
+            stats.record(code_bucket(r.status_code, "Retry-After" in r.headers), client_ms, server_ms)
         except requests.RequestException as e:
             client_ms = (time.monotonic() - t0) * 1000
             stats.record(code_bucket(type(e).__name__), client_ms, None)
@@ -138,20 +144,42 @@ def live_view(stop_flag: dict, stats: Stats, start: float, duration: int, host: 
             print("\n(Ctrl+C pour arreter ; ouvrez Grafana a cote pour voir CPU, pods et 429)")
 
 
+MESSAGES_TEMOINS = ["Thanks for fixing the infobox, much appreciated.", "I added a source for the 1998 figures.",
+                    "Could someone check the spelling of the town name?", "This section reads well now, good job."]
+
+
+def temoin(stop: float, host: str, key: str, timeout: float, stats: Stats, tid: int) -> None:
+    """Utilisateur légitime : un message normal et court par seconde, avec SA clé. Mesure ce qu'il subit."""
+    s = requests.Session()
+    headers = {"X-API-Key": key, "Content-Type": "application/json"}
+    n = 0
+    while time.monotonic() < stop:
+        t0 = time.monotonic()
+        try:
+            r = s.post(host + "/score", data=json.dumps({"text": MESSAGES_TEMOINS[(tid + n) % 4]}),
+                       headers=headers, timeout=timeout)
+            stats.record(code_bucket(r.status_code, "Retry-After" in r.headers), (time.monotonic() - t0) * 1000, None)
+        except requests.RequestException as e:
+            stats.record(code_bucket(type(e).__name__), (time.monotonic() - t0) * 1000, None)
+        n += 1
+        time.sleep(max(0.0, 1.0 - (time.monotonic() - t0)))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     g = ap.add_mutually_exclusive_group(required=True)
-    g.add_argument("--host", help="https://<nom ou IP> de VOTRE API, ex. https://34-54-213-190.sslip.io")
-    g.add_argument("--ip", help="IP de VOTRE API (equivaut a --host https://<ip>)")
+    g.add_argument("--host", help="adresse de VOTRE API, ex. http://34.54.213.190")
+    g.add_argument("--ip", help="IP de VOTRE API (equivaut a --host http://<ip>)")
     ap.add_argument("--key", help="cle API (sinon $ATTACK_API_KEY) ; en clair, elle reste dans l'historique du shell")
     ap.add_argument("--workers", type=int, default=200, help="requetes en parallele (defaut 200)")
     ap.add_argument("--duration", type=int, default=120, help="duree en secondes (defaut 120)")
     ap.add_argument("--profile", default="mixed", choices=["names", "emoji", "mixed"], help="type de charge pire-cas")
     ap.add_argument("--timeout", type=float, default=30, help="delai max par requete en secondes (defaut 30)")
-    ap.add_argument("--insecure", action="store_true", help="ignore les erreurs de certificat (cible en https://<ip> dont le certificat n'est pas reconnu)")
     ap.add_argument("--quiet", action="store_true", help="pas de tableau en direct")
     ap.add_argument("--label", default="", help="etiquette ecrite dans le rapport (ex. sans-defense)")
     ap.add_argument("--yes", action="store_true", help="ne pas demander de confirmation")
+    ap.add_argument("--temoins", type=int, default=0, help="nombre d'utilisateurs legitimes temoins (1 message/s chacun)")
+    ap.add_argument("--temoins-key", help="cle des temoins (sinon $TEMOINS_API_KEY, sinon la cle de l'attaquant)")
     args = ap.parse_args()
 
     if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
@@ -160,17 +188,13 @@ def main() -> None:
         except (AttributeError, ValueError):
             pass
 
-    host = (args.host or f"https://{args.ip}").rstrip("/")
+    host = (args.host or f"http://{args.ip}").rstrip("/")
     key = args.key or os.environ.get("ATTACK_API_KEY")
     if not key:
         ap.error("cle API manquante : --key <cle> ou variable d'environnement ATTACK_API_KEY")
     if args.key:
         print("Avertissement : --key en clair reste dans l'historique du shell et dans « ps » "
               "(preferez ATTACK_API_KEY).", file=sys.stderr)
-
-    verify = False if args.insecure else True
-    if not verify:
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     print(f"Cible : {host}")
     print(f"Charge : profil {args.profile}, {args.workers} requetes en parallele, {args.duration} s.")
@@ -183,8 +207,13 @@ def main() -> None:
             raise SystemExit("pas de confirmation possible (entree non interactive) : relancer avec --yes")
 
     stats = Stats()
+    stats_temoins = Stats()
     start = time.monotonic()
     stop = start + args.duration
+    cle_temoins = args.temoins_key or os.environ.get("TEMOINS_API_KEY") or key
+    for tid in range(args.temoins):
+        threading.Thread(target=temoin, args=(stop, host, cle_temoins, args.timeout, stats_temoins, tid),
+                         daemon=True).start()
     stop_flag = {"done": False, "quiet": args.quiet}
     viewer = threading.Thread(target=live_view, args=(stop_flag, stats, start, args.duration, host, args.profile, args.workers), daemon=True)
     viewer.start()
@@ -192,7 +221,7 @@ def main() -> None:
     try:
         with ThreadPoolExecutor(args.workers) as ex:
             for wid in range(args.workers):
-                ex.submit(worker, stop, host, key, args.profile, args.timeout, verify, stats, wid)
+                ex.submit(worker, stop, host, key, args.profile, args.timeout, stats, wid)
     except KeyboardInterrupt:
         print("\nArret demande.", file=sys.stderr)
     finally:
@@ -207,7 +236,14 @@ def main() -> None:
         "total_envoyees": sent, "debit_moyen_req_s": round(sent / max(1e-9, elapsed), 1),
         "codes": codes,
         "latence_client_ms": {"p50": round(p50, 1), "p95": round(p95, 1), "p99": round(p99, 1)},
+        # Le service rendu : seulement les réponses 200 (les refus 429/503 sont rapides et fausseraient la mesure).
+        "latence_client_200_ms": dict(zip(("p50", "p95", "p99"), (round(v, 1) for v in _pcts(stats.ok_ms)))),
         "inference_serveur_ms_moyenne": round(srv, 1),
+        "temoins": None if not args.temoins else {
+            "nombre": args.temoins, "envoyees": stats_temoins.sent, "codes": dict(stats_temoins.codes),
+            "taux_de_succes": round(stats_temoins.codes.get("200", 0) / max(1, stats_temoins.sent), 3),
+            "latence_200_ms": dict(zip(("p50", "p95", "p99"), (round(v, 1) for v in _pcts(stats_temoins.ok_ms)))),
+        },
         "timeline": stats.timeline,  # aucune cle ni aucun texte : seulement des mesures
     }
     suffix = f"_{args.label}" if args.label else ""
@@ -219,8 +255,14 @@ def main() -> None:
     print("\n=== Resume ===")
     print(f"  envoyees        : {sent}  ({report['debit_moyen_req_s']} req/s en moyenne)")
     print(f"  codes           : {codes}")
-    print(f"  latence client  : P50 {p50:.0f} ms  P95 {p95:.0f} ms  P99 {p99:.0f} ms")
+    print(f"  latence client  : P50 {p50:.0f} ms  P95 {p95:.0f} ms  P99 {p99:.0f} ms  (toutes reponses)")
+    ok = report["latence_client_200_ms"]
+    print(f"  latence des 200 : P50 {ok['p50']:.0f} ms  P95 {ok['p95']:.0f} ms  P99 {ok['p99']:.0f} ms  (service rendu)")
     print(f"  inference serveur: {srv:.0f} ms en moyenne (reponses 200)")
+    if report["temoins"]:
+        t = report["temoins"]
+        print(f"  temoins         : {t['taux_de_succes']:.0%} de succes sur {t['envoyees']} messages, "
+              f"latence P50 {t['latence_200_ms']['p50']:.0f} ms  P95 {t['latence_200_ms']['p95']:.0f} ms  codes {t['codes']}")
     print(f"  rapport         : {run_dir.relative_to(ROOT)}  (rapport.json + rapport.txt)")
     if codes.get("5xx") or codes.get("timeout"):
         print("  -> des 5xx/timeouts : l'API a ete saturee (defense insuffisante ou absente).")

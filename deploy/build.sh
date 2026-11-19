@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Construit l'image Docker de l'API et la pousse dans Artifact Registry (README, étape 3 partie 4, étape 6).
+# Construit l'image Docker de l'API et la pousse dans Artifact Registry (docs/JOURNAL.md, étape 3 partie 4, étape 6).
 #
 #   TAG=v7 bash deploy/build.sh     (ou : make build TAG=v7)
 #

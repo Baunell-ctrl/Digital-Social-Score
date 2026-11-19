@@ -1,0 +1,8 @@
+# Lancer l'API et les tests en local, SANS carte graphique (make install).
+# PyTorch CPU s'installe à part : pip install torch --index-url https://download.pytorch.org/whl/cpu
+-r requirements-api.txt
+pytest>=8.0
+httpx>=0.27
+pandas>=2.0
+scikit-learn>=1.4
+requests>=2.31

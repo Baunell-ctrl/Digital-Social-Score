@@ -27,6 +27,8 @@ data:
 ---
 # Disque persistant de Grafana : sa base (source de données, comptes, jeton du synchroniseur) survit
 # aux redémarrages et aux déplacements du pod par Autopilot. Avant (emptyDir), tout était perdu à chaque fois.
+# Le volume est passé en "Retain" et sauvegardé chaque nuit (deploy/monitoring.sh, étape 3) : supprimer le PVC
+# ou le pod ne supprime pas le disque.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -85,7 +87,7 @@ spec:
               value: "http://34-54-213-190/grafana/"
             - name: GF_SERVER_SERVE_FROM_SUB_PATH
               value: "true"
-            - name: GF_SECURITY_COOKIE_SECURE           # pas de HTTPS dans ce TP : un cookie Secure ne serait jamais envoyé
+            - name: GF_SECURITY_COOKIE_SECURE           # Grafana est servi en HTTP derrière l'Ingress
               value: "false"
             - name: GF_SECURITY_DISABLE_GRAVATAR        # pas d'appel à un service tiers
               value: "true"
@@ -108,6 +110,14 @@ spec:
               path: /grafana/api/health
               port: 3000
             periodSeconds: 10
+          livenessProbe:            # Grafana bloqué : redémarré automatiquement (sa base est sur le disque)
+            httpGet:
+              path: /grafana/api/health
+              port: 3000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 4
           volumeMounts:
             - name: provisioning
               mountPath: /etc/grafana/provisioning/dashboards
@@ -125,6 +135,18 @@ spec:
         - name: data              # base SQLite de Grafana, sur le disque persistant
           persistentVolumeClaim:
             claimName: grafana-data
+---
+# Autopilot ne déplace pas Grafana de lui-même (regroupement de nœuds) : il reste allumé en permanence.
+# Une panne de nœud reste possible : le Deployment le recrée alors avec le même disque.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: grafana
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: grafana
 ---
 apiVersion: cloud.google.com/v1
 kind: BackendConfig

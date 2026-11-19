@@ -1,12 +1,14 @@
 """Exporte les fichiers nécessaires au déploiement du LSTM dans artifacts/.
 
 Usage : python -m src.models.export_lstm
-Écrit : lstm.pt (poids), vocab.json (30 000 mots -> numéros, indispensable), config.json (paramètres).
+Écrit : lstm.pt (poids), vocab.json (30 000 mots -> numéros, indispensable), config.json (paramètres),
+manifest.json (empreintes SHA-256 des fichiers, vérifiées par l'API au démarrage).
 """
 import json
 import shutil
 
 from src.models.lstm_binary import MAX_LEN, MAX_VOCAB, ROOT, build_vocab, load_splits
+from src.security.integrite import ecrire_manifeste
 
 OUT = ROOT / "artifacts"
 
@@ -21,7 +23,8 @@ def main():
               "max_len": MAX_LEN, "embedding_dim": 128, "hidden_dim": 128, "threshold": 0.5,
               "max_vocab": MAX_VOCAB}
     (OUT / "config.json").write_text(json.dumps(config, indent=2))
-    print("exporté dans", OUT, "| vocabulaire :", len(vocab), "mots")
+    ecrire_manifeste()  # empreintes SHA-256 vérifiées par l'API au démarrage
+    print("exporté dans", OUT, "| vocabulaire :", len(vocab), "mots | manifeste mis à jour")
 
 
 if __name__ == "__main__":

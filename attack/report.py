@@ -37,7 +37,14 @@ def render_report(report: dict) -> str:
         "=== Resume ===",
         f"  envoyees        : {report['total_envoyees']}  ({report['debit_moyen_req_s']} req/s en moyenne)",
         f"  codes           : {codes}",
-        f"  latence client  : P50 {lat.get('p50', 0):.0f} ms  P95 {lat.get('p95', 0):.0f} ms  P99 {lat.get('p99', 0):.0f} ms",
+        f"  latence client  : P50 {lat.get('p50', 0):.0f} ms  P95 {lat.get('p95', 0):.0f} ms  P99 {lat.get('p99', 0):.0f} ms"
+        "  (toutes reponses)",
+    ]
+    ok = report.get("latence_client_200_ms")
+    if ok:  # absent des rapports produits avant l'ajout de cette mesure
+        lines.append(f"  latence des 200 : P50 {ok['p50']:.0f} ms  P95 {ok['p95']:.0f} ms  P99 {ok['p99']:.0f} ms"
+                     "  (service rendu)")
+    lines += [
         f"  inference serveur: {report.get('inference_serveur_ms_moyenne', 0):.0f} ms en moyenne (reponses 200)",
     ]
     if codes.get("5xx") or codes.get("timeout"):

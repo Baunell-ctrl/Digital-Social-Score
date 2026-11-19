@@ -616,6 +616,111 @@
           "mode": "multi"
         }
       }
+    },
+    {
+      "id": 13,
+      "type": "row",
+      "title": "Dérive des données et du modèle (cours 1)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Part de textes jugés toxiques (référence au test : 52 %)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "gmp"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "gmp"
+          },
+          "expr": "sum(rate(dss_predictions_total{job=\"dss-api\",toxic=\"true\"}[10m])) / sum(rate(dss_predictions_total{job=\"dss-api\"}[10m]))",
+          "legendFormat": "part toxique"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Part moyenne de mots inconnus du modèle (référence au test : 3,4 %)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "gmp"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 25,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "gmp"
+          },
+          "expr": "sum(rate(dss_unknown_word_ratio_sum{job=\"dss-api\"}[10m])) / sum(rate(dss_unknown_word_ratio_count{job=\"dss-api\"}[10m]))",
+          "legendFormat": "mots inconnus"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
     }
   ],
   "templating": {

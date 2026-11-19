@@ -1,4 +1,4 @@
-# Pipeline CI/CD DevSecOps : lancé par Cloud Build à chaque push sur main (README, TP2 étape 5).
+# Pipeline CI/CD DevSecOps : lancé par Cloud Build à chaque push sur main (docs/JOURNAL.md, TP2 étape 5).
 # Si une étape échoue, les suivantes ne sont pas exécutées : rien n'est publié ni déployé.
 #
 #   1. secrets       gitleaks : aucun mot de passe ni clé dans le code
@@ -38,7 +38,7 @@ steps:
         python -m venv /workspace/.ci-venv          # gardé dans /workspace pour l'étape suivante
         . /workspace/.ci-venv/bin/activate
         pip install -q --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
-        pip install -q --no-cache-dir -r requirements-api.txt pandas scikit-learn pytest
+        pip install -q --no-cache-dir -r requirements-dev.txt          # mêmes dépendances que « make install »
         python -m spacy download en_core_web_sm
         python -m pytest tests -v
 

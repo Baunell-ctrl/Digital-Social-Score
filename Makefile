@@ -11,7 +11,7 @@ TAG    ?= $(shell sed -n 's/^TAG=\$${TAG:-\([^}]*\)}.*/\1/p' deploy/config.env)
 export TAG EMAIL PROJECT
 
 .DEFAULT_GOAL := help
-.PHONY: help test api docker bootstrap cluster build deploy diff rollback monitoring grafana-reset \
+.PHONY: help install test api demo docker bootstrap cluster build deploy diff rollback monitoring grafana-reset \
         grafana smoke attack attack-temoins client loadtest status logs destroy
 
 help: ## liste des cibles
@@ -19,11 +19,22 @@ help: ## liste des cibles
 	@echo; echo "  TAG=$(TAG) (deploy/config.env ; changer avec make deploy TAG=v7)"
 
 # ---------------------------------------------------------------------------------- en local
+install: ## installe de quoi lancer l'API et les tests, sans GPU (le modèle entraîné est déjà dans artifacts/)
+	$(PYTHON) -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+	$(PYTHON) -m pip install -r requirements-dev.txt
+	$(PYTHON) -m spacy download en_core_web_sm
+
 test: ## tests unitaires (pytest)
 	$(PYTHON) -m pytest tests -q
 
 api: ## API en local sur http://localhost:8000/docs (clé : test)
 	API_KEY=test $(PYTHON) -m uvicorn src.api.main:app --reload
+
+demo: ## 4 requêtes de démonstration sur l'API locale (lancer « make api » dans un autre terminal)
+	@echo "1. Message toxique :";  curl -s -X POST localhost:8000/score -H "X-API-Key: test" -H "Content-Type: application/json" -d '{"text": "you are a stupid idiot"}'; echo
+	@echo "2. Message poli :";     curl -s -X POST localhost:8000/score -H "X-API-Key: test" -H "Content-Type: application/json" -d '{"text": "Thank you for your help, have a nice day"}'; echo
+	@echo "3. Insulte déguisée :"; curl -s -X POST localhost:8000/score -H "X-API-Key: test" -H "Content-Type: application/json" -d '{"text": "you are a st.u.p.i.d 1diot"}'; echo
+	@echo "4. Sans clé (refusé) :"; curl -s -X POST localhost:8000/score -H "Content-Type: application/json" -d '{"text": "hello"}'; echo
 
 docker: ## image Docker en local, sur http://localhost:8080 (clé : test)
 	docker build -t digital-social-score .

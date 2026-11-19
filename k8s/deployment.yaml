@@ -1,5 +1,5 @@
 # API Digital Social Score sur GKE.
-# IMAGE est remplacé au déploiement (voir README, étape 3 partie 4) :
+# IMAGE est remplacé au déploiement (voir docs/JOURNAL.md, étape 3 partie 4) :
 #   sed "s|IMAGE|$IMAGE|" k8s/deployment.yaml | kubectl apply -f -
 apiVersion: apps/v1
 kind: Deployment
@@ -8,7 +8,7 @@ metadata:
   labels:
     app: dss-api
 spec:
-  replicas: 2                      # 2 pods minimum : le service survit à la perte d'un pod
+  replicas: 1                      # valeur de départ ; ensuite c'est le HPA qui décide (k8s/hpa.yaml, 1 à 15)
   selector:
     matchLabels:
       app: dss-api
@@ -47,6 +47,14 @@ spec:
               value: "8080"
             - name: TRUSTED_PROXY_HOPS     # IP du client = avant-dernière entrée de X-Forwarded-For (Ingress GKE)
               value: "2"
+            - name: MAX_CONCURRENT_SCORING # TP2 : 4 traitements /score simultanés par pod, 503 au-delà
+              value: "4"
+            - name: MAX_CONCURRENT_PER_CLIENT  # TP2 : au plus 2 de ces 4 places pour une même clé (partage équitable)
+              value: "2"
+            - name: SCORE_STEP             # TP2 : score arrondi par paliers de 5 (contre l'extraction du modèle)
+              value: "5"
+            - name: DAILY_QUOTA_PER_CLIENT # TP2 : quota quotidien par client et par pod (contre l'extraction)
+              value: "50000"
             # API_KEY (une clé) et/ou API_KEYS ("nom:clé,nom:clé", une clé par client).
             # Les deux sont facultatives ici, mais l'API refuse de démarrer sans aucune clé.
             - name: API_KEY

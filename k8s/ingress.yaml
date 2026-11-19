@@ -1,8 +1,5 @@
 # Point d'entrée public de l'API sur GKE : load balancer HTTP de Google.
 # - IP fixe "dss-ip" (gcloud compute addresses create dss-ip --global)
-# - HTTP uniquement, sans TLS : simplification assumée pour ce TP (les outils de test posaient trop de
-#   problèmes de certificats) ; conséquence : la clé API circule en clair sur le réseau
-#   (voir README, étape 4 partie 2).
 # - "/" : l'API et sa page web ; "/grafana" : Grafana (page de connexion, compte lecteur en lecture seule)
 apiVersion: networking.k8s.io/v1
 kind: Ingress

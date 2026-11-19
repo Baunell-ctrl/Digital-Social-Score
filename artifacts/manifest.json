@@ -1,0 +1,12 @@
+{
+  "date": "2026-11-17",
+  "modele": {
+    "lstm.pt": "9fbfc1b83a5624e5ab5e33e1e12a2086c18577c7c2d2d45d4f75d6c719a68dfb",
+    "vocab.json": "e8c875a11529b9f1a0a66a5a62515d1ba913475275c7183352aba6c43955aae1",
+    "config.json": "5771bb4585cf82bdb9e6bd7bec6a356c9217a41e9cac65dbef778c8d5d7e400e"
+  },
+  "donnees": {
+    "data/cleaned/train_dataset.csv": "36082b3f4d9694d84137e355f296bb23cec0b2e726755dadf3985d026c28223b",
+    "data/cleaned/val_dataset.csv": "bf2485a31a7cf002a3e6eb39bf0961bc744fcc8882af9de2d650a4868f0fd64a"
+  }
+}

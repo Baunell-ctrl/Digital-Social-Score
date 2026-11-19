@@ -341,7 +341,7 @@
   function show(d) {
     const s = d.score;
     const tone = s >= 50 ? "bad" : s >= 25 ? "warn" : "ok";
-    $("score").textContent = s.toFixed(1);
+    $("score").textContent = Number.isInteger(s) ? String(s) : s.toFixed(1);   // score arrondi par paliers de 5
     $("verdict").textContent = tone === "bad" ? "Inapproprié" : tone === "warn" ? "À surveiller" : "Acceptable";
     $("meta").textContent = "Modèle " + String(d.model).toUpperCase() + " · " + d.latency_ms + " ms";
     res.dataset.tone = tone;

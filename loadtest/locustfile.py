@@ -17,7 +17,7 @@ Exemple (API lancée avec API_KEY=test) :
         --host http://localhost:8000 --csv reports/loadtest/ramp --csv-full-history \\
         --html reports/loadtest/ramp.html
 
-Contre le cluster (servi en HTTP simple, pas de TLS dans ce TP) :
+Contre le cluster :
 
     SCENARIO=ramp API_KEY=$API_KEY locust -f loadtest/locustfile.py --headless --host http://$IP ...
 

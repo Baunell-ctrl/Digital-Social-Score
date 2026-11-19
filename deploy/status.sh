@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# État du déploiement, en lecture seule : image, pods, autoscaling, Ingress, certificat, collecte GMP.
+# État du déploiement, en lecture seule : image, pods, autoscaling, Ingress, collecte GMP.
 #
 #   bash deploy/status.sh           (ou : make status)
 source "$(dirname "$0")/lib.sh"

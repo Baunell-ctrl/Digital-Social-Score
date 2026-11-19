@@ -3,3 +3,7 @@
 *.env      text eol=lf
 Makefile   text eol=lf
 *.yaml     text eol=lf
+# Fichiers dont l'empreinte SHA-256 est vérifiée (artifacts/manifest.json) : jamais convertis, sinon un clone
+# Windows changerait leurs fins de ligne, les empreintes ne correspondraient plus et l'API refuserait de démarrer.
+artifacts/** -text
+data/**/*.csv -text

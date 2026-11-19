@@ -50,7 +50,7 @@ Ce que le TP demande : lister les composants, dessiner les flux, les authentific
 ### Plan proposé
 
 1. **Inventaire des composants.** Une ligne par composant : rôle, service Google Cloud, pourquoi ce choix, alternative écartée.
-   - Load balancer et certificat, pods de l'API et HPA, Grafana, Prometheus géré (GMP), alertes, Cloud Logging.
+   - Load balancer, pods de l'API et HPA, Grafana, Prometheus géré (GMP), alertes, Cloud Logging.
    - Secret Manager, Artifact Registry, Cloud Build, IAM et Workload Identity, KMS (prévu).
    - Point fort à souligner : **aucun stockage de données des utilisateurs**. Le modèle est dans l'image Docker, les textes ne sont jamais écrits.
 

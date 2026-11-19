@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Tests rapides de l'API déployée (README, étape 3 partie 4, étape 12, et grille de sécurité de l'étape 4).
+# Tests rapides de l'API déployée (docs/JOURNAL.md, étape 3 partie 4, étape 12, et grille de sécurité de l'étape 4).
 # Ne modifie rien : quelques requêtes seulement, sous la limite de 600 requêtes/minute.
 #
 #   bash deploy/smoke.sh            (ou : make smoke)
 #
-# L'API est servie en HTTP simple (pas de TLS dans ce TP, voir README étape 4 partie 2).
 source "$(dirname "$0")/lib.sh"
 need curl kubectl
 IP=$(api_ip)
