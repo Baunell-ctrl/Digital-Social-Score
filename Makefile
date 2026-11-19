@@ -84,8 +84,8 @@ attack: ## simulation d'attaque complète, environ 5 min (déclenche les alertes
 attack-temoins: ## attaque avec 10 utilisateurs témoins, 12 min (étape 6, partie 4.4 ; après make client NAME=temoins)
 	PYTHON=$(PYTHON) bash deploy/attack_temoins.sh
 
-client: ## ajoute un client et sa clé API (NAME=...), redémarrage sans coupure
-	bash deploy/add_client.sh $(NAME)
+client: ## ajoute un client et sa clé API (NAME=..., EXPIRE=AAAA-MM-JJ facultatif), redémarrage sans coupure
+	bash deploy/add_client.sh $(NAME) $(EXPIRE)
 
 loadtest: ## tous les tests de charge de l'étape 5, environ 30 min
 	PROJECT=$${PROJECT:-$$(gcloud config get-value project)} bash loadtest/run_gke.sh

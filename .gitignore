@@ -26,3 +26,6 @@ reports/images/loadtest_*.png
 # pipeline CI/CD
 .ci-venv/
 image.tar
+
+# Accès à envoyer au correcteur, jamais commités (dépôt public)
+ACCES_CORRECTEUR.md
