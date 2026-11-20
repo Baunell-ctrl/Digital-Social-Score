@@ -1,6 +1,8 @@
 # Digital Social Score
 
-Une API qui donne à un texte un **score de toxicité de 0 à 100**. Elle est entraînée sur 32 000 commentaires Wikipédia, déployée sur Google Cloud (région Paris), protégée et supervisée. Un tribunal d'agents IA juge en plus les messages signalés.
+**Projet réalisé par ADISSIN Aurel et AHLAN Emery**, dans le cadre du cours « Déploiement de solutions IA et cybersécurité » (TP1 à TP3).
+
+Une API qui donne à un texte un **score de toxicité de 0 à 100**, pour aider des modérateurs à repérer les commentaires toxiques : le score signale, un humain décide. Elle est entraînée sur 32 000 commentaires Wikipédia, déployée sur Google Cloud (région Paris), protégée et supervisée. Un tribunal d'agents IA juge en plus les messages signalés.
 
 ![Architecture : le parcours de la donnée](reports/images/architecture.png)
 
@@ -82,7 +84,7 @@ En cas de panne brutale d'une machine, Kubernetes recrée le pod tout seul : l'A
 
 | TP | Sujet | À retenir |
 | --- | --- | --- |
-| [**TP1**](README_TP1.md) | De l'analyse de texte à une API cloud sécurisée et scalable | LSTM retenu (F1 0,903, 1 ms par texte sur processeur), GKE Autopilot de 3 à 15 instances, environ 335 requêtes par seconde, RGPD, supervision Grafana |
+| [**TP1**](README_TP1.md) | De l'analyse de texte à une API cloud sécurisée et scalable | LSTM retenu (F1 0,903, 1 ms par texte sur processeur), GKE Autopilot de 3 à 15 pods, jusqu'à 335 requêtes par seconde sans erreur, RGPD, supervision Grafana |
 | [**TP2**](README_TP2.md) | De la menace à la défense | attaque par coût asymétrique puis défense (0 timeout, requêtes traitées 10 fois plus vite) ; défenses contre les mots déguisés, le vol du modèle, l'empoisonnement et le fuzzing ; IA Act ; pipeline DevSecOps |
 | [**TP3**](README_TP3.md) | Le Tribunal de la Bienséance | 4 agents Google ADK (Procureur, Avocat, Juge, Rédacteur) encadrés par du code Python ; page web pour les voir travailler en direct |
 
