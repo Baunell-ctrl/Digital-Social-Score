@@ -1,21 +1,37 @@
 # TP2 – Digital Social Score : de la menace à la défense
 
-**Contexte.** L'API du TP1 attribue un score de toxicité (0 à 100) à un texte. Elle tourne sur GKE Autopilot (3 à 15 pods, région Paris) et s'appuie sur un LSTM. Avant le modèle, chaque texte est anonymisé avec spaCy. L'API est protégée par une clé par client et une limite de 600 requêtes par minute par clé (comptée sur chaque pod).
+*Attaquer notre API, la défendre, prouver l'efficacité de la défense, démontrer sa conformité à l'IA Act et sécuriser son déploiement.*
 
-**Objectif du TP2 :** attaquer cette API, la défendre et prouver l'efficacité de la défense, démontrer sa conformité à l'IA Act, et sécuriser son pipeline de déploiement.
+**En bref.** Nous avons attaqué notre propre API avec des textes conçus pour coûter cher à analyser : elle a saturé avec très peu de trafic. Une défense simple supprime les timeouts : elle limite le travail simultané sur chaque pod et le partage équitablement entre les clients. Même face à 29 fois plus de requêtes d'attaque, 86 % des messages des utilisateurs légitimes sont servis, en 0,2 s. Le système est à risque minimal au sens de l'IA Act, et chaque déploiement passe par un pipeline qui vérifie sa sécurité et sa conformité.
 
-| Livrable demandé | Section |
-| ---------------- | ------- |
-| Fiche d'analyse « Attaque IA » | [1](#1-attaque-choisie) |
-| Graphique des métriques et interprétation | [2](#2-attaque--mise-en-œuvre-et-impact) |
-| Tableau avant/après et graphique de comparaison | [3](#3-défense) |
-| Fiche IA Act et `model_card.json` | [4](#4-conformité-ia-act) |
-| Pipeline sécurisé et logs d'exécution | [5](#5-pipeline-devsecops) |
-| Analyse critique et recommandations | [6](#6-analyse-critique-et-recommandations) |
+**Pour lire ce rapport**
+
+- **Pod** : une copie de l'API qui tourne dans le cluster Google Cloud. L'autoscaling en ajoute ou en retire selon la charge (de 3 à 15 pendant les mesures).
+- **P50, P95, P99** : la moitié, 95 % ou 99 % des requêtes ont été servies en moins de ce temps. Le P99 montre les pires cas.
+- **req/s** : requêtes par seconde.
+- **Codes de réponse** : `200` réponse servie ; `429` refus, trop de requêtes pour cette clé ; `503` refus, pod occupé, réessayer dans 2 s ; autres `5xx` : erreur du serveur.
+- **Dates des mesures** : attaque sans défense le 16/11/2026 ; même attaque avec défense le 17/11 ; mesure contrôlée en local le 17/11 ; vérification sur le cluster le 20/11.
+
+## Ce que demande le TP
+
+Le TP part de l'API du TP1 : un score de toxicité de 0 à 100, calculé par un LSTM après anonymisation du texte avec spaCy. Elle tourne sur GKE Autopilot (région Paris) et elle est protégée par une clé par client et une limite de 600 requêtes par minute et par clé, comptée sur chaque pod.
+
+### Où trouver chaque livrable
+
+| Livrable demandé | Où |
+| ---------------- | -- |
+| Fiche d'analyse « Attaque IA » | [Étape 1](#étape-1--choix-et-analyse-dune-attaque) |
+| Graphique des métriques et interprétation | [Étape 2](#étape-2--mise-en-œuvre-de-lattaque) |
+| Tableau avant/après et graphique de comparaison | [Étape 3](#étape-3--conception-dune-défense) |
+| Fiche IA Act et `model_card.json` | [Étape 4](#étape-4--conformité-ia-act) |
+| Pipeline sécurisé et logs d'exécution | [Étape 5](#étape-5--intégration-devsecops) |
+| Analyse critique et recommandations | [Bilan](#bilan--analyse-critique-et-recommandations) |
 
 ---
 
-## 1. Attaque choisie
+## Étape 1 : choix et analyse d'une attaque
+
+> Identifier la surface d'attaque de notre modèle et comprendre les menaces possibles sur une API exposée publiquement.
 
 **Déni de service par coût asymétrique.** L'attaquant n'envoie pas beaucoup de requêtes : il envoie des requêtes **valides mais très coûteuses** à traiter. Ce sont des textes de 5 000 caractères remplis de faux noms, de faux lieux, d'emojis et de caractères invisibles. Chacun oblige l'anonymisation (spaCy) à travailler au maximum. Chaque requête, prise seule, est légitime : elle passe la clé API, la validation et la limite de requêtes.
 
@@ -30,11 +46,13 @@
 | **Impact technique** | Latence de plusieurs dizaines de secondes, pods saturés, timeouts, autoscaling (donc surcoût). |
 | **Impact éthique** | Un outil de modération indisponible laisse passer des contenus toxiques, ou pousse à le désactiver en urgence. |
 | **Impact RGPD** | Pas de fuite de données (les textes sont fictifs), mais une atteinte à la disponibilité du traitement (art. 32 RGPD : sécurité, disponibilité et résilience). |
-| **Risque IA Act** | Défaut de robustesse et de cybersécurité au sens de l'art. 15. Pour notre système à risque minimal (section 4), c'est une bonne pratique ; ce serait une obligation dans un usage à haut risque. |
+| **Risque IA Act** | Défaut de robustesse et de cybersécurité au sens de l'art. 15. Pour notre système à risque minimal (étape 4), c'est une bonne pratique ; ce serait une obligation dans un usage à haut risque. |
 
 ---
 
-## 2. Attaque : mise en œuvre et impact
+## Étape 2 : mise en œuvre de l'attaque
+
+> Simuler concrètement une attaque IA et observer son impact mesurable.
 
 **Lancement.** Le 16/11/2026, contre l'API réelle sur GKE : 200 requêtes coûteuses en parallèle, en continu pendant 5 minutes, avec une clé valide.
 
@@ -60,7 +78,11 @@
 
 ---
 
-## 3. Défense
+## Étape 3 : conception d'une défense
+
+> Appliquer des contre-mesures concrètes et valider leur efficacité.
+
+### 1. La défense choisie
 
 **Choix.** Il fallait borner le **travail en cours** sur chaque pod, et pas seulement le nombre de requêtes.
 
@@ -72,9 +94,9 @@
 | **Délai du load balancer** | 30 s → 15 s | une requête bloquée est coupée plus tôt et libère la connexion |
 | **En-tête CSP** | interdit à un navigateur de charger quoi que ce soit depuis les réponses de l'API | signalé par l'audit *red team* d'une autre équipe (en-têtes de sécurité manquants) |
 
-**Résultat : même attaque, rejouée à l'identique le 17/11/2026**
+### 2. Résultat sur le cluster : la même attaque, avant et après
 
-Ce que sont devenues les requêtes de l'attaquant :
+La même attaque a été rejouée à l'identique le 17/11/2026, avec la défense. Ce que sont devenues les requêtes de l'attaquant :
 
 | | Sans défense (16/11) | Avec défense (17/11) |
 | --- | --- | --- |
@@ -120,9 +142,10 @@ Fichiers bruts : `reports/attack/flood_20261116_110433/` (sans défense) et `rep
 | CPU doublé par pod, donc un coût plus élevé | sans lui, les pods saturés redémarraient |
 | Une requête de plus de 15 s est coupée | avec la défense, une requête traitée prend 0,48 s en moyenne |
 
-### Mesure contrôlée : l'effet de chaque réglage sur les utilisateurs légitimes
+### 3. Effet sur les utilisateurs légitimes
 
-Le run du 17/11 laissait deux questions ouvertes : les quatre réglages étaient changés ensemble, et personne ne mesurait ce que vivaient les **autres** clients pendant l'attaque. Nous avons donc rejoué l'attaque en local, dans des conditions identiques, en ajoutant un réglage à la fois :
+**En local : l'effet de chaque réglage (17/11).** Le run du 17/11 laissait deux questions ouvertes : les quatre réglages étaient changés ensemble, et personne ne mesurait ce que vivaient les **autres** clients pendant l'attaque. Nous avons donc rejoué l'attaque en local, dans des conditions identiques, en ajoutant un réglage à la fois :
+
 - l'attaquant envoie 200 requêtes coûteuses en parallèle pendant 60 s ;
 - 5 **utilisateurs témoins**, sur une autre clé, envoient chacun un message normal par seconde ;
 - l'anonymisation spaCy est active, comme en production.
@@ -141,11 +164,11 @@ Les fichiers bruts sont dans `reports/attack/flood_local-*/`, et la latence est 
 
 - **Sans défense, tout le monde attend** : les témoins sont servis, mais en 5 s au lieu de 0,2 s. Sur le cluster, avec un demi-cœur par pod, cette attente tournait aux timeouts.
 - **Le limiteur seul est dangereux** : l'attaquant occupe en permanence les 4 places, et 99 % des messages des témoins sont refusés. La défense devient elle-même un déni de service.
-- **Avec la limite de requêtes, les témoins sont protégés (C)**, mais seulement parce que l'attaquant dépasse la limite de sa clé. Or l'attaque visait justement à **rester sous cette limite** (section 1).
+- **Avec la limite de requêtes, les témoins sont protégés (C)**, mais seulement parce que l'attaquant dépasse la limite de sa clé. Or l'attaque visait justement à **rester sous cette limite** (étape 1).
 - **Le limiteur équitable protège même dans ce cas (D)** : une clé ne peut plus prendre plus de 2 places, les autres clients gardent les leurs, et 86 % des messages des témoins passent en 0,2 s. Nous l'avons ajouté au code (`MAX_CONCURRENT_PER_CLIENT`) et à la configuration du déploiement.
 - **Son coût (E)** : les 5 témoins partagent une seule clé, donc un client qui envoie beaucoup de messages en même temps voit aussi refuser son troisième (14 % de `503`, à renvoyer après 2 s). C'est le prix de l'équité.
 
-**Vérification sur le cluster (20/11/2026).** Nous avons rejoué la configuration finale (E) sur Google Cloud, dans les conditions du run du 17/11 : 200 requêtes en parallèle pendant 300 s, avec 3 pods au départ (remontés pour l'occasion, comme le 17/11) et 5 témoins sur une clé à part (`reports/attack/flood_cluster-temoins_20261120_100629/`).
+**Sur le cluster : la configuration finale (20/11).** Nous avons rejoué la configuration finale (E) sur Google Cloud, dans les conditions du run du 17/11 : 200 requêtes en parallèle pendant 300 s, avec 3 pods au départ (remontés pour l'occasion, comme le 17/11) et 5 témoins sur une clé à part (`reports/attack/flood_cluster-temoins_20261120_100629/`).
 
 | | Local, configuration E (60 s) | **Cluster (300 s)** |
 | --- | :-: | :-: |
@@ -154,12 +177,19 @@ Les fichiers bruts sont dans `reports/attack/flood_local-*/`, et la latence est 
 | Témoins servis | 86 % | **86 %** (1 265 messages sur 1 468) |
 | Latence des témoins servis (P50 / P95) | 0,16 s / 0,42 s | **0,19 s / 0,66 s** |
 | Timeouts | 0 | **0** |
+| Requêtes **de l'attaquant** admises : attente côté client P50 (dont calcul serveur) | 0,34 s (0,28 s) | 1,56 s (1,0 s) |
 | Autres erreurs | 0 | 22 erreurs `502` (0,008 %) : connexion fermée par le pod avant la réponse |
 | Pods | 1 processus | 3 → 12 (autoscaling) |
 
 **Le résultat local se confirme en production** : face à 29 fois plus de requêtes que lors du run sans défense du 16/11, les utilisateurs légitimes gardent 86 % de leurs messages servis, en 0,2 s en médiane. Les 14 % refusés reçoivent un `503` immédiat, avec un délai pour réessayer.
 
-### Défenses contre les autres attaques du cours
+**Rapide pour les témoins, lent pour l'attaquant : c'est voulu.**
+
+- Seules 1 099 requêtes de l'attaquant sur 270 946 sont admises. Elles restent lentes : 1,56 s en médiane, dont 1,0 s de calcul.
+- Ce sont des textes faits pour coûter cher, traités sur des pods que l'attaque sature. Leur calcul prend deux fois plus de temps que le 17/11 (0,48 s, étape 3.2), parce que l'attaque envoie 2,3 fois plus de requêtes par seconde (899 contre 385).
+- La défense ne cherche pas à servir l'attaquant vite : elle garde des places pour les autres clients.
+
+### 4. Défenses contre les autres attaques du cours
 
 L'énoncé demande une attaque. Nous avons aussi protégé l'API contre les autres attaques présentées au cours 5. Chaque défense est dans le code et prouvée par un test (`tests/test_securite.py`, 27 tests, rejoués à chaque déploiement). Deux sont mesurées par une vraie attaque (`attack/adversarial.py`, `attack/extraction.py`).
 
@@ -170,7 +200,7 @@ L'énoncé demande une attaque. Nous avons aussi protégé l'API contre les autr
 | **Inversion, inférence d'appartenance** : deviner les données d'entraînement | score arrondi ; données d'entraînement anonymisées avant l'apprentissage | test : score toujours multiple de 5 |
 | **Empoisonnement** ou modèle remplacé | empreintes SHA-256 du modèle vérifiées au démarrage : un fichier modifié et l'API refuse de démarrer ; empreintes et audit des données à chaque déploiement | test : un vocabulaire modifié est refusé ; audit : 50 % de toxiques, 5 doublons aux étiquettes contradictoires sur 25 960 |
 | **Fuzzing, injection JSON** | schéma strict : un champ inconnu est refusé (`422`) ; le texte n'est jamais évalué ni exécuté | test : 200 entrées aléatoires et 8 injections, aucune erreur `500` |
-| **Clé exposée** | clés dans Secret Manager ; gitleaks bloque le déploiement si une clé est écrite dans le code | section 5 |
+| **Clé exposée** | clés dans Secret Manager ; gitleaks bloque le déploiement si une clé est écrite dans le code | étape 5 |
 
 **Mots déguisés : mesure.** Sur les 640 commentaires toxiques du test propre, l'attaquant déguise les 300 mots les plus liés à la toxicité dans les données d'entraînement (3 791 mots déguisés, 7 techniques).
 
@@ -193,9 +223,11 @@ La défense récupère presque toute la perte, sans gêner les messages normaux 
 
 ---
 
-## 4. Conformité IA Act
+## Étape 4 : conformité IA Act
 
-### Catégorie de risque : **risque minimal**
+> Évaluer notre modèle au regard du cadre européen IA Act et formaliser notre conformité.
+
+### 1. Catégorie de risque : **risque minimal**
 
 Usage prévu : aide à la modération de commentaires en ligne, avec relecture humaine.
 
@@ -208,7 +240,7 @@ Usage prévu : aide à la modération de commentaires en ligne, avec relecture h
 
 **La catégorie dépend de l'usage.** Le même score servant à évaluer des salariés ou des élèves deviendrait **à haut risque**. Servant à noter des personnes d'après l'ensemble de leurs messages, il deviendrait **interdit** (notation sociale). Ces usages sont exclus dans la model card.
 
-### Model card
+### 2. Model card
 
 Le fichier **`model_card.json`**, à la racine du projet, reprend les champs demandés et les complète :
 
@@ -221,7 +253,7 @@ Le fichier **`model_card.json`**, à la racine du projet, reprend les champs dem
 | `bias_detected` | **`true`** (test ci-dessous) |
 | Autres champs | usages exclus, performances (précision 0,87, rappel 0,94, F1 0,90), limites, mesures de sécurité, relecture humaine obligatoire |
 
-### Test de biais
+### 3. Test de biais
 
 Nous avons mesuré le biais avant de remplir `bias_detected`. Méthode : on soumet des phrases neutres, comme « I am a ___ person. », en remplaçant le blanc par un terme d'identité. On compare ensuite le score obtenu avec celui de mots neutres (*tall*, *young*…) placés dans la même phrase.
 
@@ -232,11 +264,15 @@ Nous avons mesuré le biais avant de remplir `bias_detected`. Méthode : on soum
 | Origine | +1,1 (« black » : +21) |
 | Genre | −6,2 |
 
-**Biais confirmé sur l'orientation sexuelle.** Dans les données d'entraînement, ces mots apparaissent surtout dans des insultes : le modèle a appris le mot, pas l'intention. Le niveau de risque reste minimal, mais ce résultat rend la relecture humaine indispensable. Le test est rejoué à chaque déploiement (section 5).
+**Biais confirmé sur l'orientation sexuelle.** Dans les données d'entraînement, ces mots apparaissent surtout dans des insultes : le modèle a appris le mot, pas l'intention. Le niveau de risque reste minimal, mais ce résultat rend la relecture humaine indispensable. Le test est rejoué à chaque déploiement (étape 5).
 
 ---
 
-## 5. Pipeline DevSecOps
+## Étape 5 : intégration DevSecOps
+
+> Intégrer la sécurité et la conformité dans le pipeline CI/CD.
+
+### 1. Le pipeline
 
 **Choix.** Un pipeline Cloud Build se lance à chaque push sur `main`. Les contrôles de sécurité et de conformité passent avant la construction et le déploiement. Une étape en échec arrête tout : rien n'est publié ni déployé.
 
@@ -251,7 +287,7 @@ Nous avons mesuré le biais avant de remplir `bias_detected`. Méthode : on soum
 | 7. Déploiement | GKE | les nouveaux pods ne démarrent pas (les anciens restent en service) |
 | 8. Vérification | test de l'API en ligne | l'API répond mal ; **retour automatique à la version précédente** |
 
-### Logs d'exécution
+### 2. Logs d'exécution
 
 **Un push non conforme est bloqué.** Ici, gitleaks a trouvé une valeur de clé API écrite en clair dans la documentation. Le build s'est arrêté à la première étape, et rien n'a été construit ni déployé.
 
@@ -263,7 +299,7 @@ Nous avons mesuré le biais avant de remplir `bias_detected`. Méthode : on soum
 
 ---
 
-## 6. Analyse critique et recommandations
+## Bilan : analyse critique et recommandations
 
 **Ce qui fonctionne**
 

@@ -23,6 +23,23 @@ COLS = (f"{'temps':>6}  {'envoyees':>9}  {'req/s':>6}  {'200':>6}  {'429':>6}  {
         f"{'timeout':>7}  {'P50':>7}  {'P95':>7}  {'P99':>7}  {'infer.srv':>9}")
 
 
+SEUIL_SATURATION = 0.01   # au-dela de 1 % d'erreurs (ou au premier timeout), l'API est consideree saturee
+
+
+def verdict(codes: dict) -> str:
+    """Conclusion d'une ligne. Les 503 (refus volontaires du limiteur) et 429 ne sont pas des erreurs."""
+    total = sum(codes.values()) or 1
+    erreurs = codes.get("5xx", 0) + codes.get("timeout", 0) + codes.get("erreur_reseau", 0)
+    if codes.get("timeout") or erreurs / total >= SEUIL_SATURATION:
+        return "  -> des 5xx/timeouts : l'API a ete saturee (defense insuffisante ou absente)."
+    if erreurs:
+        return (f"  -> {erreurs} erreurs 5xx/reseau ({erreurs / total:.3%}), aucun timeout : erreurs marginales, "
+                "l'API a tenu (seuil de saturation : 1 %).")
+    if codes.get("429"):
+        return "  -> surtout des 429 : la limite de requetes tient. Comparez avec/sans defense."
+    return "  -> aucune erreur."
+
+
 def render_report(report: dict) -> str:
     """Construit le texte lisible d'un rapport flood.py (dict charge depuis rapport.json)."""
     label = report.get("label") or "(sans etiquette)"
@@ -47,10 +64,12 @@ def render_report(report: dict) -> str:
     lines += [
         f"  inference serveur: {report.get('inference_serveur_ms_moyenne', 0):.0f} ms en moyenne (reponses 200)",
     ]
-    if codes.get("5xx") or codes.get("timeout"):
-        lines.append("  -> des 5xx/timeouts : l'API a ete saturee (defense insuffisante ou absente).")
-    elif codes.get("429"):
-        lines.append("  -> surtout des 429 : la limite de requetes tient. Comparez avec/sans defense.")
+    t = report.get("temoins")
+    if t:
+        lines.append(f"  temoins         : {t['taux_de_succes']:.0%} de succes sur {t['envoyees']} messages, "
+                     f"latence P50 {t['latence_200_ms']['p50']:.0f} ms  P95 {t['latence_200_ms']['p95']:.0f} ms  "
+                     f"codes {t['codes']}")
+    lines.append(verdict(codes))
     lines.append("")
 
     timeline = report.get("timeline", [])

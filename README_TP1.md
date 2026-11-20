@@ -1,21 +1,29 @@
-# TP1 – API « Digital Social Score »
+# TP1 – Digital Social Score : une API cloud sécurisée et scalable
 
 *De l'analyse de texte à l'infrastructure Cloud sécurisée, scalable et conforme.*
 
-**En bref.** L'API reçoit un texte et renvoie un score de toxicité de 0 à 100. Le texte est anonymisé, puis analysé par un modèle LSTM entraîné sur des commentaires Wikipédia. Elle tourne sur Google Cloud (GKE Autopilot, région Paris), avec 3 à 15 instances selon la charge, une clé API par client et une supervision complète.
+**En bref.** Notre API reçoit un texte et renvoie un score de toxicité de 0 à 100. Le texte est d'abord anonymisé, puis analysé par un modèle LSTM entraîné sur des commentaires Wikipédia. L'API tourne sur Google Cloud (GKE Autopilot, région Paris), avec 3 à 15 pods selon la charge, une clé API par client et une supervision complète.
 
-## Objectif global
+**Pour lire ce rapport**
+
+- **Pod** : une copie de l'API qui tourne dans le cluster Google Cloud. L'autoscaling en ajoute ou en retire selon la charge (de 3 à 15 pendant les mesures).
+- **P50, P95, P99** : la moitié, 95 % ou 99 % des requêtes ont été servies en moins de ce temps. Le P99 montre les pires cas.
+- **req/s** : requêtes par seconde.
+- **Codes de réponse** : `200` réponse servie ; `401` clé absente ou invalide ; `413` requête trop grosse ; `422` texte invalide ; `429` trop de requêtes pour cette clé ; `5xx` : erreur du serveur.
+- **Dates des mesures** : montée en charge le 12/11/2026 ; saturation avec la configuration améliorée le 13/11 ; contrôles de sécurité le 17/11. L'évaluation du modèle et ses temps sur processeur ont été refaits ensuite, sur le modèle déployé.
+
+## Ce que demande le TP
 
 | Le TP demande une API qui… | Notre réponse | Étape |
 | -------------------------- | ------------- | ----- |
 | détecte la toxicité d'un texte | LSTM entraîné sur le jeu Jigsaw, 6 types de toxicité regroupés en un seul | 2 |
 | attribue un score de 0 à 100 | probabilité du modèle × 100 | 3 |
 | respecte le RGPD | anonymisation avant le modèle, texte jamais stocké, logs pseudonymes, deux registres de traitement | 1 et 4 |
-| varie d'échelle sans rupture | 3 à 15 instances selon la charge ; jusqu'à 335 requêtes/s sans erreur | 5 et 6 |
+| varie d'échelle sans rupture | 3 à 15 pods selon la charge ; jusqu'à 335 req/s sans erreur | 5 et 6 |
 | est observable et auditable | métriques, tableau de bord Grafana, 7 alertes, journal d'audit | 6 |
 | est documentée par un schéma d'architecture | schéma du parcours de la donnée, avec texte explicatif | 7 |
 
-## Livrables
+### Où trouver chaque livrable
 
 | Livrable demandé | Où |
 | ---------------- | -- |
@@ -26,6 +34,7 @@
 | Tableau de bord / captures supervision | [Étape 6](#étape-6--sécurité-et-supervision) |
 | Rapport de simulation de charge | [Étape 5](#étape-5--simulation-de-montée-en-charge) |
 | Grille de tests sécurité / stress / failover | sécurité : [étape 4.3](#3-grille-de-tests-de-sécurité) ; stress et failover : [étape 5.2](#2-mesurer-latence-moyenne-p95p99-taux-derreur) |
+| Synthèse : limites et recommandations | [Bilan](#bilan--analyse-critique-et-recommandations) |
 
 ---
 
@@ -110,7 +119,7 @@ Le texte est mis en **minuscules**, et les **emojis**, les **sauts de ligne** et
 
 ### 3. Comparer précision, rappel et temps de traitement
 
-**Pourquoi 1 308 commentaires et pas les 6 490 du jeu de validation ?** **5 182 de ces 6 490 commentaires (80 %)** figurent aussi, mot pour mot ou sous le même identifiant, dans le jeu d'entraînement fourni. Les modèles les ont donc déjà vus, et leurs scores y sont gonflés : sur les 6 490, le LSTM obtient un F1 de 0,956. Nous ne gardons que les **1 308 commentaires jamais vus** (`python -m src.models.evaluate_lstm`, modèle déployé, pipeline de l'API) :
+**Les modèles sont évalués sur 1 308 commentaires, et pas sur les 6 490 du jeu de validation.** En effet, 5 182 de ces 6 490 commentaires (80 %) figurent aussi dans le jeu d'entraînement fourni, mot pour mot ou sous le même identifiant. Les modèles les ont déjà vus, donc leurs scores y sont gonflés : sur les 6 490, le LSTM obtiendrait un F1 de 0,956. Nous ne gardons que les **1 308 commentaires jamais vus** (`python -m src.models.evaluate_lstm`, avec le modèle déployé et le traitement de l'API) :
 
 | Modèle | Précision | Rappel | F1 | Temps par texte, sur processeur | Taille |
 | ------ | --------: | -----: | -: | ------------------------------: | -----: |
@@ -126,7 +135,7 @@ Dans l'API, une requête complète prend **4,1 ms**, dont **73 % pour l'anonymis
 
 **Ce qu'on perd :** le LSTM réagit aux mots plutôt qu'au sens. « You are a wonderful person » obtient 98,7, parce que la tournure « you are » précède souvent une insulte dans les données. Le test de biais (TP2) le confirme : 4 phrases neutres sur 8 sont jugées toxiques même avec un mot anodin (« I am a tall person. »).
 
-**En conditions réelles, la précision serait bien plus basse.** Le jeu fourni a été rééquilibré : il contient 50 % de commentaires toxiques. Dans le jeu Jigsaw d'origine, il y en a 10,2 % (16 225 sur 159 571). Le taux de faux positifs, lui, ne dépend pas de cette proportion. En le reportant sur 10,2 % de toxiques, on obtient la précision attendue. C'est un calcul à partir des mesures ci-dessus, pas une nouvelle mesure :
+**En conditions réelles, la précision serait bien plus basse.** Le jeu fourni a été rééquilibré à 50 % de commentaires toxiques, alors que le jeu Jigsaw d'origine n'en contient que 10,2 % (16 225 sur 159 571). Or, moins il y a de toxiques, plus les fausses alertes pèsent. Le tableau reporte nos taux de faux positifs sur la proportion réelle. C'est un calcul à partir des mesures ci-dessus, pas une nouvelle mesure :
 
 | Modèle | Faux positifs (sains jugés toxiques) | Précision mesurée (50 % de toxiques) | Précision calculée (10,2 % de toxiques) |
 | ------ | --: | --: | --: |
@@ -137,6 +146,7 @@ Dans l'API, une requête complète prend **4,1 ms**, dont **73 % pour l'anonymis
 Sur un vrai flux de commentaires, **plus d'un signalement du LSTM sur deux serait une fausse alerte**. L'écart avec BERT se creuse. Le choix du LSTM reste défendable pour le coût, mais à une condition : le score sert à trier, jamais à sanctionner seul (piste 1).
 
 **Pistes de correction**, de la moins chère à la plus chère :
+
 1. **Ne jamais sanctionner automatiquement** sur un score seul : le score sert à trier, un humain décide (c'est la règle de la model card et du TP3).
 2. **Ajouter à l'entraînement des phrases neutres et positives** de la même forme (« you are kind », « I am a … person »), puis rejouer le test de biais pour vérifier que les faux positifs baissent.
 3. Passer à BERT, qui comprend mieux le contexte : 7 points de précision en plus, pour un temps de calcul 14 fois plus long.
@@ -154,7 +164,7 @@ Le LSTM est exporté en **3 fichiers** (poids, vocabulaire, configuration), qui 
 | Choix | Pourquoi |
 | ----- | -------- |
 | **FastAPI** plutôt que Flask | validation automatique des entrées, documentation interactive générée automatiquement |
-| **GKE** (Kubernetes) plutôt qu'un service géré | contrôle du nombre d'instances, des contrôles de santé, de l'autoscaling et des mises à jour sans coupure, nécessaires aux étapes 5 et 6 |
+| **GKE** (Kubernetes) plutôt qu'un service géré | contrôle du nombre de pods, des contrôles de santé, de l'autoscaling et des mises à jour sans coupure, nécessaires aux étapes 5 et 6 |
 | Région **Paris** | les données restent en France (RGPD) |
 
 ### 2. Créer une API recevant un texte et renvoyant un score
@@ -216,7 +226,7 @@ Dix textes envoyés à l'API déployée sur GKE :
 | ---------- | ----- | ---------------- |
 | Texte | 1 à 5 000 caractères | 422 |
 | Taille de la requête | 32 Ko maximum | 413 |
-| Débit | 600 requêtes par minute par clé, comptées sur chaque instance (3 à 15), contre l'abus et le vol de modèle | 429 |
+| Débit | 600 requêtes par minute par clé, comptées sur chaque pod (3 à 15), contre l'abus et le vol de modèle | 429 |
 | Durée de vie des clés | date d'expiration facultative par clé (`nom:clé:AAAA-MM-JJ`) : une clé périmée est refusée | 401 |
 | Logs | seul un identifiant pseudonyme (HMAC) du texte et de l'IP est écrit, jamais le texte, la clé ou l'IP | – |
 | Conteneurs | sans privilèges administrateur | – |
@@ -225,7 +235,7 @@ Dix textes envoyés à l'API déployée sur GKE :
 
 | Identité | Droits |
 | -------- | ------ |
-| Instances de l'API | **aucun** droit Google Cloud |
+| Pods de l'API | **aucun** droit Google Cloud |
 | Machines du cluster | lire l'image, écrire les logs et les métriques |
 | Construction des images | écrire dans le seul registre du projet |
 | Clients de l'API | aucun : une clé API seulement |
@@ -293,7 +303,7 @@ Dix textes envoyés à l'API déployée sur GKE :
 
 ### 2. Mesurer latence moyenne, P95/P99, taux d'erreur
 
-Mesures du 12/11/2026 (2 à 10 instances à l'époque) :
+Mesures du 12/11/2026 (2 à 10 pods à l'époque) :
 
 | Scénario | Débit max | Latence moyenne | P95 | P99 | Erreurs |
 | -------- | --------: | --------------: | --: | --: | ------: |
@@ -304,20 +314,20 @@ Mesures du 12/11/2026 (2 à 10 instances à l'époque) :
 
 **Conclusions**
 
-- **Un service scalable, pas un prototype.** Un seul processus plafonnerait vers 20 req/s et s'arrêterait à la première panne. Le même code, réparti sur plusieurs instances derrière un load balancer, atteint **195 req/s** avec 0,03 % d'erreurs.
-- **Le CPU est le seul goulot** : 10 instances × environ 20 requêtes/s chacune. La mémoire reste à 12 %.
-- **Failover** : perdre **une** instance ne produit **aucune erreur** (remplacée en 16 s). Perdre **toutes** les instances coupe le service **13 secondes**.
+- **Un service scalable, pas un prototype.** Un seul processus plafonnerait vers 20 req/s et s'arrêterait à la première panne. Le même code, réparti sur plusieurs pods derrière un load balancer, atteint **195 req/s** avec 0,03 % d'erreurs.
+- **Le CPU est le seul goulot** : 10 pods × environ 20 req/s chacun. La mémoire reste à 12 %.
+- **Failover** : perdre **un** pod ne produit **aucune erreur** (remplacé en 16 s). Perdre **tous** les pods coupe le service **13 secondes**.
 - **Point faible : la réactivité.** Quand il faut de nouvelles machines, la capacité arrive plusieurs minutes après la charge.
 
-**Grille stress et failover** (critères de réussite que nous retenons ; résultats du 12/11/2026, puis de l'étape 6 après les améliorations) :
+**Grille stress et failover.** Les critères de réussite sont les nôtres. Les résultats sont ceux du 12/11/2026, et la dernière ligne ceux de l'étape 6, après les améliorations.
 
 | Test | Attendu | Obtenu |
 | ---- | ------- | ------ |
 | Croissance progressive (5 → 100 utilisateurs) | l'autoscaling suit, moins de 1 % d'erreurs | ✅ 153 req/s, 0,01 % d'erreurs |
 | Stress test (20 → 300 utilisateurs) | point de rupture identifié, moins de 1 % d'erreurs | ✅ 201 req/s au maximum, 0,03 % d'erreurs |
 | Stress test : latence | P95 sous 1 s | ❌ P95 de 2,6 s au point de rupture (CPU saturé) |
-| Panne d'**une** instance | aucune erreur, remplacement automatique | ✅ 0 erreur, remplacée en 16 s |
-| Panne de **toutes** les instances | reprise automatique, sans intervention | ⚠️ reprise automatique, mais 13 s de coupure |
+| Panne d'**un** pod | aucune erreur, remplacement automatique | ✅ 0 erreur, remplacé en 16 s |
+| Panne de **tous** les pods | reprise automatique, sans intervention | ⚠️ reprise automatique, mais 13 s de coupure |
 | Réactivité de l'autoscaling | capacité ajoutée avant la saturation | ❌ plusieurs minutes de retard quand il faut de nouvelles machines |
 | Après les améliorations (étape 6) | plus de débit, 0 erreur | ✅ environ 335 req/s, 0 erreur |
 
@@ -325,11 +335,11 @@ Mesures du 12/11/2026 (2 à 10 instances à l'époque) :
 
 | Piste du TP | Notre réponse |
 | ----------- | ------------- |
-| **Load balancer** | déjà en place : c'est grâce à lui que la perte d'une instance n'a produit aucune erreur |
-| **Redondance** | **appliquée** : au moins 3 instances, réparties sur plusieurs zones, et jamais moins de 2 pendant une maintenance de Google (pendant la période de correction : 1 instance au repos, voir le [README](README.md#2-la-version-en-ligne-sur-google-cloud)) |
+| **Load balancer** | déjà en place : c'est grâce à lui que la perte d'un pod n'a produit aucune erreur |
+| **Redondance** | **appliquée** : au moins 3 pods, répartis sur plusieurs zones, et jamais moins de 2 pendant une maintenance de Google (pendant la période de correction : 1 pod au repos, voir le [README](README.md#2-la-version-en-ligne-sur-google-cloud)) |
 | **Cache** | non retenu : utile seulement si les mêmes textes reviennent souvent, ce que nos tests ne permettent pas de mesurer |
 
-**Autres améliorations appliquées :** l'autoscaling démarre plus tôt (seuil 70 % → 50 % du CPU) et monte plus haut (10 → 15 instances). Le contrôle de santé est plus tolérant, pour qu'une instance occupée ne soit plus redémarrée par erreur. **Effet mesuré à l'étape 6 :** environ **335 req/s** au lieu de 195, et **0 erreur**.
+**Autres améliorations appliquées :** l'autoscaling démarre plus tôt (seuil 70 % → 50 % du CPU) et monte plus haut (10 → 15 pods). Le contrôle de santé est plus tolérant, pour qu'un pod occupé ne soit plus redémarré par erreur. **Effet mesuré à l'étape 6 :** environ **335 req/s** au lieu de 195, et **0 erreur**.
 
 ---
 
@@ -339,7 +349,7 @@ Mesures du 12/11/2026 (2 à 10 instances à l'époque) :
 
 ### 1. Analyser les logs et les comportements anormaux
 
-**Supervision :** chaque instance de l'API compte ses requêtes, sa latence, son temps de calcul et ses refus. Google (Managed Service for Prometheus) relève ces compteurs toutes les 30 s. Grafana les affiche et Cloud Monitoring envoie les alertes par email. Les logs, pseudonymisés, vont dans Cloud Logging.
+**Supervision :** chaque pod de l'API compte ses requêtes, sa latence, son temps de calcul et ses refus. Google (Managed Service for Prometheus) relève ces compteurs toutes les 30 s. Grafana les affiche et Cloud Monitoring envoie les alertes par email. Les logs, pseudonymisés, vont dans Cloud Logging.
 
 **Alertes :**
 
@@ -348,8 +358,8 @@ Mesures du 12/11/2026 (2 à 10 instances à l'époque) :
 | Objectif de latence | moins de 95 % des requêtes en moins de 300 ms, pendant 10 min |
 | Latence P95 | au-dessus de 500 ms, pendant 5 min |
 | Erreurs serveur | plus de 1 % de réponses 5xx |
-| CPU | une instance au-dessus de 90 % |
-| Service indisponible | plus aucune instance ne répond |
+| CPU | un pod au-dessus de 90 % |
+| Service indisponible | plus aucun pod ne répond |
 | Force brute | plus de 20 clés refusées par minute |
 | Extraction du modèle | un client dépasse la limite de requêtes |
 
@@ -357,7 +367,7 @@ Mesures du 12/11/2026 (2 à 10 instances à l'époque) :
 | -------------------- | ------------- |
 | Essais de clés (force brute) | refus d'authentification répétés venant d'une même source (identifiant pseudonyme), alerte « force brute » |
 | Client abusif ou copie du modèle | refus 429 pour ce client, alerte « extraction » ; on révoque sa clé |
-| Saturation | latence et CPU en hausse, nouvelles instances en attente de machine |
+| Saturation | latence et CPU en hausse, nouveaux pods en attente de machine |
 
 **Suivi de dérive** (le modèle vieillit si les textes reçus changent) : deux courbes Grafana la surveillent.
 
@@ -374,16 +384,16 @@ Mesures du 12/11/2026 (2 à 10 instances à l'époque) :
 
 ![Grafana pendant la saturation](reports/images/grafana_stress.png)
 
-![CPU par instance et nombre d'instances pendant la saturation](reports/images/grafana_stress_cpu.png)
+![CPU par pod et nombre de pods pendant la saturation](reports/images/grafana_stress_cpu.png)
 
 | | Fin de la montée progressive | Pic de la saturation |
 | - | --------------------------- | -------------------- |
 | Débit | ~210 req/s | **~335 req/s** |
 | Latence P95 / P99 | ~200 ms / ~450 ms | ~2 s / ~3,4 s |
-| Instances | 11 | **15** (le maximum) |
+| Pods | 11 | **15** (le maximum) |
 | Erreurs 5xx | 0 % | **0 %** |
 
-**Continuité du service : assurée.** Le service a ralenti au pic (P95 de 2 s), mais il a répondu à **toutes** les requêtes, et sa latence est revenue à la normale dès la fin de l'attaque. Le tableau de bord a montré chaque phase en direct : charge, latence, CPU et ajout des instances.
+**Continuité du service : assurée.** Le service a ralenti au pic (P95 de 2 s), mais il a répondu à **toutes** les requêtes, et sa latence est revenue à la normale dès la fin de l'attaque. Le tableau de bord a montré chaque phase en direct : charge, latence, CPU et ajout des pods.
 
 ---
 
@@ -395,9 +405,9 @@ Mesures du 12/11/2026 (2 à 10 instances à l'époque) :
 
 | Composant | Rôle | Service |
 | --------- | ---- | ------- |
-| **API** | reçoit le texte, contrôle la clé et l'entrée, renvoie le score | FastAPI sur **GKE Autopilot** (3 à 15 instances) |
+| **API** | reçoit le texte, contrôle la clé et l'entrée, renvoie le score | FastAPI sur **GKE Autopilot** (3 à 15 pods) |
 | **IA** | anonymisation, puis LSTM | spaCy et PyTorch, dans l'image de l'API |
-| **Point d'entrée** | adresse fixe, répartit les requêtes entre les instances saines | **Cloud Load Balancing** |
+| **Point d'entrée** | adresse fixe, répartit les requêtes entre les pods sains | **Cloud Load Balancing** |
 | **Stockage** | images de l'API ; secrets chiffrés ; **aucune donnée d'utilisateur** | **Artifact Registry** ; **Secret Manager** + **KMS** |
 | **Supervision** | métriques, tableau de bord, alertes, logs | **Cloud Monitoring** (Prometheus géré), **Grafana**, **Cloud Logging** |
 | **Construction** | fabrique l'image à partir du code | **Cloud Build** |
@@ -408,13 +418,36 @@ Mesures du 12/11/2026 (2 à 10 instances à l'époque) :
 
 ### 3. Texte explicatif et légende
 
-**Parcours de la donnée.** ① Hors ligne, le jeu de commentaires est anonymisé, nettoyé, puis sert à entraîner et comparer trois modèles. Le LSTM, retenu, est emballé avec l'API dans une image Docker. ② Cloud Build construit cette image et la range dans Artifact Registry, d'où GKE la déploie. Un client envoie son texte avec sa clé API. Le load balancer le transmet à une instance, qui vérifie la clé, anonymise le texte avec **le même traitement qu'à l'entraînement**, calcule le score et le renvoie. Le texte n'est jamais écrit nulle part. Chaque requête laisse une ligne de log pseudonyme, et les compteurs alimentent Cloud Monitoring, Grafana et les alertes.
+**Parcours de la donnée.** ① Hors ligne, le jeu de commentaires est anonymisé, nettoyé, puis sert à entraîner et comparer trois modèles. Le LSTM, retenu, est emballé avec l'API dans une image Docker. ② Cloud Build construit cette image et la range dans Artifact Registry, d'où GKE la déploie. Un client envoie son texte avec sa clé API. Le load balancer le transmet à un pod, qui vérifie la clé, anonymise le texte avec **le même traitement qu'à l'entraînement**, calcule le score et le renvoie. Le texte n'est jamais écrit nulle part. Chaque requête laisse une ligne de log pseudonyme, et les compteurs alimentent Cloud Monitoring, Grafana et les alertes.
 
 **Zero trust : rien n'est approuvé par défaut.**
 
 - **Chaque accès est authentifié** : clé API pour les clients, compte nommé pour Grafana, comptes de service pour les échanges entre services Google.
-- **Moindre privilège** : les instances de l'API n'ont aucun droit Google Cloud ; chaque compte de service n'a que les rôles dont il a besoin.
-- **Rien n'est exposé inutilement** : les instances n'ont pas d'adresse publique, seul le load balancer les joint par le réseau privé de Google.
+- **Moindre privilège** : les pods de l'API n'ont aucun droit Google Cloud ; chaque compte de service n'a que les rôles dont il a besoin.
+- **Rien n'est exposé inutilement** : les pods n'ont pas d'adresse publique, seul le load balancer les joint par le réseau privé de Google.
 - **Minimisation** : aucun texte stocké, logs pseudonymes, secrets chiffrés par KMS.
 
 **Légende :** flèches orange, préparation et déploiement du modèle ; vertes, requête d'un client ; bleues, flux internes à Google Cloud ; 🔑, accès authentifié ; 🔒, donnée chiffrée.
+
+---
+
+## Bilan : analyse critique et recommandations
+
+**Ce qui fonctionne**
+
+- L'API est complète et déployée : anonymisation, modèle, clé par client, validation des entrées, documentation, page de test.
+- Le choix du LSTM est mesuré, pas supposé : 14 fois plus rapide et 17 fois plus léger que BERT sur processeur, pour 2,7 points de F1 en moins.
+- Le service tient la charge : jusqu'à environ 335 req/s sans erreur, et la perte d'un pod ne produit aucune erreur.
+- La conformité est documentée : deux registres RGPD, une base légale justifiée, aucun texte stocké, des logs pseudonymes, des secrets chiffrés.
+- La supervision voit ce qui compte : latence, erreurs, force brute, extraction du modèle et dérive des données.
+
+**Limites et recommandations**
+
+| Limite | Recommandation |
+| ------ | -------------- |
+| En conditions réelles (10,2 % de toxiques), plus d'un signalement du LSTM sur deux serait une fausse alerte (précision calculée de 0,45) | garder un humain dans la boucle ; à terme, passer à BERT (0,65) si le budget le permet |
+| Le modèle réagit aux mots plus qu'au sens (« You are a wonderful person » : 98,7) et il est biaisé sur certains termes d'identité (test de biais du TP2) | ajouter des phrases neutres et positives à l'entraînement, puis rejouer le test de biais |
+| L'autoscaling réagit en minutes quand il faut de nouvelles machines, et la latence se dégrade au point de rupture (P95 de 2,6 s) | garder une marge de pods au repos pendant les périodes chargées |
+| La limite de requêtes est comptée sur chaque pod, pas sur l'ensemble du service | un compteur partagé entre les pods |
+| LAYA n'a pas pu être chronométré sur processeur, et il est entraîné sur moins de données que les autres | le réentraîner sur tout le jeu avant de conclure sur ce type de modèle |
+| Le jeu brut, non anonymisé, reste dans le dépôt pendant le projet | le supprimer du dépôt et de son historique Git à la fin du projet, comme prévu au registre |

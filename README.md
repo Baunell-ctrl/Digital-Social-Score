@@ -47,7 +47,7 @@ C'est la section ci-dessus : `make install`, `make test`, `make api`, puis http:
 | --- | --- |
 | les 73 tests (dont les 27 de sécurité du TP2) | `make test` |
 | l'API et sa page web | `make api`, puis `make demo` |
-| l'attaque par coût asymétrique, avec et sans défense | `python attack/flood.py --host http://localhost:8000 --key test --duration 60` (voir [TP2, section 3](README_TP2.md#3-défense)) |
+| l'attaque par coût asymétrique, avec et sans défense | `python attack/flood.py --host http://localhost:8000 --key test --duration 60` (voir [TP2, étape 3](README_TP2.md#étape-3--conception-dune-défense)) |
 | les mots déguisés et le vol du modèle | `python attack/adversarial.py`, `python attack/extraction.py` |
 | le tribunal d'agents (TP3) | voir la fin de [README_TP3.md](README_TP3.md) ; il faut une clé Gemini gratuite |
 
@@ -123,4 +123,4 @@ POST /score   {"text": "you are an idiot"}   avec l'en-tête X-API-Key
 make bootstrap cluster build deploy monitoring EMAIL=<adresse> smoke
 ```
 
-`make help` liste toutes les commandes. Après la mise en place, chaque push sur `main` passe par le pipeline Cloud Build : secrets, tests, analyse de sécurité, image, déploiement, vérification, avec retour automatique à la version précédente en cas d'échec ([TP2, section 5](README_TP2.md#5-pipeline-devsecops)).
+`make help` liste toutes les commandes. Après la mise en place, chaque push sur `main` passe par le pipeline Cloud Build : secrets, tests, analyse de sécurité, image, déploiement, vérification, avec retour automatique à la version précédente en cas d'échec ([TP2, étape 5](README_TP2.md#étape-5--intégration-devsecops)).

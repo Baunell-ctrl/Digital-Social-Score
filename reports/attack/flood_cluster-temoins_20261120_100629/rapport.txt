@@ -7,7 +7,8 @@ profil=mixed  workers=200  duree=301.5s  label=cluster-temoins  debut=2026-11-20
   latence client  : P50 169 ms  P95 538 ms  P99 1151 ms  (toutes reponses)
   latence des 200 : P50 1560 ms  P95 2641 ms  P99 3263 ms  (service rendu)
   inference serveur: 1035 ms en moyenne (reponses 200)
-  -> des 5xx/timeouts : l'API a ete saturee (defense insuffisante ou absente).
+  temoins         : 86% de succes sur 1468 messages, latence P50 192 ms  P95 662 ms  codes {'200': 1265, '503': 203}
+  -> 22 erreurs 5xx/reseau (0.008%), aucun timeout : erreurs marginales, l'API a tenu (seuil de saturation : 1 %).
 
 === Chronologie (1 ligne / seconde) ===
  temps   envoyees   req/s     200     429    5xx  timeout      P50      P95      P99  infer.srv

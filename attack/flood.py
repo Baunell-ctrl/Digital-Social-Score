@@ -33,7 +33,7 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))  # permet « python attack/flood.py » autant que « python -m attack.flood »
 from attack.payloads import build  # noqa: E402
-from attack.report import render_report  # noqa: E402
+from attack.report import render_report, verdict  # noqa: E402
 
 OUT_DIR = ROOT / "reports" / "attack"
 
@@ -264,10 +264,7 @@ def main() -> None:
         print(f"  temoins         : {t['taux_de_succes']:.0%} de succes sur {t['envoyees']} messages, "
               f"latence P50 {t['latence_200_ms']['p50']:.0f} ms  P95 {t['latence_200_ms']['p95']:.0f} ms  codes {t['codes']}")
     print(f"  rapport         : {run_dir.relative_to(ROOT)}  (rapport.json + rapport.txt)")
-    if codes.get("5xx") or codes.get("timeout"):
-        print("  -> des 5xx/timeouts : l'API a ete saturee (defense insuffisante ou absente).")
-    elif codes.get("429"):
-        print("  -> surtout des 429 : la limite de requetes tient. Comparez avec/sans defense.")
+    print(verdict(codes))
 
 
 if __name__ == "__main__":

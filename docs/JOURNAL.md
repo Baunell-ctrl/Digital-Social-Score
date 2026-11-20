@@ -1593,7 +1593,7 @@ Même attaque rejouée à l'identique (`attack/flood.py --workers 200 --duration
 
 ### Défenses complémentaires contre les autres attaques du cours 5 (17/11/2026)
 
-Compte rendu : [README_TP2.md, section 3](../README_TP2.md#défenses-contre-les-autres-attaques-du-cours). Code et commandes :
+Compte rendu : [README_TP2.md, étape 3.4](../README_TP2.md#4-défenses-contre-les-autres-attaques-du-cours). Code et commandes :
 
 | Attaque | Défense (code) | Mesure ou preuve |
 | ------- | -------------- | ---------------- |
