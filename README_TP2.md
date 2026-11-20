@@ -145,6 +145,20 @@ Les fichiers bruts sont dans `reports/attack/flood_local-*/`, et la latence est 
 - **Le limiteur équitable protège même dans ce cas (D)** : une clé ne peut plus prendre plus de 2 places, les autres clients gardent les leurs, et 86 % des messages des témoins passent en 0,2 s. Nous l'avons ajouté au code (`MAX_CONCURRENT_PER_CLIENT`) et à la configuration du déploiement.
 - **Son coût (E)** : les 5 témoins partagent une seule clé, donc un client qui envoie beaucoup de messages en même temps voit aussi refuser son troisième (14 % de `503`, à renvoyer après 2 s). C'est le prix de l'équité.
 
+**Vérification sur le cluster (20/11/2026).** Nous avons rejoué la configuration finale (E) sur Google Cloud, dans les conditions du run du 17/11 : 200 requêtes en parallèle pendant 300 s, avec 3 pods au départ (remontés pour l'occasion, comme le 17/11) et 5 témoins sur une clé à part (`reports/attack/flood_cluster-temoins_20261120_100629/`).
+
+| | Local, configuration E (60 s) | **Cluster (300 s)** |
+| --- | :-: | :-: |
+| Requêtes de l'attaquant | 78 601 | 270 946 (899 par seconde) |
+| Refusées vite (`429` et `503`) | 99,99 % | 99,6 % |
+| Témoins servis | 86 % | **86 %** (1 265 messages sur 1 468) |
+| Latence des témoins servis (P50 / P95) | 0,16 s / 0,42 s | **0,19 s / 0,66 s** |
+| Timeouts | 0 | **0** |
+| Autres erreurs | 0 | 22 erreurs `502` (0,008 %) : connexion fermée par le pod avant la réponse |
+| Pods | 1 processus | 3 → 12 (autoscaling) |
+
+**Le résultat local se confirme en production** : face à 29 fois plus de requêtes que lors du run sans défense du 16/11, les utilisateurs légitimes gardent 86 % de leurs messages servis, en 0,2 s en médiane. Les 14 % refusés reçoivent un `503` immédiat, avec un délai pour réessayer.
+
 ### Défenses contre les autres attaques du cours
 
 L'énoncé demande une attaque. Nous avons aussi protégé l'API contre les autres attaques présentées au cours 5. Chaque défense est dans le code et prouvée par un test (`tests/test_securite.py`, 27 tests, rejoués à chaque déploiement). Deux sont mesurées par une vraie attaque (`attack/adversarial.py`, `attack/extraction.py`).
@@ -264,7 +278,7 @@ Nous avons mesuré le biais avant de remplir `bias_detected`. Méthode : on soum
 | Limite | Recommandation |
 | ------ | -------------- |
 | Le coût de chaque requête reste élevé : la défense limite le nombre de traitements, pas leur prix | plafonner la quantité de texte analysée par l'anonymisation |
-| L'effet sur les clients légitimes et l'effet de chaque réglage sont mesurés en local, pas sur le cluster ; le CPU et le délai du load balancer, réglages d'infrastructure, ne sont pas isolés | rejouer la mesure contrôlée (`attack/flood.py --temoins 5`) sur le cluster |
+| L'effet de chaque réglage est isolé en local seulement ; sur le cluster, seule la configuration finale est vérifiée (86 % des témoins servis). Le CPU et le délai du load balancer, réglages d'infrastructure, ne sont pas isolés | rejouer sur le cluster les configurations A à D, chacune sur un déploiement dédié |
 | La limite de requêtes et le partage équitable sont par clé : un attaquant avec plusieurs clés y échappe | quota de temps de calcul par client, ou filtrage par IP en amont (Cloud Armor) |
 | Biais du modèle sur l'orientation sexuelle | ajouter au jeu d'entraînement des phrases non toxiques contenant ces termes, puis rejouer le test de biais |
 | L'arrondi du score ne freine pas le vol du modèle (mesuré) ; limite et quota sont comptés par pod | compteur partagé entre les pods, et alerte sur le volume par client |

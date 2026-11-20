@@ -244,6 +244,18 @@ Dix textes envoyés à l'API déployée sur GKE :
 | Droits des personnes | aucun texte conservé : rien à communiquer ni à effacer |
 | Analyse d'impact | à mener avant une mise en production (évaluation automatisée de contenus) |
 
+**Pourquoi l'intérêt légitime tient : la mise en balance.** La CNIL demande trois vérifications avant de retenir cette base légale. Elles valent pour les deux registres.
+
+| Vérification | API de scoring | Jeu d'entraînement |
+| ------------ | -------------- | ------------------ |
+| **1. L'intérêt est-il légitime ?** (licite, réel, présent) | Oui. Les plateformes doivent traiter les contenus haineux qui leur sont signalés (règlement européen sur les services numériques). Le client modère déjà, et l'API l'aide à trier. | Oui. Entraîner un outil de modération, dans un cadre pédagogique. |
+| **2. Le traitement est-il nécessaire ?** (pas de moyen moins intrusif) | On ne peut pas juger un texte sans le lire. Mais l'API ne lit **que le texte** : aucun identifiant d'auteur n'est demandé, les noms, emails et IP sont retirés avant le modèle, et rien n'est conservé. | Un modèle de toxicité doit voir de vrais commentaires. Les données personnelles sont retirées avant l'entraînement. |
+| **3. Les droits des personnes l'emportent-ils ?** Attentes raisonnables | Un message publié sur une plateforme modérée s'attend à être relu par la modération. | Les commentaires sont des pages de discussion **publiques** de Wikipédia. |
+| Risque principal | **Une sanction injuste** : en conditions réelles, plus d'un signalement sur deux serait une fausse alerte (précision calculée de 0,45, étape 2). Des données sensibles (religion, origine, orientation) peuvent aussi apparaître dans les textes. | Ré-identifier un auteur à partir d'un texte. |
+| Garanties qui rééquilibrent | Le score est une **aide à la décision** : un humain décide, et la model card exclut la sanction automatique. Aucun texte ni profil d'auteur n'est stocké. Logs pseudonymes, conservés 30 jours. Hébergement en France. | Anonymisation par NER. Usage limité à l'équipe. Suppression du jeu brut à la fin du projet. |
+
+**Conclusion : l'équilibre est acceptable, avec ces garanties.** Il ne le serait plus si l'API sanctionnait automatiquement, ou si elle conservait les textes pour profiler les auteurs. Dans ces cas, il faudrait une autre base légale et une analyse d'impact préalable.
+
 ### 3. Grille de tests de sécurité
 
 | Test | Attendu | Obtenu sur le cluster |
