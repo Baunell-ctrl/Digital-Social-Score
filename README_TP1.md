@@ -2,6 +2,8 @@
 
 *De l'analyse de texte à l'infrastructure Cloud sécurisée, scalable et conforme.*
 
+**Membres du groupe :** ADISSIN Aurel et AHLAN Emery
+
 **En bref.** Notre API reçoit un texte et renvoie un score de toxicité de 0 à 100. Le texte est d'abord anonymisé, puis analysé par un modèle LSTM entraîné sur des commentaires Wikipédia. L'API tourne sur Google Cloud (GKE Autopilot, région Paris), avec 3 à 15 pods selon la charge, une clé API par client et une supervision complète.
 
 **Pour lire ce rapport**

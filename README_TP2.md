@@ -2,6 +2,8 @@
 
 *Attaquer notre API, la défendre, prouver l'efficacité de la défense, démontrer sa conformité à l'IA Act et sécuriser son déploiement.*
 
+**Membres du groupe :** ADISSIN Aurel et AHLAN Emery
+
 **En bref.** Nous avons attaqué notre propre API avec des textes conçus pour coûter cher à analyser : elle a saturé avec très peu de trafic. Une défense simple supprime les timeouts : elle limite le travail simultané sur chaque pod et le partage équitablement entre les clients. Même face à 29 fois plus de requêtes d'attaque, 86 % des messages des utilisateurs légitimes sont servis, en 0,2 s. Le système est à risque minimal au sens de l'IA Act, et chaque déploiement passe par un pipeline qui vérifie sa sécurité et sa conformité.
 
 **Pour lire ce rapport**

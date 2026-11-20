@@ -1,5 +1,7 @@
 # TP3 : le Tribunal de la Bienséance
 
+**Membres du groupe :** ADISSIN Aurel et AHLAN Emery
+
 Système multi-agents **Google ADK 2.x** qui juge les messages signalés de Cancanpédia selon la Charte et le Guide du Censeur. Il est branché sur notre Digital Social Score (TP1). Énoncé : `docs/TP3_Tribunal_de_la_Bienseance.pdf`. Dossier : `docs/Dossier_CSBN.pdf`.
 
 Principe du cours n°6 : **les agents décident, les outils agissent**. Tout ce qui est un calcul (seuils, points, majuscules, dates) est du code Python testé. Les agents ne servent qu'à comprendre le sens d'un message.
