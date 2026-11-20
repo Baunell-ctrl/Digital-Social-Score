@@ -28,4 +28,4 @@ reports/images/loadtest_*.png
 image.tar
 
 # Accès à envoyer au correcteur, jamais commités (dépôt public)
-ACCES_CORRECTEUR.md
+livrable/CONFIDENTIEL_*
