@@ -100,17 +100,17 @@ Le texte est mis en **minuscules**, et les **emojis**, les **sauts de ligne** et
 
 ### 2. Entraîner trois modèles : LSTM, BERT et LAYA
 
-**Choix commun :** les 6 types de toxicité sont regroupés en **une seule question**, « ce texte est-il inapproprié ? ». La réponse est oui si au moins un des 6 est présent. L'API doit dire si un contenu pose problème, pas classer le type d'insulte. Les trois modèles utilisent les mêmes données et le même découpage, donc leurs résultats sont comparables.
+**Choix commun :** les 6 types de toxicité sont regroupés en **une seule question**, « ce texte est-il inapproprié ? ». La réponse est oui si au moins un des 6 est présent. L'API doit dire si un contenu pose problème, pas classer le type d'insulte. Les trois modèles sont évalués sur **les mêmes commentaires de test**. LSTM et BERT sont entraînés sur tout le jeu d'entraînement (25 960 commentaires, dont 2 596 réservés au réglage), LAYA sur 10 000 seulement : la comparaison le désavantage un peu.
 
 | Modèle | Type | Ce que nous avons entraîné |
 | ------ | ---- | -------------------------- |
 | **LSTM** | statistique | réseau récurrent bidirectionnel, 30 000 mots de vocabulaire, entraîné de zéro |
 | **BERT** | transformer | DistilBERT (66 millions de paramètres) pré-entraîné, affiné sur nos données |
-| **LAYA** | décisionnaire | encodeur ModernBERT (400 millions de paramètres) gelé, seule la tête de décision est entraînée, sur 10 000 commentaires (limite de mémoire de la carte graphique) |
+| **LAYA** | décisionnaire | encodeur ModernBERT (400 millions de paramètres) gelé, seule la tête de décision est entraînée, sur 10 000 commentaires (limite de mémoire de la carte graphique). En pratique, c'est un classifieur posé sur un encodeur figé plutôt qu'un modèle qui raisonne sur des règles |
 
 ### 3. Comparer précision, rappel et temps de traitement
 
-Sur 1 308 commentaires jamais vus pendant l'entraînement (LSTM : `python -m src.models.evaluate_lstm`, modèle déployé, pipeline de l'API) :
+**Pourquoi 1 308 commentaires et pas les 6 490 du jeu de validation ?** **5 182 de ces 6 490 commentaires (80 %)** figurent aussi, mot pour mot ou sous le même identifiant, dans le jeu d'entraînement fourni. Les modèles les ont donc déjà vus, et leurs scores y sont gonflés : sur les 6 490, le LSTM obtient un F1 de 0,956. Nous ne gardons que les **1 308 commentaires jamais vus** (`python -m src.models.evaluate_lstm`, modèle déployé, pipeline de l'API) :
 
 | Modèle | Précision | Rappel | F1 | Temps par texte, sur processeur | Taille |
 | ------ | --------: | -----: | -: | ------------------------------: | -----: |
@@ -125,6 +125,16 @@ Dans l'API, une requête complète prend **4,1 ms**, dont **73 % pour l'anonymis
 **Conclusion : nous retenons le LSTM.** BERT est le plus précis, mais l'écart n'est que de 2,7 points de F1 (7 points de précision ; le LSTM a en revanche le meilleur rappel). En face, le LSTM est **14 fois plus rapide** sur processeur et **17 fois plus léger**, sans carte graphique. Dans le cloud, cela veut dire une image plus petite, moins de calcul par requête et une facture plus basse.
 
 **Ce qu'on perd :** le LSTM réagit aux mots plutôt qu'au sens. « You are a wonderful person » obtient 98,7, parce que la tournure « you are » précède souvent une insulte dans les données. Le test de biais (TP2) le confirme : 4 phrases neutres sur 8 sont jugées toxiques même avec un mot anodin (« I am a tall person. »).
+
+**En conditions réelles, la précision serait bien plus basse.** Le jeu fourni a été rééquilibré : il contient 50 % de commentaires toxiques. Dans le jeu Jigsaw d'origine, il y en a 10,2 % (16 225 sur 159 571). Le taux de faux positifs, lui, ne dépend pas de cette proportion. En le reportant sur 10,2 % de toxiques, on obtient la précision attendue. C'est un calcul à partir des mesures ci-dessus, pas une nouvelle mesure :
+
+| Modèle | Faux positifs (sains jugés toxiques) | Précision mesurée (50 % de toxiques) | Précision calculée (10,2 % de toxiques) |
+| ------ | --: | --: | --: |
+| LSTM | 13,0 % | 0,873 | **0,45** |
+| BERT | 5,5 % | 0,941 | **0,65** |
+| LAYA | 8,8 % | 0,908 | **0,54** |
+
+Sur un vrai flux de commentaires, **plus d'un signalement du LSTM sur deux serait une fausse alerte**. L'écart avec BERT se creuse. Le choix du LSTM reste défendable pour le coût, mais à une condition : le score sert à trier, jamais à sanctionner seul (piste 1).
 
 **Pistes de correction**, de la moins chère à la plus chère :
 1. **Ne jamais sanctionner automatiquement** sur un score seul : le score sert à trier, un humain décide (c'est la règle de la model card et du TP3).
@@ -287,12 +297,24 @@ Mesures du 12/11/2026 (2 à 10 instances à l'époque) :
 - **Failover** : perdre **une** instance ne produit **aucune erreur** (remplacée en 16 s). Perdre **toutes** les instances coupe le service **13 secondes**.
 - **Point faible : la réactivité.** Quand il faut de nouvelles machines, la capacité arrive plusieurs minutes après la charge.
 
+**Grille stress et failover** (critères de réussite que nous retenons ; résultats du 12/11/2026, puis de l'étape 6 après les améliorations) :
+
+| Test | Attendu | Obtenu |
+| ---- | ------- | ------ |
+| Croissance progressive (5 → 100 utilisateurs) | l'autoscaling suit, moins de 1 % d'erreurs | ✅ 153 req/s, 0,01 % d'erreurs |
+| Stress test (20 → 300 utilisateurs) | point de rupture identifié, moins de 1 % d'erreurs | ✅ 201 req/s au maximum, 0,03 % d'erreurs |
+| Stress test : latence | P95 sous 1 s | ❌ P95 de 2,6 s au point de rupture (CPU saturé) |
+| Panne d'**une** instance | aucune erreur, remplacement automatique | ✅ 0 erreur, remplacée en 16 s |
+| Panne de **toutes** les instances | reprise automatique, sans intervention | ⚠️ reprise automatique, mais 13 s de coupure |
+| Réactivité de l'autoscaling | capacité ajoutée avant la saturation | ❌ plusieurs minutes de retard quand il faut de nouvelles machines |
+| Après les améliorations (étape 6) | plus de débit, 0 erreur | ✅ environ 335 req/s, 0 erreur |
+
 ### 3. Proposer des améliorations (cache, load balancer, redondance)
 
 | Piste du TP | Notre réponse |
 | ----------- | ------------- |
 | **Load balancer** | déjà en place : c'est grâce à lui que la perte d'une instance n'a produit aucune erreur |
-| **Redondance** | **appliquée** : au moins 3 instances, réparties sur plusieurs zones, et jamais moins de 2 pendant une maintenance de Google |
+| **Redondance** | **appliquée** : au moins 3 instances, réparties sur plusieurs zones, et jamais moins de 2 pendant une maintenance de Google (pendant la période de correction : 1 instance au repos, voir le [README](README.md#2-la-version-en-ligne-sur-google-cloud)) |
 | **Cache** | non retenu : utile seulement si les mêmes textes reviennent souvent, ce que nos tests ne permettent pas de mesurer |
 
 **Autres améliorations appliquées :** l'autoscaling démarre plus tôt (seuil 70 % → 50 % du CPU) et monte plus haut (10 → 15 instances). Le contrôle de santé est plus tolérant, pour qu'une instance occupée ne soit plus redémarrée par erreur. **Effet mesuré à l'étape 6 :** environ **335 req/s** au lieu de 195, et **0 erreur**.
